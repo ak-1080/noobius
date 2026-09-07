@@ -5,7 +5,7 @@ import { Check, Copy } from 'lucide-react';
 // Display-only placeholder. Replace when the actual contract is launched.
 const CONTRACT_ADDRESS = '0x7a9c3e5f2b8d4a6c1e0f9b3d5a7c8e2f4b6d1a90';
 
-export default function ContractAddress() {
+export default function ContractAddress({ onToken }: { onToken: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState('');
   useEffect(() => {
@@ -25,7 +25,12 @@ export default function ContractAddress() {
   };
   return (
     <div className="contract-address">
-      <span className="contract-address-label">CA · placeholder</span>
+      <span className="contract-address-label">
+        CA ·{' '}
+        <button type="button" onClick={onToken}>
+          $NOOBIUS
+        </button>
+      </span>
       <div className="contract-address-field">
         <input
           ref={input}

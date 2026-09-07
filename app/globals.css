@@ -313,6 +313,17 @@ a {
   background: #15252bbd;
   backdrop-filter: blur(10px);
 }
+.contract-address-label button {
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.contract-address-label button:hover {
+  color: var(--mint);
+}
 .contract-address-field input {
   width: 100%;
   min-width: 0;

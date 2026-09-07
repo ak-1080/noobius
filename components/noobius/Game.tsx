@@ -70,6 +70,7 @@ type Panel =
   | 'profile'
   | 'guide'
   | 'crew'
+  | 'story'
   | 'token'
   | 'locker'
   | 'report'
@@ -452,8 +453,7 @@ export default function NoobiusGame() {
           </button>
           <nav aria-label="Main navigation">
             <button onClick={() => show('guide')}>How to play</button>
-            <button onClick={() => show('crew')}>Crew</button>
-            <button onClick={() => show('token')}>$NOOBIUS</button>
+            <button onClick={() => show('story')}>The story</button>
           </nav>
           <Button
             className="connect-button"
@@ -492,7 +492,7 @@ export default function NoobiusGame() {
                 : 'Play now'}
             <ArrowRight size={20} />
           </Button>
-          <ContractAddress />
+          <ContractAddress onToken={() => show('token')} />
         </main>
       ) : (
         <main className="play-world" aria-label="The Noobius night shift">
@@ -664,6 +664,7 @@ export default function NoobiusGame() {
                   profile: 'Your employee badge.',
                   guide: 'The field guide.',
                   crew: 'The night-shift crew.',
+                  story: 'Meet Noobius.',
                   token: 'A noob. A crew. A token.',
                   locker: 'The equipment locker.',
                   report:
@@ -690,6 +691,7 @@ export default function NoobiusGame() {
                   profile: 'Your place on the night shift.',
                   guide: 'Everything you need for your first night on the job.',
                   crew: 'Each technician’s best completed shift. Practice shifts are not ranked.',
+                  story: 'The hardest-working noob in AI.',
                   token: 'The community grows around Noobius.',
                   locker: 'Better tools. Same questionable technician.',
                   report:
@@ -1132,6 +1134,29 @@ export default function NoobiusGame() {
                 </button>
               </div>
             </Tabs>
+          )}
+          {panel === 'story' && (
+            <div className="token-panel">
+              <p>
+                Somewhere inside a giant AI data center, the night shift has
+                started. Billions of dollars of hardware. Thousands of blinking
+                lights. One very underqualified employee.
+              </p>
+              <p>
+                Meet Noobius. He has a headset, a repair kit, and absolutely no
+                idea which cable he just unplugged. While everyone else talks
+                about the future, he’s underneath a server rack trying to turn
+                it back on.
+              </p>
+              <p>
+                Start with one broken machine. Scavenge parts, build your first
+                rack, and earn your way into the bigger rooms. Margo, Bit, and
+                Patch will help. Mostly. Every green light is a small victory.
+              </p>
+              <div className="token-note">
+                Someone has to keep the future online.
+              </div>
+            </div>
           )}
           {panel === 'token' && (
             <div className="token-panel">
