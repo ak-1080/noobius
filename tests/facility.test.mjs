@@ -17,7 +17,7 @@ import { resolveObjective } from '../lib/objectives.ts';
 const act = (f, type, extras = {}, credits = 1000, now = 100000) =>
   applyFacility(
     f,
-    { type, ...extras, requestId: crypto.randomUUID() },
+    { type, ...extras, requestId: extras.requestId ?? crypto.randomUUID() },
     credits,
     now,
   );
@@ -259,4 +259,134 @@ test('one objective route can finish every story project without invented invent
     9,
   );
   assert.ok(resolveObjective(f, credits, now).title);
+});
+
+test('compute storage is capped, keeps fractional ticks, and pauses exactly at an outage', async () => {
+  const { storedComputeNow, computeTankCapacity } =
+    await import('../lib/facility.ts');
+  let f = newFacility(0);
+  f.builds = { 'rack-a': 1 };
+  assert.equal(storedComputeNow(f, 14999), 0);
+  assert.equal(storedComputeNow(f, 15000), 1);
+  f = act(f, 'intro', { id: 'arrival' }, 0, 16000).facility;
+  assert.equal(storedComputeNow(f, 30000), 2);
+  assert.equal(storedComputeNow(f, 86400000), computeTankCapacity(f));
+  f.incident = { at: 45000, rack: 'rack-a', kind: 'heat', startedAt: null };
+  assert.equal(storedComputeNow(f, 86400000), 3);
+  const claimed = act(f, 'compute-harvest', {}, 0, 50000);
+  assert.equal(claimed.facility.compute, 3);
+  assert.equal(claimed.facility.storedCompute, 0);
+  assert.throws(
+    () => act(claimed.facility, 'compute-harvest', {}, 0, 100000),
+    /warming up/,
+  );
+});
+test('compute jobs require racks and time, snapshot output, and pay once', () => {
+  let f = newFacility(0);
+  assert.throws(() => act(f, 'compute-start', { id: 'quick' }, 0, 0), /rack/);
+  f.builds = { 'rack-a': 1 };
+  assert.throws(() => act(f, 'compute-start', { id: 'heavy' }, 0, 0), /rack/);
+  f = act(f, 'compute-start', { id: 'quick' }, 0, 0).facility;
+  assert.equal(f.workload.reward, 35);
+  assert.throws(
+    () => act(f, 'compute-start', { id: 'quick' }, 0, 0),
+    /current/,
+  );
+  assert.throws(() => act(f, 'compute-collect', {}, 0, 14999), /running/);
+  const id = crypto.randomUUID();
+  f = act(f, 'compute-collect', { requestId: id }, 0, 15000).facility;
+  assert.equal(f.compute, 35);
+  assert.equal(f.stats.computeJobs, 1);
+  assert.equal(f.incident.at, 60000);
+  assert.equal(
+    act(f, 'compute-collect', { requestId: id }, 0, 16000).facility.compute,
+    35,
+  );
+  assert.throws(() => act(f, 'compute-collect', {}, 0, 16000), /running/);
+});
+test('outages preserve waiting batches and require a timed ordered repair, with a single bonus', async () => {
+  const { OUTAGE_STEPS, storedComputeNow } = await import('../lib/facility.ts');
+  let f = newFacility(0);
+  f.builds = { 'rack-a': 1 };
+  f = act(f, 'compute-start', { id: 'quick' }, 0, 0).facility;
+  f.incident = { at: 10000, rack: 'rack-a', kind: 'power', startedAt: null };
+  assert.throws(() => act(f, 'compute-collect', {}, 0, 15000), /Restore/);
+  assert.throws(
+    () =>
+      act(
+        f,
+        'outage-fix',
+        { id: '10000', direction: OUTAGE_STEPS.power.join('|') },
+        0,
+        15000,
+      ),
+    /moment/,
+  );
+  f = act(f, 'outage-start', { id: '10000' }, 0, 15000).facility;
+  assert.throws(
+    () => act(f, 'outage-fix', { id: '10000', direction: 'wrong' }, 0, 19000),
+    /order/,
+  );
+  f = act(
+    f,
+    'outage-fix',
+    { id: '10000', direction: OUTAGE_STEPS.power.join('|') },
+    0,
+    19000,
+  ).facility;
+  assert.equal(f.compute, 40);
+  assert.equal(f.builds['rack-a'], 1);
+  assert.equal(storedComputeNow(f, 20000), 0);
+  assert.throws(
+    () =>
+      act(
+        f,
+        'outage-fix',
+        { id: '10000', direction: OUTAGE_STEPS.power.join('|') },
+        0,
+        20000,
+      ),
+    /no longer/,
+  );
+  f = act(f, 'compute-collect', {}, 0, 20000).facility;
+  assert.equal(f.compute, 75);
+});
+test('compute upgrades and demo exchange conserve balances and retries cannot duplicate demo tokens', () => {
+  let f = newFacility(0);
+  f.builds = { 'rack-a': 1 };
+  assert.throws(() => act(f, 'compute-exchange', {}, 0, 0), /100 compute/);
+  f.compute = 180;
+  f = act(f, 'compute-upgrade', {}, 0, 0).facility;
+  assert.equal(f.compute, 100);
+  assert.equal(f.computeBoost, 1);
+  const id = crypto.randomUUID();
+  f = act(f, 'compute-exchange', { requestId: id }, 0, 0).facility;
+  assert.equal(f.compute, 0);
+  assert.equal(f.demoNoobius, 10);
+  assert.equal(
+    act(f, 'compute-exchange', { requestId: id }, 0, 0).facility.demoNoobius,
+    10,
+  );
+  assert.throws(() => act(f, 'compute-exchange', {}, 0, 0), /100 compute/);
+});
+test('first shift introduces Margo, then production and outages without removing the project guide', async () => {
+  const { shiftObjective, nextBriefing } = await import('../lib/experience.ts');
+  let f = newFacility(0);
+  assert.equal(nextBriefing(f).id, 'arrival');
+  f = act(f, 'intro', { id: 'arrival' }, 0, 0).facility;
+  assert.equal(shiftObjective(f, 0, 0).target, 'margo');
+  f = act(f, 'intro', { id: 'welcome' }, 0, 0).facility;
+  assert.equal(shiftObjective(f, 0, 0).action.type, 'gather');
+  assert.throws(() => act(f, 'intro', { id: 'compute' }, 0, 0), /not ready/);
+  f.builds = { 'rack-a': 1 };
+  assert.equal(shiftObjective(f, 0, 0).panel, 'compute');
+  f.stats.computeJobs = 1;
+  assert.ok(shiftObjective(f, 0, 0).action);
+  f.incident = { at: 0, rack: 'rack-a', kind: 'heat', startedAt: null };
+  assert.equal(shiftObjective(f, 0, 0).panel, 'outage');
+  const old = { version: 17, builds: { 'rack-a': 1 }, computeAt: undefined };
+  delete old.computeAt;
+  assert.equal(normalizeFacility(old, 40000).computeAt, 40000);
+  assert.equal(normalizeFacility(old, 40000).compute, 0);
+  assert.equal(normalizeFacility(old, 40000).version, 17);
 });

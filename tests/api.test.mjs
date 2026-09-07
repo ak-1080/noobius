@@ -131,6 +131,7 @@ test('wallet authentication, isolation, persistence, concurrent rewards and purc
   assert.equal(current.data.profile.xp, 100);
   assert.equal(current.data.profile.shifts, 1);
   assert.equal(current.data.profile.facility.stats.repairs, 3);
+  assert.equal(current.data.profile.facility.compute, 45);
   assert.deepEqual(current.data.profile.facility.bank, {
     coolant: 2,
     silicon: 2,

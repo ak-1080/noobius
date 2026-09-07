@@ -46,6 +46,25 @@ export type Facility = {
   lastWorkday: string;
   requests: string[];
   seen: string[];
+  compute: number;
+  demoNoobius: number;
+  computeAt: number;
+  storedCompute: number;
+  computeBoost: number;
+  workload: {
+    id: string;
+    rack: string;
+    label: string;
+    startedAt: number;
+    readyAt: number;
+    reward: number;
+  } | null;
+  incident: {
+    at: number;
+    rack: string;
+    kind: 'heat' | 'power' | 'network';
+    startedAt: number | null;
+  } | null;
 };
 export const ITEMS: Record<
   ItemId,
@@ -693,6 +712,13 @@ export function newFacility(now = Date.now()): Facility {
     lastWorkday: '',
     requests: [],
     seen: ['commons'],
+    compute: 0,
+    demoNoobius: 0,
+    computeAt: now,
+    storedCompute: 0,
+    computeBoost: 0,
+    workload: null,
+    incident: null,
   };
 }
 export const dayKey = (now: number) => new Date(now).toISOString().slice(0, 10);
@@ -721,6 +747,82 @@ export const skillLevel = (xp: number) => 1 + Math.floor(Math.sqrt(xp / 20));
 export const modules = (f: Facility) =>
   Object.values(f.builds).reduce((a, b) => a + b, 0);
 export const capacity = (f: Facility) => modules(f) * 4;
+export const COMPUTE_JOBS = [
+  {
+    id: 'quick',
+    name: 'Quick batch',
+    seconds: 15,
+    base: 30,
+    perLevel: 5,
+    required: 1,
+  },
+  {
+    id: 'heavy',
+    name: 'Big batch',
+    seconds: 35,
+    base: 75,
+    perLevel: 10,
+    required: 3,
+  },
+] as const;
+export const OUTAGE_STEPS = {
+  heat: ['Stop the job', 'Open cooling', 'Restart the rack'],
+  power: ['Disconnect power', 'Reset the breaker', 'Reconnect power'],
+  network: ['Pause traffic', 'Reseat the cable', 'Restore the link'],
+} as const;
+export const OUTAGE_NAMES = {
+  heat: 'Rack overheating',
+  power: 'Power trip',
+  network: 'Network dropout',
+};
+export const activeIncident = (f: Facility, now = Date.now()) =>
+  f.incident && now >= f.incident.at ? f.incident : null;
+export const computeTankCapacity = (f: Facility) =>
+  120 + modules(f) * 30 + f.computeBoost * 50;
+export const computePerTick = (f: Facility) =>
+  modules(f) * (1 + f.computeBoost);
+export function storedComputeNow(f: Facility, now = Date.now()) {
+  const until = Math.max(f.computeAt, Math.min(now, f.incident?.at ?? now));
+  return Math.min(
+    computeTankCapacity(f),
+    f.storedCompute +
+      Math.max(0, Math.floor((until - f.computeAt) / 15000)) *
+        computePerTick(f),
+  );
+}
+export const INTRO_IDS = [
+  'arrival',
+  'welcome',
+  'salvage',
+  'craft',
+  'rack',
+  'compute',
+  'outage',
+] as const;
+export function introReady(f: Facility, id: string): boolean {
+  return (
+    id === 'arrival' ||
+    id === 'welcome' ||
+    (id === 'salvage' && (f.stats.gathered ?? 0) > 0) ||
+    (id === 'craft' && (f.stats.crafted ?? 0) > 0) ||
+    (id === 'rack' && modules(f) > 0) ||
+    (id === 'compute' && (f.stats.computeJobs ?? 0) > 0) ||
+    (id === 'outage' && (f.stats.outages ?? 0) > 0)
+  );
+}
+function scheduleIncident(f: Facility, now: number, first = false) {
+  const racks = Object.keys(f.builds)
+    .filter((id) => f.builds[id] > 0)
+    .sort();
+  if (!racks.length) return;
+  const kinds = ['heat', 'power', 'network'] as const;
+  f.incident = {
+    at: now + (first ? 45000 : 300000 + Math.floor(Math.random() * 300000)),
+    rack: racks[Math.floor(Math.random() * racks.length)],
+    kind: first ? 'heat' : kinds[Math.floor(Math.random() * kinds.length)],
+    startedAt: null,
+  };
+}
 export const powerBudget = (f: Facility) => 6 + f.power * 6;
 export const coolingBudget = (f: Facility) => 4 + f.cooling * 4;
 export const energyNow = (f: Facility, now = Date.now()) =>
@@ -761,6 +863,16 @@ export function applyFacility(
   if (!/^[a-zA-Z0-9-]{8,80}$/.test(action.requestId))
     throw new FacilityError('Missing action identifier.');
   const ticks = Math.floor((now - f.energyAt) / 5000);
+  f.storedCompute = storedComputeNow(f, now);
+  const computeUntil = Math.max(
+    f.computeAt,
+    Math.min(now, f.incident?.at ?? now),
+  );
+  f.computeAt =
+    f.storedCompute >= computeTankCapacity(f) || !modules(f)
+      ? now
+      : f.computeAt +
+        Math.max(0, Math.floor((computeUntil - f.computeAt) / 15000)) * 15000;
   f.energy = energyNow(f, now);
   f.energyAt = f.energy >= 100 ? now : f.energyAt + ticks * 5000;
   let delta = 0,
@@ -790,6 +902,125 @@ export function applyFacility(
       );
   };
   switch (action.type) {
+    case 'intro-skip': {
+      f.seen = [
+        ...new Set([...f.seen, ...INTRO_IDS.map((id) => 'intro:' + id)]),
+      ];
+      message = 'Tips skipped. Your next job stays on screen.';
+      break;
+    }
+    case 'compute-harvest': {
+      if (f.storedCompute < 1)
+        throw new FacilityError(
+          'Your racks are warming up. Compute arrives every 15 seconds.',
+        );
+      const reward = f.storedCompute;
+      f.compute += reward;
+      f.storedCompute = 0;
+      count('computeEarned', reward);
+      if (!f.incident) scheduleIncident(f, now, true);
+      message = `Collected ${reward} compute from your racks.`;
+      break;
+    }
+    case 'compute-upgrade': {
+      if (!modules(f))
+        throw new FacilityError(
+          'Build your first rack before upgrading output.',
+        );
+      if (f.computeBoost >= 5)
+        throw new FacilityError('Compute efficiency is fully upgraded.');
+      const cost = 80 * (f.computeBoost + 1);
+      if (f.compute < cost)
+        throw new FacilityError(`You need ${cost} compute for this upgrade.`);
+      f.compute -= cost;
+      f.computeBoost++;
+      f.computeAt = now;
+      message = 'Efficiency upgraded! Every rack now generates more compute.';
+      break;
+    }
+    case 'intro': {
+      if (
+        !INTRO_IDS.includes(action.id as (typeof INTRO_IDS)[number]) ||
+        !introReady(f, action.id!)
+      )
+        throw new FacilityError('That introduction is not ready yet.');
+      if (!f.seen.includes('intro:' + action.id))
+        f.seen.push('intro:' + action.id);
+      message = 'Let’s get to work.';
+      break;
+    }
+    case 'compute-start': {
+      const job = COMPUTE_JOBS.find((j) => j.id === action.id);
+      if (!job || modules(f) < job.required)
+        throw new FacilityError('Build more rack levels to run this job.');
+      if (f.workload)
+        throw new FacilityError('Collect your current compute job first.');
+      if (activeIncident(f, now))
+        throw new FacilityError('Fix the outage before running more compute.');
+      const rack = Object.keys(f.builds).find((id) => f.builds[id] > 0)!;
+      f.workload = {
+        id: action.requestId,
+        rack,
+        label: job.name,
+        startedAt: now,
+        readyAt: now + job.seconds * 1000,
+        reward: job.base + modules(f) * job.perLevel,
+      };
+      message = `${job.name} running. Explore while the rack works.`;
+      break;
+    }
+    case 'compute-collect': {
+      if (!f.workload || f.workload.readyAt > now)
+        throw new FacilityError('The compute job is still running.');
+      if (activeIncident(f, now))
+        throw new FacilityError(
+          'Restore the rack to collect your compute. Nothing has been lost.',
+        );
+      const reward = f.workload.reward;
+      f.compute += reward;
+      count('computeJobs');
+      count('computeEarned', reward);
+      f.workload = null;
+      xp = 10;
+      if (!f.incident) scheduleIncident(f, now, true);
+      message = `+${reward} compute. Batch complete!`;
+      break;
+    }
+    case 'outage-start': {
+      const incident = activeIncident(f, now);
+      if (!incident || action.id !== String(incident.at))
+        throw new FacilityError('That outage is no longer active.');
+      if (incident.startedAt === null) incident.startedAt = now;
+      message = 'Fault located. Follow the three repair steps.';
+      break;
+    }
+    case 'outage-fix': {
+      const incident = activeIncident(f, now);
+      if (!incident || action.id !== String(incident.at))
+        throw new FacilityError('That outage is no longer active.');
+      if (incident.startedAt === null || now - incident.startedAt < 3000)
+        throw new FacilityError('Give the system a moment to reset.');
+      if (action.direction !== OUTAGE_STEPS[incident.kind].join('|'))
+        throw new FacilityError('Follow the repair steps in order.');
+      f.compute += 40;
+      count('outages');
+      count('computeEarned', 40);
+      xp = 20;
+      scheduleIncident(f, now);
+      f.computeAt = now;
+      message = 'Back online! +40 compute · +20 XP. Your waiting job is safe.';
+      break;
+    }
+    case 'compute-exchange': {
+      if (f.compute < 100)
+        throw new FacilityError('Earn 100 compute to try the demo exchange.');
+      f.compute -= 100;
+      f.demoNoobius += 10;
+      count('computeExchanged', 100);
+      message =
+        'Demo exchange: 100 compute → 10 demo $NOOBIUS. No tokens were sent.';
+      break;
+    }
     case 'travel': {
       const zone = ZONES.find((z) => z.id === action.id);
       if (!zone || !f.unlocked.includes(zone.id))
@@ -867,6 +1098,7 @@ export function applyFacility(
       const cost = buildCost(level);
       spend(cost.items, cost.credits);
       f.builds[plot.id] = level + 1;
+      f.computeAt = now;
       f.skills.engineering += 15;
       count('built');
       xp = 15;
@@ -1066,6 +1298,8 @@ export function repairLoot(
   f.stats.repairs = (f.stats.repairs ?? 0) + 1;
   f.daily.repairs = (f.daily.repairs ?? 0) + 1;
   f.skills.operations += 10;
+  f.compute += 15;
+  f.stats.computeEarned = (f.stats.computeEarned ?? 0) + 15;
   f.version++;
   return f;
 }

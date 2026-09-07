@@ -204,7 +204,7 @@ export default function FacilityPanels({
       <div className="campus-directory">
         <div className="facility-summary">
           <span>
-            <strong>{capacity(f)}</strong> compute
+            <strong>{capacity(f)}</strong> capacity
           </span>
           <span>
             <strong>{modules(f)}</strong> rack levels
@@ -726,7 +726,7 @@ export default function FacilityPanels({
       <div>
         <div className="facility-summary">
           <span>
-            <strong>{capacity(f)}</strong> compute
+            <strong>{capacity(f)}</strong> capacity
           </span>
           <span>
             <strong>
@@ -743,7 +743,7 @@ export default function FacilityPanels({
         </div>
         <p className="muted-small">
           {firstRack
-            ? 'Your kit + 4 copper + 15 credits bring this rack online. It stays built between shifts. Credits buy upgrades; compute helps unlock new departments.'
+            ? 'Your kit + 4 copper + 15 credits bring this rack online. It stays built between shifts. Racks generate compute. Credits and rack levels unlock new departments.'
             : 'Each rack has 3 upgrade levels. A level uses 2 power and 1 cooling. Need more room? Add a power cell or cooling pump below.'}
         </p>
         {!firstRack && (

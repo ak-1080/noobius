@@ -1,5 +1,8 @@
 'use client';
 import ContractAddress from './ContractAddress';
+import { BriefingCard, ComputeDesk, OutageRepair } from './ExperiencePanels';
+import { nextBriefing, shiftObjective } from '@/lib/experience';
+import { activeIncident, OUTAGE_NAMES, storedComputeNow } from '@/lib/facility';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -73,6 +76,9 @@ type Panel =
   | 'token'
   | 'locker'
   | 'report'
+  | 'briefing'
+  | 'compute'
+  | 'outage'
   | null;
 type CrewEntry = { name: string; score: number; shifts: number; xp: number };
 export default function NoobiusGame() {
@@ -138,7 +144,10 @@ export default function NoobiusGame() {
         : best,
     ZONES[0],
   );
-  const objective = resolveObjective(facility, profile?.credits ?? 0, now);
+  const objective = shiftObjective(facility, profile?.credits ?? 0, now);
+  const briefing = nextBriefing(facility);
+  const incident = activeIncident(facility, now);
+  const storedCompute = storedComputeNow(facility, now);
   const todayClaims = facility.day === dayKey(now) ? facility.dailyClaims : [];
   const dailyReady = DAILY_TASKS.filter(
     (t) =>
@@ -214,6 +223,17 @@ export default function NoobiusGame() {
     );
   }, [profile?.wallet, playing]);
   useEffect(() => {
+    if (
+      playing &&
+      briefing &&
+      briefing.id !== 'welcome' &&
+      !panel &&
+      !activeJob &&
+      !busy
+    )
+      setPanel('briefing');
+  }, [playing, briefing?.id, panel, activeJob, busy]);
+  useEffect(() => {
     return () => {
       void audio.current?.close();
     };
@@ -277,18 +297,23 @@ export default function NoobiusGame() {
   const act = async (action: Omit<FacilityAction, 'requestId'>) => {
     const ok = await game.facilityAction(action);
     if (!ok) return;
-    const target =
-      action.type === 'craft' || action.type === 'collect'
-        ? 'workbench'
-        : action.type === 'utility'
-          ? 'utilities'
-          : action.type === 'claim' || action.type.startsWith('daily')
-            ? 'margo'
-            : action.type === 'bank'
-              ? 'bank'
-              : action.type === 'unlock'
-                ? 'gate-' + action.id
-                : (action.id ?? 'margo');
+    const target = action.type.startsWith('outage')
+      ? (incident?.rack ?? 'margo')
+      : action.type.startsWith('compute')
+        ? (facility.workload?.rack ??
+          Object.keys(facility.builds).find((id) => facility.builds[id] > 0) ??
+          'margo')
+        : action.type === 'craft' || action.type === 'collect'
+          ? 'workbench'
+          : action.type === 'utility'
+            ? 'utilities'
+            : action.type === 'claim' || action.type.startsWith('daily')
+              ? 'margo'
+              : action.type === 'bank'
+                ? 'bank'
+                : action.type === 'unlock'
+                  ? 'gate-' + action.id
+                  : (action.id ?? 'margo');
     setWorkEvent({ id: target, kind: action.type, revision: Date.now() });
     if (action.type === 'build')
       setCelebration({
@@ -310,6 +335,26 @@ export default function NoobiusGame() {
             ? 'After-hours gold unlocked!'
             : 'Daily card complete!',
         detail: '+25 credits · +25 XP · Your stamp is permanent.',
+      });
+    if (
+      action.type === 'compute-collect' ||
+      action.type === 'compute-harvest' ||
+      action.type === 'outage-fix'
+    )
+      setCelebration({
+        title:
+          action.type === 'outage-fix' ? 'Back online!' : 'Compute collected!',
+        detail:
+          action.type === 'outage-fix'
+            ? '+40 compute · +20 XP'
+            : action.type === 'compute-collect'
+              ? `+${facility.workload?.reward ?? 0} compute. Keep building.`
+              : `+${storedCompute} compute from your racks.`,
+      });
+    if (action.type === 'compute-upgrade')
+      setCelebration({
+        title: 'Output upgraded!',
+        detail: 'Every rack now generates more compute.',
       });
     return ok;
   };
@@ -357,6 +402,18 @@ export default function NoobiusGame() {
         return;
       }
     }
+    if (object.id === 'margo' && briefing?.id === 'welcome') {
+      show('briefing');
+      return;
+    }
+    if (incident?.rack === object.id) {
+      show('outage');
+      return;
+    }
+    if (object.kind === 'build' && (facility.builds[object.id] ?? 0) > 0) {
+      show('compute');
+      return;
+    }
     if (object.kind === 'node') {
       void act({ type: 'gather', id: object.id });
       return;
@@ -373,6 +430,18 @@ export default function NoobiusGame() {
   };
   const earlyShift = !facility.claims.includes('first-light');
   const followObjective = () => executeStep(objective);
+  const continueBriefing = async (follow = true) => {
+    if (!briefing || busy) return;
+    if (!(await act({ type: 'intro', id: briefing.id }))) return;
+    setPanel(null);
+    if (follow) {
+      const next = {
+        ...facility,
+        seen: [...facility.seen, 'intro:' + briefing.id],
+      };
+      executeStep(shiftObjective(next, profile?.credits ?? 0, Date.now()));
+    }
+  };
   const closePuzzle = () => {
     setActiveJob(null);
     if (shift?.completedAt) setPanel('report');
@@ -529,11 +598,11 @@ export default function NoobiusGame() {
           </div>
           <div
             className="shift-hud"
-            aria-label={`${modules(facility)} rack levels installed. ${profile?.credits ?? 0} credits.`}
+            aria-label={`${facility.compute} compute. ${profile?.credits ?? 0} credits.`}
           >
             <span>
-              <span className="status-dot" />
-              {modules(facility)} rack levels
+              <Cpu size={15} />
+              {facility.compute} compute
             </span>
             <span>
               <Coins size={14} />
@@ -574,6 +643,22 @@ export default function NoobiusGame() {
               </span>
             </button>
           )}
+          {modules(facility) > 0 && (
+            <button
+              className={`compute-hud ${incident ? 'has-outage' : ''}`}
+              onClick={() => show(incident ? 'outage' : 'compute')}
+            >
+              <Cpu size={17} />
+              <span>
+                {incident
+                  ? OUTAGE_NAMES[incident.kind]
+                  : facility.workload && now >= facility.workload.readyAt
+                    ? 'Batch ready!'
+                    : `${storedCompute} compute stored`}
+              </span>
+              <ArrowRight size={15} />
+            </button>
+          )}
           {celebration && (
             <div className="milestone-toast" role="status">
               <Sparkles size={27} />
@@ -588,6 +673,7 @@ export default function NoobiusGame() {
               { id: 'map', name: 'Map', Icon: Map },
               { id: 'inventory', name: 'Backpack', Icon: Backpack },
               { id: 'contracts', name: 'Jobs', Icon: BriefcaseBusiness },
+              { id: 'compute', name: 'Compute', Icon: Cpu },
               { id: 'social', name: 'Crew', Icon: MessageCircle },
             ].map(({ id, name, Icon }) => (
               <button key={id} onClick={() => show(id as Panel)}>
@@ -643,7 +729,10 @@ export default function NoobiusGame() {
       <Dialog
         open={!!panel}
         onOpenChange={(open) => {
-          if (!open) setPanel(null);
+          if (!open) {
+            if (panel === 'briefing' && briefing) void continueBriefing(false);
+            else setPanel(null);
+          }
         }}
       >
         <DialogContent
@@ -667,6 +756,11 @@ export default function NoobiusGame() {
                   locker: 'The equipment locker.',
                   report:
                     repaired === 3 ? 'Shift complete.' : 'Incident report.',
+                  briefing: briefing?.title ?? 'Your next step.',
+                  compute: 'Your compute floor.',
+                  outage: incident
+                    ? OUTAGE_NAMES[incident.kind]
+                    : 'All systems online.',
                 } as Record<string, string>
               )[panel ?? '']
             }
@@ -695,10 +789,54 @@ export default function NoobiusGame() {
                     repaired === 3
                       ? 'The future is online. You can breathe now.'
                       : 'Some faults are tomorrow’s problem. Your completed repairs still count.',
+                  briefing: 'One step at a time. You’ve got this.',
+                  compute:
+                    'Build racks. Collect compute. Grow your data center.',
+                  outage:
+                    'Patch is on the radio. Follow the steps to restore service.',
                 } as Record<string, string>
               )[panel ?? '']
             }
           </DialogDescription>
+          {panel === 'briefing' && briefing && (
+            <BriefingCard
+              briefing={briefing}
+              busy={busy}
+              onContinue={() => void continueBriefing()}
+              onSkip={async () => {
+                if (await act({ type: 'intro-skip' })) setPanel(null);
+              }}
+            />
+          )}
+          {panel === 'compute' && (
+            <ComputeDesk
+              facility={facility}
+              now={now}
+              busy={busy}
+              onAction={act}
+              onStarted={() => setPanel(null)}
+              onOutage={() => {
+                if (incident)
+                  executeStep({
+                    title: '',
+                    detail: '',
+                    cta: '',
+                    target: incident.rack,
+                    panel: 'outage',
+                  });
+              }}
+            />
+          )}
+          {panel === 'outage' && (
+            <OutageRepair
+              key={incident?.at ?? 'clear'}
+              facility={facility}
+              now={now}
+              busy={busy}
+              onAction={act}
+              onDone={() => setPanel(null)}
+            />
+          )}
           {profile?.facility && panel && panel in PANEL_COPY && (
             <FacilityPanels
               panel={panel as ExpansionPanel}
@@ -818,9 +956,9 @@ export default function NoobiusGame() {
           {panel === 'jobs' && shift && (
             <>
               <p className="muted-small">
-                Each repair pays 25 credits and sends 2 spare parts to your
-                locker. Fix all three for a 25-credit bonus. Your built racks
-                stay online.
+                Each repair pays 25 credits, 15 compute, and sends 2 spare parts
+                to your locker. Fix all three for a 25-credit bonus. Your built
+                racks stay online.
               </p>
               {shift?.completedAt && (
                 <Button
@@ -1062,15 +1200,21 @@ export default function NoobiusGame() {
               <TabsContent value="credits">
                 <div className="guide-copy">
                   <p>
-                    Each repair earns <strong>25 credits + 20 XP</strong>.
-                    Repair all three for an extra{' '}
-                    <strong>25 credits + 40 XP</strong>: 100 credits and 100 XP
-                    per full shift.
+                    Each repair earns{' '}
+                    <strong>25 credits + 15 compute + 20 XP</strong>. Repair all
+                    three for an extra <strong>25 credits + 40 XP</strong>: 100
+                    credits and 100 XP per full shift.
                   </p>
                   <p>
                     Spend credits on parts, rack modules, department access,
                     tools, and outfits. Locker equipment takes effect on your
                     next maintenance shift.
+                  </p>
+                  <p>
+                    Built racks generate stored compute every 15 seconds. Open
+                    Compute to collect it, run bonus batches, or reinvest in
+                    efficiency. If a rack goes red, follow Patch’s repair steps
+                    for bonus compute. The token exchange is a demo.
                   </p>
                   <div className="rank-list">
                     {[0, 100, 300, 600].map((xp) => (

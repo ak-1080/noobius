@@ -6,6 +6,7 @@ import {
   OBJECTS,
   ZONES,
   OUTFITS,
+  activeIncident,
   type Facility,
   type WorldObject,
 } from '@/lib/facility';
@@ -124,6 +125,7 @@ export default function Campus(props: Props) {
       black = mat('#091b25'),
       mint = mat('#b3e795', 0.1, '#6eae75'),
       amber = mat('#e6ad71', 0.1, '#a56429'),
+      faultRed = mat('#ff826f', 0.1, '#bb3429'),
       blue = mat('#a6c3d0', 0.05),
       white = mat('#e8f0e8', 0.05),
       shirt = mat(
@@ -1234,6 +1236,7 @@ export default function Campus(props: Props) {
         f.unlocked,
         f.outfit,
         f.cooldowns,
+        activeIncident(f)?.rack,
       ]);
       if (appearance !== lastAppearance) {
         shirt.color.set(
@@ -1247,9 +1250,11 @@ export default function Campus(props: Props) {
             g.traverse((child) => {
               if (child.userData.led)
                 (child as T.Mesh).material =
-                  (f.builds[obj.id] ?? 0) * 2 >= child.userData.led
-                    ? mint
-                    : amber;
+                  activeIncident(f)?.rack === obj.id
+                    ? faultRed
+                    : (f.builds[obj.id] ?? 0) * 2 >= child.userData.led
+                      ? mint
+                      : amber;
             });
         }
         lastAppearance = appearance;
