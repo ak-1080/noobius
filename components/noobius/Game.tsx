@@ -19,7 +19,6 @@ import {
   MessageCircle,
   Minus,
   Plus,
-  Play,
   Radio,
   RotateCcw,
   Settings2,
@@ -43,6 +42,7 @@ import { Progress } from '@/components/ui/progress';
 import { JOBS, nextRank, titleFor, UPGRADES, type JobType } from '@/lib/game';
 import { api, useNoobius } from './useNoobius';
 import Puzzle from './Puzzle';
+import TitleScene from './TitleScene';
 import Campus, { type CrewPerson } from './Campus';
 import FacilityPanels, {
   PANEL_COPY,
@@ -70,7 +70,6 @@ type Panel =
   | 'token'
   | 'locker'
   | 'report'
-  | 'video'
   | null;
 type CrewEntry = { name: string; score: number; shifts: number; xp: number };
 export default function NoobiusGame() {
@@ -100,8 +99,7 @@ export default function NoobiusGame() {
     [muted, setMuted] = useState(true),
     [soundError, setSoundError] = useState('');
   const audio = useRef<AudioContext | null>(null),
-    gain = useRef<GainNode | null>(null),
-    video = useRef<HTMLVideoElement | null>(null);
+    gain = useRef<GainNode | null>(null);
   const playing = mode !== 'lobby' && !!shift;
   const repaired =
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
@@ -402,15 +400,7 @@ export default function NoobiusGame() {
   };
   return (
     <div className={`noobius-app ${playing ? 'is-playing' : ''}`}>
-      {!playing && (
-        <div className="title-scene">
-          <img
-            src="/assets/intro-poster.jpg"
-            alt="Noobius working the night shift inside a teal-lit data center"
-          />
-          <div className="title-shade" />
-        </div>
-      )}
+      {!playing && <TitleScene />}
       {!playing && (
         <header className="game-header">
           <button
@@ -585,29 +575,7 @@ export default function NoobiusGame() {
       )}
       {!playing && (
         <div className="screen-footer">
-          <span>
-            {playing
-              ? mode === 'practice'
-                ? 'PRACTICE · PROGRESS LASTS UNTIL RELOAD'
-                : 'PROGRESS SAVED TO YOUR WALLET'
-              : 'EARLY ACCESS · THE NIGHT SHIFT'}
-          </span>
-          <div>
-            {!playing && (
-              <button
-                className="cinematic-button"
-                onClick={() => show('video')}
-              >
-                <Play size={12} /> Meet Noobius
-              </button>
-            )}
-            <button
-              aria-label={muted ? 'Enable sound' : 'Mute sound'}
-              onClick={sound}
-            >
-              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
-          </div>
+          <span>EARLY ACCESS · THE NIGHT SHIFT</span>
         </div>
       )}
       {(error || soundError) && (
@@ -631,7 +599,7 @@ export default function NoobiusGame() {
         }}
       >
         <DialogContent
-          className={`noobius-modal ${panel === 'video' ? 'video-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+          className={`noobius-modal ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
         >
           <DialogTitle>
             {
@@ -651,7 +619,6 @@ export default function NoobiusGame() {
                   locker: 'The equipment locker.',
                   report:
                     repaired === 3 ? 'Shift complete.' : 'Incident report.',
-                  video: 'Meet Noobius.',
                 } as Record<string, string>
               )[panel ?? '']
             }
@@ -680,7 +647,6 @@ export default function NoobiusGame() {
                     repaired === 3
                       ? 'The future is online. You can breathe now.'
                       : 'Some faults are tomorrow’s problem. Your completed repairs still count.',
-                  video: 'Everyone said AI would do all the work.',
                 } as Record<string, string>
               )[panel ?? '']
             }
@@ -1272,15 +1238,6 @@ export default function NoobiusGame() {
                 <Wrench size={16} /> Open equipment locker
               </button>
             </div>
-          )}
-          {panel === 'video' && (
-            <video
-              controls
-              autoPlay
-              playsInline
-              poster="/assets/intro-poster.jpg"
-              src="/assets/noobius-intro.mp4"
-            />
           )}
           {error && (
             <p className="modal-error" role="alert">

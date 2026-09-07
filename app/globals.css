@@ -109,12 +109,45 @@ a {
   position: absolute;
   inset: 0;
 }
-.title-scene > img {
+.title-scene > img,
+.title-scene > video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
-  animation: slow-pan 35s ease-in-out infinite alternate;
+  object-position: var(--clip-position, center);
+}
+.title-scene > video {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.title-scene > video.is-visible {
+  opacity: 1;
+}
+.background-motion-toggle {
+  position: absolute;
+  z-index: 6;
+  right: 36px;
+  bottom: 24px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #94b2a847;
+  border-radius: 50%;
+  background: #15283077;
+  color: #d6e5df;
+  cursor: pointer;
+}
+.background-motion-toggle:hover {
+  color: var(--mint);
+  border-color: var(--mint);
+}
+.background-motion-toggle:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 4px;
 }
 .title-shade {
   position: absolute;
@@ -275,33 +308,6 @@ a {
   font: 12px var(--mono);
   letter-spacing: 1.3px;
 }
-.screen-footer > div {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-.screen-footer button {
-  background: none;
-  border: 0;
-  color: #d6e5df;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  min-height: 36px;
-  padding: 4px;
-}
-.screen-footer button:hover {
-  color: var(--mint);
-}
-.screen-footer > div > button:last-child {
-  border: 1px solid #94b2a847;
-  width: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #15283055;
-}
 .noobius-modal {
   background: #11232c !important;
   border: 1px solid #52757566 !important;
@@ -340,14 +346,6 @@ a {
 }
 .noobius-modal [data-slot='dialog-overlay'] {
   background: #00101890 !important;
-}
-.video-modal {
-  max-width: 880px !important;
-}
-.video-modal video {
-  width: 100%;
-  max-height: 70vh;
-  border-radius: 8px;
 }
 .primary-action {
   background: var(--mint) !important;
@@ -1470,8 +1468,13 @@ a {
     margin: 0 auto 28px;
     line-height: 1.6;
   }
-  .title-scene > img {
-    object-position: 42% center;
+  .title-scene > img,
+  .title-scene > video {
+    object-position: var(--clip-mobile-position, center);
+  }
+  .background-motion-toggle {
+    right: 20px;
+    bottom: 19px;
   }
   .screen-footer {
     left: 20px;
@@ -1484,12 +1487,6 @@ a {
     letter-spacing: 0.8px;
     max-width: 175px;
     line-height: 1.7;
-  }
-  .screen-footer > div {
-    gap: 10px;
-  }
-  .screen-footer .cinematic-button {
-    font-size: 11px;
   }
   .free-note {
     font-size: 11px;
