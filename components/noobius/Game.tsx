@@ -1,4 +1,5 @@
 'use client';
+import ContractAddress from './ContractAddress';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -491,28 +492,7 @@ export default function NoobiusGame() {
                 : 'Play now'}
             <ArrowRight size={20} />
           </Button>
-          <button
-            className="practice-button"
-            onClick={() =>
-              profile && profile.wallet !== 'practice'
-                ? practice()
-                : show('wallet')
-            }
-            disabled={busy || game.initializing}
-          >
-            {profile && profile.wallet !== 'practice' ? (
-              <>
-                <Gamepad2 size={16} /> Practice shift
-              </>
-            ) : (
-              <>
-                <Wallet size={16} /> Connect to save
-              </>
-            )}
-          </button>
-          <span className="free-note">
-            Free to play. Guest progress is temporary.
-          </span>
+          <ContractAddress />
         </main>
       ) : (
         <main className="play-world" aria-label="The Noobius night shift">

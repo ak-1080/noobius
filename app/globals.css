@@ -294,6 +294,56 @@ a {
   color: #d0ddd2;
   margin-top: 20px;
 }
+.contract-address {
+  width: min(440px, 100%);
+  margin: 18px auto 0;
+  text-align: center;
+}
+.contract-address-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #c7d6cf;
+  font-size: 12px;
+}
+.contract-address-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid #b3ccbd40;
+  border-radius: 8px;
+  background: #15252bbd;
+  backdrop-filter: blur(10px);
+}
+.contract-address-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 13px 0 13px 13px;
+  background: transparent;
+  color: #e2ece6;
+  border: 0;
+  font: 12px var(--mono);
+  user-select: text;
+}
+.contract-address-field button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  color: var(--mint);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.contract-address-field:focus-within {
+  border-color: var(--mint);
+}
+.contract-address-status {
+  display: block;
+  min-height: 18px;
+  margin-top: 5px;
+  color: var(--mint);
+  font-size: 12px;
+}
 .screen-footer {
   position: absolute;
   bottom: 24px;
