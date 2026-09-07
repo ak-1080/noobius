@@ -70,7 +70,6 @@ type Panel =
   | 'profile'
   | 'guide'
   | 'crew'
-  | 'story'
   | 'token'
   | 'locker'
   | 'report'
@@ -453,7 +452,7 @@ export default function NoobiusGame() {
           </button>
           <nav aria-label="Main navigation">
             <button onClick={() => show('guide')}>How to play</button>
-            <button onClick={() => show('story')}>The story</button>
+            <a href="/story">The story</a>
           </nav>
           <Button
             className="connect-button"
@@ -664,7 +663,6 @@ export default function NoobiusGame() {
                   profile: 'Your employee badge.',
                   guide: 'The field guide.',
                   crew: 'The night-shift crew.',
-                  story: 'Meet Noobius.',
                   token: 'A noob. A crew. A token.',
                   locker: 'The equipment locker.',
                   report:
@@ -691,7 +689,6 @@ export default function NoobiusGame() {
                   profile: 'Your place on the night shift.',
                   guide: 'Everything you need for your first night on the job.',
                   crew: 'Each technician’s best completed shift. Practice shifts are not ranked.',
-                  story: 'The hardest-working noob in AI.',
                   token: 'The community grows around Noobius.',
                   locker: 'Better tools. Same questionable technician.',
                   report:
@@ -1027,7 +1024,6 @@ export default function NoobiusGame() {
             <Tabs defaultValue="play">
               <TabsList className="guide-tabs">
                 <TabsTrigger value="play">How to play</TabsTrigger>
-                <TabsTrigger value="story">The story</TabsTrigger>
                 <TabsTrigger value="credits">Credits & ranks</TabsTrigger>
               </TabsList>
               <TabsContent value="play">
@@ -1060,33 +1056,6 @@ export default function NoobiusGame() {
                     opens the map, and I opens your backpack. On phones, use the
                     job card and tap the world. Every puzzle supports keyboard
                     controls.
-                  </p>
-                </div>
-              </TabsContent>
-              <TabsContent value="story">
-                <div className="guide-story">
-                  <img
-                    src="/assets/noobius.jpeg"
-                    alt="Noobius, your overworked AI data-center technician"
-                  />
-                  <p>
-                    Everyone said AI would do all the work.
-                    <br />
-                    Then Noobius got hired.
-                  </p>
-                  <p>
-                    Now the GPUs are overheating, the network is down, and
-                    management has ordered another cluster. With a headset, a
-                    wrench, and insufficient training, he clocks in anyway.
-                  </p>
-                  <p>
-                    <strong>His mission: keep the future online.</strong>
-                  </p>
-                  <p className="muted-small">
-                    Noobius is an independent fan project inspired by AI
-                    infrastructure. It is not affiliated with or endorsed by
-                    Nebius, NVIDIA, or Robinhood. Facility readings and jobs are
-                    game simulations.
                   </p>
                 </div>
               </TabsContent>
@@ -1134,29 +1103,6 @@ export default function NoobiusGame() {
                 </button>
               </div>
             </Tabs>
-          )}
-          {panel === 'story' && (
-            <div className="token-panel">
-              <p>
-                Somewhere inside a giant AI data center, the night shift has
-                started. Billions of dollars of hardware. Thousands of blinking
-                lights. One very underqualified employee.
-              </p>
-              <p>
-                Meet Noobius. He has a headset, a repair kit, and absolutely no
-                idea which cable he just unplugged. While everyone else talks
-                about the future, he’s underneath a server rack trying to turn
-                it back on.
-              </p>
-              <p>
-                Start with one broken machine. Scavenge parts, build your first
-                rack, and earn your way into the bigger rooms. Margo, Bit, and
-                Patch will help. Mostly. Every green light is a small victory.
-              </p>
-              <div className="token-note">
-                Someone has to keep the future online.
-              </div>
-            </div>
           )}
           {panel === 'token' && (
             <div className="token-panel">
