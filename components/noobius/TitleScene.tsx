@@ -2,25 +2,40 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Pause, Play } from 'lucide-react';
 
-// Add supplied clips here in the order they should play. The playlist repeats.
+// The edited reel includes its own transitions and circular return to the desk.
 const CLIPS = [
   {
-    src: '/assets/noobius-intro.mp4',
+    src: '/assets/noobius-night-shift-reel.mp4',
+    mobileSrc: '/assets/noobius-night-shift-reel-mobile.mp4',
+    poster: '/assets/noobius-reel-poster.jpg',
+    mobilePoster: '/assets/noobius-reel-poster-mobile.jpg',
     position: '50% 50%',
-    mobilePosition: '42% 50%',
+    mobilePosition: '50% 50%',
   },
 ];
-const POSTER = '/assets/intro-poster.jpg';
 
 export default function TitleScene() {
   const video = useRef<HTMLVideoElement>(null);
   const failedClips = useRef(new Set<number>());
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(true);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [ready, setReady] = useState(false);
-  const [fading, setFading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const clip = CLIPS[index];
+  const source = isMobile ? clip.mobileSrc : clip.src;
+  const poster = isMobile ? clip.mobilePoster : clip.poster;
+
+  useEffect(() => {
+    const viewport = window.matchMedia('(max-width: 640px)');
+    const update = () => {
+      setReady(false);
+      setIsMobile(viewport.matches);
+    };
+    update();
+    viewport.addEventListener('change', update);
+    return () => viewport.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -50,14 +65,13 @@ export default function TitleScene() {
       document.removeEventListener('visibilitychange', sync);
       element.pause();
     };
-  }, [paused, index, unavailable]);
+  }, [paused, source, isMobile, unavailable]);
 
   const nextClip = () => {
     for (let step = 1; step <= CLIPS.length; step++) {
       const next = (index + step) % CLIPS.length;
       if (!failedClips.current.has(next)) {
         setReady(false);
-        setFading(false);
         setIndex(next);
         return;
       }
@@ -78,27 +92,21 @@ export default function TitleScene() {
           } as CSSProperties
         }
       >
-        <img src={POSTER} alt="" />
-        {!unavailable && (
+        <img src={poster} alt="" />
+        {!unavailable && isMobile !== null && (
           <video
+            key={source}
             ref={video}
-            src={clip.src}
-            poster={POSTER}
+            src={source}
+            poster={poster}
             autoPlay={!paused}
             muted
             playsInline
             loop={CLIPS.length === 1}
             preload="metadata"
             tabIndex={-1}
-            className={ready && !fading ? 'is-visible' : ''}
+            className={ready ? 'is-visible' : ''}
             onPlaying={() => setReady(true)}
-            onTimeUpdate={(event) => {
-              const element = event.currentTarget;
-              setFading(
-                element.duration > 1.5 &&
-                  element.duration - element.currentTime < 0.35,
-              );
-            }}
             onEnded={nextClip}
             onError={() => {
               failedClips.current.add(index);
