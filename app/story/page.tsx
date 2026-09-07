@@ -32,7 +32,11 @@ export default function Story() {
               Noobius<span>.</span>
             </h1>
             <p>AI data-center worker. Still figuring it out.</p>
-            <p className="story-pair">Planned trading pair: $NOOBIUS / NBIS</p>
+            <p className="story-pair">
+              Paired with tokenized Nebius (NBIS)
+              <br />
+              <span>On Long.xyz</span>
+            </p>
             <span className="story-status">
               <i /> Currently on shift
             </span>
