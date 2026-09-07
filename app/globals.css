@@ -52,6 +52,7 @@
   --mint: #bded8a;
   --cyan: #82dcd1;
   --mono: var(--font-geist-mono), monospace;
+  --sans: var(--font-geist-sans), Arial, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -2726,5 +2727,362 @@ a {
     font-size: 12px;
     padding: 7px;
     min-height: 35px;
+  }
+}
+
+/* The job book keeps planning in one place; the world stays full screen. */
+.objective-hud {
+  width: 302px;
+  gap: 9px;
+  padding: 16px 18px;
+  background: #0c202bf2;
+  border-color: #93bf885e;
+  box-shadow: 0 12px 38px #03101844;
+}
+.objective-hud > span {
+  font-size: 12px;
+}
+.objective-hud strong {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+.objective-hud small {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  display: block;
+  color: #ccdad9;
+}
+.objective-hud .objective-action {
+  font: 600 14px var(--sans);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: 0;
+  color: #c1ed91;
+  padding-top: 4px;
+}
+.objective-meter {
+  height: 3px;
+  background: #385248;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.objective-meter > i {
+  display: block;
+  height: 100%;
+  background: #b9eb8e;
+  transition: width 0.4s ease;
+}
+.objective-hud:disabled {
+  opacity: 0.85;
+}
+.daily-hud {
+  position: absolute;
+  right: 22px;
+  top: 90px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #adbf8466;
+  background: #132834e8;
+  color: #e6eccb;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.daily-hud strong {
+  color: #c5ed8d;
+  padding-left: 8px;
+}
+.campus-hotbar button span {
+  font-size: 14px;
+}
+.campus-hotbar button {
+  min-width: 68px;
+}
+.campus-location > span {
+  font-size: 12px;
+}
+.milestone-toast {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  max-width: 430px;
+  width: calc(100% - 40px);
+  padding: 22px;
+  border: 1px solid #bbeb85;
+  border-radius: 18px;
+  background: #102923f2;
+  color: #cff1a3;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 16px 70px #06171699;
+  pointer-events: none;
+  animation: milestone-in 0.4s ease both;
+}
+.milestone-toast strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1.2;
+  margin-bottom: 7px;
+}
+.milestone-toast span {
+  color: #d8e4db;
+  font-size: 14px;
+  line-height: 1.5;
+  display: block;
+}
+@keyframes milestone-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+.dispatcher-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0;
+}
+.bot-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  background: #f1c376;
+  border: 4px solid #344653;
+  border-radius: 12px;
+  color: #142a32;
+  font: 700 20px var(--mono);
+}
+.dispatcher-note p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #bdced0;
+  margin: 0;
+}
+.dispatcher-note strong {
+  display: block;
+  color: #e5ebdf;
+  margin-bottom: 4px;
+}
+.job-next-step {
+  display: block;
+  width: 100%;
+  background: #1f3934;
+  border: 1px solid #8bad7277;
+  border-radius: 14px;
+  padding: 18px;
+  text-align: left;
+  margin: 12px 0;
+}
+.job-next-step > span {
+  display: block;
+  color: #abd797;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 7px;
+}
+.job-next-step > strong {
+  font-size: 20px;
+  color: #edf4e7;
+}
+.job-next-step > p {
+  font-size: 15px;
+  color: #c5d6cc;
+  margin: 7px 0 12px;
+  line-height: 1.45;
+}
+.job-next-step > small {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: #c4ed99;
+  font-weight: 600;
+}
+.repair-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid #77939f55;
+  padding: 15px;
+  background: #172c39;
+  border-radius: 12px;
+  margin: 12px 0 20px;
+  text-align: left;
+  color: #c9e1e5;
+}
+.repair-shortcut > span {
+  flex: 1;
+}
+.repair-shortcut strong {
+  display: block;
+  font-size: 16px;
+}
+.repair-shortcut small {
+  display: block;
+  color: #aabfc5;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.find-parts-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  color: #c2e794;
+  padding: 10px 0;
+  text-align: left;
+}
+.daily-stamp-card {
+  margin-top: 24px;
+  padding: 22px;
+  background: linear-gradient(135deg, #34382c, #1a2f33);
+  border: 1px solid #d3bb6266;
+  border-radius: 15px;
+}
+.daily-stamp-card h3 {
+  font-size: 22px;
+  margin: 8px 0;
+}
+.daily-stamp-card p {
+  color: #c7d1c7;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.daily-stamp-card > small {
+  display: block;
+  font-size: 12px;
+  color: #becdbd;
+  text-align: center;
+  margin-top: 12px;
+}
+.stamp-row {
+  display: flex;
+  gap: 16px;
+  margin: 24px 0;
+  justify-content: center;
+}
+.stamp-row > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 74px;
+  height: 82px;
+  border: 2px dashed #c7bd7566;
+  border-radius: 15px;
+  color: #b0bea6;
+  font-size: 22px;
+}
+.stamp-row .earned {
+  border: 2px solid #dfcb75;
+  color: #1d302a;
+  background: #decb7d;
+  transform: rotate(-4deg);
+}
+.stamp-row small {
+  font-size: 12px;
+}
+.daily-contract {
+  gap: 12px;
+}
+.daily-contract strong {
+  font-size: 16px;
+}
+.daily-contract small {
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .objective-hud {
+    top: 79px;
+    left: 14px;
+    width: 255px;
+    padding: 12px 14px;
+    gap: 6px;
+  }
+  .objective-hud strong {
+    font-size: 16px;
+  }
+  .objective-hud > span {
+    font-size: 12px;
+  }
+  .objective-hud small {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .objective-hud .objective-action {
+    font-size: 14px;
+  }
+  .daily-hud {
+    top: auto;
+    bottom: 103px;
+    right: 12px;
+    padding: 9px;
+    font-size: 12px;
+  }
+  .campus-hotbar button {
+    width: 61px;
+    min-width: 0;
+  }
+  .campus-hotbar button span {
+    font-size: 12px;
+  }
+  .campus-location strong {
+    font-size: 14px;
+  }
+  .campus-location > span {
+    font-size: 12px;
+  }
+  .campus-location {
+    max-width: 132px;
+  }
+  .is-playing .shift-hud > span {
+    font-size: 12px;
+  }
+  .is-playing .shift-hud {
+    right: 12px;
+    top: 15px;
+    padding: 8px;
+    gap: 5px;
+    align-items: flex-end;
+    flex-direction: column;
+  }
+  .milestone-toast {
+    top: 43%;
+    padding: 17px;
+  }
+  .milestone-toast strong {
+    font-size: 19px;
+  }
+  .game-toast {
+    max-width: calc(100% - 28px);
+    bottom: 150px;
+    font-size: 14px;
+  }
+  .daily-contract {
+    flex-wrap: wrap;
+  }
+  .daily-stamp-card {
+    padding: 17px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .milestone-toast {
+    animation: none;
+  }
+  .objective-meter > i {
+    transition: none;
   }
 }

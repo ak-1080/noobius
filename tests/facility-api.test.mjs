@@ -178,4 +178,19 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
       .status,
     400,
   );
+  const messages = await Promise.all(
+    Array.from({ length: 8 }, () =>
+      a.request(
+        'message',
+        a.body({ message: 'Local test: ready for the night shift.' }),
+      ),
+    ),
+  );
+  assert.equal(messages.filter((r) => r.status === 200).length, 1);
+  assert.equal(messages.filter((r) => r.status === 429).length, 7);
+  assert.equal((await facility(a, 'daily-bonus')).status, 400);
+  assert.equal((await facility(a, 'outfit', { id: 'afterhours' })).status, 400);
+  const card = ok(await a.request('profile')).profile.facility;
+  assert.equal(card.workdays, 0);
+  assert.equal(card.lastWorkday, '');
 });

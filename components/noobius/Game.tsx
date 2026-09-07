@@ -48,13 +48,15 @@ import FacilityPanels, {
   PANEL_COPY,
   type ExpansionPanel,
 } from './FacilityPanels';
+import { resolveObjective, type NextStep } from '@/lib/objectives';
 import {
   ZONES,
   OBJECTS,
-  STORY,
   newFacility,
-  capacity,
-  storyValue,
+  modules,
+  DAILY_TASKS,
+  dayKey,
+  type FacilityAction,
   type WorldObject,
 } from '@/lib/facility';
 const ICONS = { cooling: Fan, boot: Cpu, network: Cable };
@@ -76,6 +78,28 @@ export default function NoobiusGame() {
   const game = useNoobius(),
     { profile, shift, mode, busy, error } = game;
   const [initialReveal, setInitialReveal] = useState(false);
+  const [now, setNow] = useState(Date.now);
+  const [jobTab, setJobTab] = useState('story');
+  const [worldUnavailable, setWorldUnavailable] = useState(false);
+  const [workEvent, setWorkEvent] = useState<{
+    id: string;
+    kind: string;
+    revision: number;
+  } | null>(null);
+  const [celebration, setCelebration] = useState<{
+    title: string;
+    detail: string;
+  } | null>(null);
+  const pendingStep = useRef<NextStep | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!celebration) return;
+    const timer = setTimeout(() => setCelebration(null), 4800);
+    return () => clearTimeout(timer);
+  }, [celebration]);
   const [selectedObject, setSelectedObject] = useState<WorldObject | null>(
       null,
     ),
@@ -113,7 +137,14 @@ export default function NoobiusGame() {
         : best,
     ZONES[0],
   );
-  const nextContract = STORY.find((c) => !facility.claims.includes(c.id));
+  const objective = resolveObjective(facility, profile?.credits ?? 0, now);
+  const todayClaims = facility.day === dayKey(now) ? facility.dailyClaims : [];
+  const dailyReady = DAILY_TASKS.filter(
+    (t) =>
+      !todayClaims.includes(t.id) &&
+      facility.day === dayKey(now) &&
+      (facility.daily[t.stat] ?? 0) >= t.target,
+  ).length;
   useEffect(() => {
     if (!game.notice) return;
     const t = setTimeout(() => game.setNotice(''), 3500);
@@ -174,7 +205,13 @@ export default function NoobiusGame() {
   }, [panel, profile?.wallet]);
   useEffect(() => {
     setActiveJob(null);
-  }, [profile?.wallet]);
+    pendingStep.current = null;
+    setGuideCommand({ id: '', revision: Date.now() });
+    setSelectedObject(null);
+    setPanel((current) =>
+      current === 'badge' && profile?.wallet && !playing ? current : null,
+    );
+  }, [profile?.wallet, playing]);
   useEffect(() => {
     return () => {
       void audio.current?.close();
@@ -218,7 +255,10 @@ export default function NoobiusGame() {
     if (profile) {
       if (game.resume()) return;
       if (await game.start()) setPanel(null);
-    } else show('wallet');
+    } else {
+      setPanel(null);
+      game.startPractice();
+    }
   };
   const practice = () => {
     setPanel(null);
@@ -233,10 +273,91 @@ export default function NoobiusGame() {
       setActiveJob(job);
     }
   };
+  const act = async (action: Omit<FacilityAction, 'requestId'>) => {
+    const ok = await game.facilityAction(action);
+    if (!ok) return;
+    const target =
+      action.type === 'craft' || action.type === 'collect'
+        ? 'workbench'
+        : action.type === 'utility'
+          ? 'utilities'
+          : action.type === 'claim' || action.type.startsWith('daily')
+            ? 'margo'
+            : action.type === 'bank'
+              ? 'bank'
+              : action.type === 'unlock'
+                ? 'gate-' + action.id
+                : (action.id ?? 'margo');
+    setWorkEvent({ id: target, kind: action.type, revision: Date.now() });
+    if (action.type === 'build')
+      setCelebration({
+        title:
+          (facility.builds[action.id!] ?? 0)
+            ? 'More power. Same noob.'
+            : 'You brought a rack online!',
+        detail: `${modules(facility) + 1} rack levels installed. Your progress stays built.`,
+      });
+    if (action.type === 'unlock')
+      setCelebration({
+        title: `${ZONES.find((z) => z.id === action.id)?.name} unlocked`,
+        detail: 'New parts. New projects. Go take a look.',
+      });
+    if (action.type === 'daily-bonus')
+      setCelebration({
+        title:
+          facility.workdays === 2
+            ? 'After-hours gold unlocked!'
+            : 'Daily card complete!',
+        detail: '+25 credits · +25 XP · Your stamp is permanent.',
+      });
+    return ok;
+  };
+  const executeStep = (step: NextStep) => {
+    if (step.wait || busy) return;
+    pendingStep.current = null;
+    setGuideCommand({ id: '', revision: Date.now() });
+    setPanel(null);
+    if (step.repair) {
+      const job = shift?.jobs.find(
+        (j) => j.status === 'pending' || j.status === 'active',
+      );
+      if (job) void station(job.id);
+      else show('jobs');
+      return;
+    }
+    // Radio rewards and storage are quick actions; work in the world gets a
+    // short walk and its own animation instead of another catalog dialog.
+    if (
+      step.action &&
+      ['claim', 'daily', 'daily-bonus', 'bank', 'coffee', 'unlock'].includes(
+        step.action.type,
+      )
+    ) {
+      void act(step.action);
+      return;
+    }
+    if (step.target && !worldUnavailable) {
+      pendingStep.current = step;
+      setGuideCommand({ id: step.target, revision: Date.now() });
+    } else if (step.action) void act(step.action);
+    else if (step.panel) show(step.panel as Panel);
+  };
   const interact = (object: WorldObject) => {
     setSelectedObject(object);
+    if (pendingStep.current?.target === object.id) {
+      const step = pendingStep.current;
+      pendingStep.current = null;
+      if (step.action) {
+        void act(step.action);
+        return;
+      }
+      if (step.panel) {
+        show(step.panel as Panel);
+        return;
+      }
+    }
     if (object.kind === 'node') {
-      void game.facilityAction({ type: 'gather', id: object.id });
+      void act({ type: 'gather', id: object.id });
       return;
     }
     if (object.kind === 'gate') {
@@ -250,93 +371,7 @@ export default function NoobiusGame() {
     show((object.panel ?? 'contracts') as Panel);
   };
   const earlyShift = !facility.claims.includes('first-light');
-  const claimReady =
-    !!nextContract &&
-    storyValue(facility, nextContract.stat) >= nextContract.target;
-  const starterAction = (() => {
-    if (claimReady)
-      return {
-        text: `Collect ${nextContract!.credits} credits`,
-        detail: 'Job done. Your next step is ready.',
-        kind: 'claim',
-      };
-    if (!facility.claims.includes('welcome'))
-      return {
-        text: 'Find your first parts',
-        detail: 'Click here. Noobius will take you there.',
-        kind: 'gather',
-        id: 'scrap-a',
-      };
-    if (facility.craft)
-      return {
-        text:
-          Date.now() >= facility.craft.readyAt
-            ? 'Collect your repair kit'
-            : 'Your kit is being made…',
-        detail: 'One kit gets your first rack started.',
-        kind: 'collect',
-      };
-    if (!(facility.inventory.kit ?? 0)) {
-      if ((facility.inventory.scrap ?? 0) < 6)
-        return {
-          text: 'Recover more scrap',
-          detail: 'Your repair kit needs 6 scrap.',
-          kind: 'gather',
-          id:
-            (facility.cooldowns['scrap-a'] ?? 0) > Date.now()
-              ? 'scrap-c'
-              : 'scrap-a',
-        };
-      if ((facility.inventory.copper ?? 0) < 3)
-        return {
-          text: 'Find copper cables',
-          detail: 'Your repair kit needs 3 copper.',
-          kind: 'gather',
-          id: 'copper-a',
-        };
-      return {
-        text: 'Make a repair kit',
-        detail: 'Turn those parts into something useful.',
-        kind: 'craft',
-      };
-    }
-    if ((facility.inventory.copper ?? 0) < 4)
-      return {
-        text: 'Find the last cables',
-        detail: 'Add 4 copper to connect your rack.',
-        kind: 'gather',
-        id: 'copper-a',
-      };
-    return {
-      text: 'Bring your first rack online',
-      detail: 'Install your kit. Make the lights green.',
-      kind: 'build',
-    };
-  })();
-  const followObjective = () => {
-    if (claimReady) {
-      void game.facilityAction({ type: 'claim', id: nextContract!.id });
-      return;
-    }
-    if (!earlyShift) {
-      show('contracts');
-      return;
-    }
-    if (starterAction.kind === 'gather') {
-      setGuideCommand({ id: starterAction.id!, revision: Date.now() });
-      return;
-    }
-    if (starterAction.kind === 'collect') {
-      void game.facilityAction({ type: 'collect' });
-      return;
-    }
-    if (starterAction.kind === 'craft') {
-      show('crafting');
-      return;
-    }
-    setSelectedObject(OBJECTS.find((o) => o.id === 'rack-a')!);
-    show('facility');
-  };
+  const followObjective = () => executeStep(objective);
   const closePuzzle = () => {
     setActiveJob(null);
     if (shift?.completedAt) setPanel('report');
@@ -458,12 +493,26 @@ export default function NoobiusGame() {
           </Button>
           <button
             className="practice-button"
-            onClick={practice}
+            onClick={() =>
+              profile && profile.wallet !== 'practice'
+                ? practice()
+                : show('wallet')
+            }
             disabled={busy || game.initializing}
           >
-            <Gamepad2 size={16} /> Practice shift
+            {profile && profile.wallet !== 'practice' ? (
+              <>
+                <Gamepad2 size={16} /> Practice shift
+              </>
+            ) : (
+              <>
+                <Wallet size={16} /> Connect to save
+              </>
+            )}
           </button>
-          <span className="free-note">Free to play. No tokens required.</span>
+          <span className="free-note">
+            Free to play. Guest progress is temporary.
+          </span>
         </main>
       ) : (
         <main className="play-world" aria-label="The Noobius night shift">
@@ -477,6 +526,12 @@ export default function NoobiusGame() {
             zoomCommand={zoomCommand}
             travelCommand={travelCommand}
             guideCommand={guideCommand}
+            objectiveId={objective.target}
+            workEvent={workEvent}
+            onUnavailable={() => setWorldUnavailable(true)}
+            onCancelGuide={() => {
+              pendingStep.current = null;
+            }}
           />
           <button
             className="game-menu-button"
@@ -495,51 +550,65 @@ export default function NoobiusGame() {
           </div>
           <div
             className="shift-hud"
-            aria-label={`${capacity(facility)} compute capacity. ${profile?.credits ?? 0} credits.`}
+            aria-label={`${modules(facility)} rack levels installed. ${profile?.credits ?? 0} credits.`}
           >
             <span>
               <span className="status-dot" />
-              {capacity(facility)} compute
+              {modules(facility)} rack levels
             </span>
             <span>
               <Coins size={14} />
               {profile?.credits ?? 0} credits
             </span>
           </div>
-          {nextContract && (
+          {
             <button
               className="objective-hud"
               onClick={followObjective}
-              disabled={
-                busy ||
-                (earlyShift &&
-                  starterAction.kind === 'collect' &&
-                  !!facility.craft &&
-                  Date.now() < facility.craft.readyAt)
-              }
+              disabled={busy || objective.wait}
             >
               <span>
-                {earlyShift ? 'YOUR FIRST RACK' : 'MARGO’S NEXT CONTRACT'}
+                {earlyShift ? 'MARGO / YOUR FIRST RACK' : objective.speaker}
               </span>
-              <strong>
-                {earlyShift || claimReady
-                  ? starterAction.text
-                  : nextContract.name}
-              </strong>
-              <small>
-                {earlyShift
-                  ? starterAction.detail
-                  : `${Math.min(storyValue(facility, nextContract.stat), nextContract.target)}/${nextContract.target}`}{' '}
-                <ArrowRight size={13} />
-              </small>
+              <strong>{objective.title}</strong>
+              <small>{objective.detail}</small>
+              <span className="objective-action">
+                {objective.cta} <ArrowRight size={15} />
+              </span>
+              <i className="objective-meter">
+                <i style={{ width: `${objective.progress}%` }} />
+              </i>
             </button>
+          }
+          {!earlyShift && (
+            <button
+              className="daily-hud"
+              onClick={() => {
+                setJobTab('daily');
+                show('contracts');
+              }}
+            >
+              <Trophy size={16} />
+              <span>
+                Daily card <strong>{todayClaims.length}/3</strong>
+                {dailyReady > 0 ? ' · Reward ready' : ''}
+              </span>
+            </button>
+          )}
+          {celebration && (
+            <div className="milestone-toast" role="status">
+              <Sparkles size={27} />
+              <div>
+                <strong>{celebration.title}</strong>
+                <span>{celebration.detail}</span>
+              </div>
+            </div>
           )}
           <div className="campus-hotbar" aria-label="Campus tools">
             {[
               { id: 'map', name: 'Map', Icon: Map },
               { id: 'inventory', name: 'Backpack', Icon: Backpack },
-              { id: 'crafting', name: 'Craft', Icon: Wrench },
-              { id: 'contracts', name: 'Contracts', Icon: BriefcaseBusiness },
+              { id: 'contracts', name: 'Jobs', Icon: BriefcaseBusiness },
               { id: 'social', name: 'Crew', Icon: MessageCircle },
             ].map(({ id, name, Icon }) => (
               <button key={id} onClick={() => show(id as Panel)}>
@@ -634,7 +703,7 @@ export default function NoobiusGame() {
                     mode === 'practice'
                       ? 'Practice shift · Progress lasts until reload.'
                       : 'Your progress is saved to your wallet.',
-                  jobs: 'Tap a station in the room, or open a job here.',
+                  jobs: 'Fix a system, earn credits, then put those credits into your campus.',
                   wallet:
                     'Connect your wallet to save your progress. No purchase or transaction required.',
                   badge: 'What should we put on your badge?',
@@ -657,10 +726,35 @@ export default function NoobiusGame() {
               profile={profile}
               selected={selectedObject}
               busy={busy}
-              onAction={game.facilityAction}
+              onAction={act}
               onMarket={game.marketAction}
               onPanel={(p) => show(p)}
+              key={panel}
+              objective={objective}
+              jobTab={jobTab}
+              onFollow={followObjective}
+              onRepair={() => show('jobs')}
+              onHelp={(request) =>
+                executeStep(
+                  resolveObjective(facility, profile.credits, now, request),
+                )
+              }
+              onGuide={(object) =>
+                executeStep({
+                  title: object.name,
+                  detail: '',
+                  cta: '',
+                  target: object.id,
+                  action:
+                    object.kind === 'node'
+                      ? { type: 'gather', id: object.id }
+                      : undefined,
+                  panel: object.panel,
+                })
+              }
               onTravel={() => {
+                pendingStep.current = null;
+                setGuideCommand({ id: '', revision: Date.now() });
                 setTravelCommand((n) => n + 1);
                 setPanel(null);
               }}
@@ -698,7 +792,7 @@ export default function NoobiusGame() {
                   <Wrench size={18} /> Repair dispatch
                 </button>
                 <button onClick={() => show('contracts')}>
-                  <BriefcaseBusiness size={18} /> Contracts
+                  <BriefcaseBusiness size={18} /> Job book
                 </button>
                 <button onClick={() => show('locker')}>
                   <Wrench size={18} /> Equipment
@@ -742,11 +836,12 @@ export default function NoobiusGame() {
               </p>
             </div>
           )}
-          {panel === 'jobs' && (
+          {panel === 'jobs' && shift && (
             <>
               <p className="muted-small">
-                Repair jobs earn credits, operations XP, and parts delivered to
-                your bank. Your campus upgrades stay built between shifts.
+                Each repair pays 25 credits and sends 2 spare parts to your
+                locker. Fix all three for a 25-credit bonus. Your built racks
+                stay online.
               </p>
               {shift?.completedAt && (
                 <Button
@@ -754,7 +849,7 @@ export default function NoobiusGame() {
                   disabled={busy}
                   onClick={nextShift}
                 >
-                  Start another repair shift <ArrowRight size={17} />
+                  Get 3 new repair tickets <ArrowRight size={17} />
                 </Button>
               )}
               <div className="job-dock" aria-label="Repair stations">
@@ -961,27 +1056,28 @@ export default function NoobiusGame() {
                       progress, or try a practice shift without one.
                     </li>
                     <li>
-                      <strong>Explore the campus.</strong> Click a station to
-                      walk there. Use WASD or arrow keys to move and E nearby to
-                      interact. Scroll to zoom and press R to rotate. M opens
-                      the map; I opens your backpack. Meet Margo or open
-                      Contracts for the story.
+                      <strong>Follow Margo’s next step.</strong> Click the job
+                      card to find parts, make a repair kit, and bring your
+                      first rack online. The glowing arrow marks your next stop.
                     </li>
                     <li>
-                      <strong>Make the repair.</strong> Balance 100 cooling
-                      units, repeat a GPU boot sequence, and match four network
-                      connections. You have three attempts at each station.
+                      <strong>Earn and expand.</strong> Open Jobs for quick
+                      repairs. Each fix pays 25 credits and spare parts. Use
+                      them to build more rack levels and open new departments.
                     </li>
                     <li>
-                      <strong>Build something lasting.</strong> Salvage parts,
-                      craft components, and install rack modules. Expand power
-                      and cooling to open new departments. Your built racks stay
-                      online between maintenance shifts.
+                      <strong>Make the next shift count.</strong> Daily jobs
+                      fill your reward card. Complete it on 3 different days to
+                      earn the gold shirt. Your stamps and built racks stay with
+                      you; there is no streak to lose.
                     </li>
                   </ol>
                   <p>
-                    On touch screens, tap a station or a job button. Every
-                    puzzle also supports keyboard controls.
+                    Click or tap to walk. WASD / arrows also move Noobius; E
+                    interacts nearby. Scroll to zoom, R rotates the view, M
+                    opens the map, and I opens your backpack. On phones, use the
+                    job card and tap the world. Every puzzle supports keyboard
+                    controls.
                   </p>
                 </div>
               </TabsContent>
@@ -1230,12 +1326,19 @@ export default function NoobiusGame() {
               <Button
                 className="primary-action"
                 disabled={busy}
-                onClick={nextShift}
+                onClick={() => {
+                  setPanel(null);
+                  followObjective();
+                }}
               >
-                Another shift <ArrowRight size={18} />
+                Continue my project <ArrowRight size={18} />
               </Button>
-              <button className="outline-button" onClick={() => show('locker')}>
-                <Wrench size={16} /> Open equipment locker
+              <p className="muted-small">
+                Next: {objective.title}. Spare parts from these repairs are
+                waiting in your locker.
+              </p>
+              <button className="outline-button" onClick={nextShift}>
+                <Wrench size={16} /> Get more repair tickets
               </button>
             </div>
           )}

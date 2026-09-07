@@ -10,7 +10,10 @@ import {
   STORY,
   RECIPES,
   ZONES,
+  normalizeFacility,
+  DAILY_TASKS,
 } from '../lib/facility.ts';
+import { resolveObjective } from '../lib/objectives.ts';
 const act = (f, type, extras = {}, credits = 1000, now = 100000) =>
   applyFacility(
     f,
@@ -162,4 +165,98 @@ test('merchant spread never pays more than purchase cost and crafting consumes i
   assert.equal(ZONES.length, 7);
   for (const recipe of RECIPES)
     assert.ok(Object.values(recipe.cost).every((n) => n > 0));
+});
+test('old saves gain daily-card defaults without changing progress or the concurrency version', () => {
+  const f = newFacility(100000);
+  f.version = 42;
+  f.builds = { 'rack-a': 2 };
+  f.bank = { copper: 39 };
+  delete f.workdays;
+  delete f.lastWorkday;
+  const n = normalizeFacility(JSON.parse(JSON.stringify(f)), 100000);
+  assert.equal(n.version, 42);
+  assert.equal(n.builds['rack-a'], 2);
+  assert.equal(n.bank.copper, 39);
+  assert.equal(n.workdays, 0);
+  assert.equal(n.lastWorkday, '');
+});
+test('daily stamp pays once per UTC day and earns the gold shirt across nonconsecutive days', () => {
+  let now = Date.UTC(2026, 8, 7, 12),
+    f = newFacility(now);
+  assert.throws(
+    () => act(f, 'outfit', { id: 'afterhours' }, 10000, now),
+    /3 different days/,
+  );
+  for (let day = 0; day < 3; day++) {
+    now += 3 * 86400000;
+    f = normalizeFacility(f, now);
+    for (const task of DAILY_TASKS) {
+      f.daily[task.stat] = task.target;
+      f = act(f, 'daily', { id: task.id }, 0, now).facility;
+    }
+    const a = { type: 'daily-bonus', requestId: crypto.randomUUID() };
+    const paid = applyFacility(f, a, 0, now);
+    assert.equal(paid.credits, 25);
+    f = paid.facility;
+    assert.equal(applyFacility(f, a, 0, now).credits, 0);
+    assert.throws(() => act(f, 'daily-bonus', {}, 0, now), /all three daily/);
+  }
+  assert.equal(f.workdays, 3);
+  assert.ok(f.owned.includes('afterhours'));
+  const next = act(f, 'outfit', { id: 'afterhours' }, 0, now);
+  assert.equal(next.credits, 0);
+  assert.equal(next.facility.outfit, 'afterhours');
+});
+test('guidance recovers from spent starter credits, banked parts and full backpacks', () => {
+  const now = 100000,
+    f = newFacility(now);
+  f.claims = ['welcome', 'maker'];
+  f.inventory = { kit: 1, copper: 4 };
+  f.stats.crafted = 1;
+  assert.equal(resolveObjective(f, 0, now).repair, true);
+  f.inventory = { copper: 4 };
+  f.bank = { kit: 1 };
+  assert.deepEqual(resolveObjective(f, 15, now).action, {
+    type: 'bank',
+    item: 'kit',
+    quantity: 1,
+    direction: 'withdraw',
+  });
+  const full = newFacility(now);
+  full.inventory = { copper: 120 };
+  assert.equal(resolveObjective(full, 0, now).action.direction, 'deposit');
+  full.craft = { recipe: 'kit', readyAt: now };
+  assert.equal(resolveObjective(full, 0, now).action.direction, 'deposit');
+});
+test('one objective route can finish every story project without invented inventory or currency', () => {
+  let now = Date.UTC(2026, 8, 7, 10),
+    f = newFacility(now),
+    credits = 0;
+  for (
+    let step = 0;
+    step < 260 &&
+    f.claims.filter((id) => STORY.some((c) => c.id === id)).length < 9;
+    step++
+  ) {
+    const next = resolveObjective(f, credits, now);
+    if (next.wait) {
+      now += 60000;
+      continue;
+    }
+    if (next.repair) {
+      f = repairLoot(f, 'network', now);
+      credits += 25;
+      continue;
+    }
+    assert.ok(next.action, `No action for ${next.title}`);
+    const result = act(f, next.action.type, next.action, credits, now);
+    f = result.facility;
+    credits += result.credits;
+    now += 1000;
+  }
+  assert.equal(
+    f.claims.filter((id) => STORY.some((c) => c.id === id)).length,
+    9,
+  );
+  assert.ok(resolveObjective(f, credits, now).title);
 });

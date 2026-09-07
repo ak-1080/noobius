@@ -37,6 +37,7 @@ import {
   itemCount,
   energyNow,
   dayKey,
+  DAILY_TASKS,
   type FacilityAction,
   type WorldObject,
   type ItemId,
@@ -44,6 +45,7 @@ import {
 } from '@/lib/facility';
 import type { Profile } from '@/lib/game';
 import { api } from './useNoobius';
+import type { Objective } from '@/lib/objectives';
 export type ExpansionPanel =
   | 'map'
   | 'inventory'
@@ -56,31 +58,31 @@ export type ExpansionPanel =
   | 'rewards';
 export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   map: [
-    'The compute campus.',
-    'Seven departments. A suspicious number of broken things.',
+    'Explore the campus',
+    'Open new rooms. Find parts. Bring more racks online.',
   ],
   inventory: [
-    'Your backpack & bank.',
-    'Parts have a purpose. Keep some for your next project.',
+    'Backpack & locker',
+    'Use parts from your backpack. Your locker stores extras safely.',
   ],
   crafting: [
-    'Engineering workshop.',
-    'Yesterday’s hardware. Tomorrow’s questionable upgrade.',
+    'Make useful parts',
+    'Choose a part. We’ll help you find anything missing.',
   ],
   contracts: [
-    'Margo’s dispatch board.',
-    'A little work. A bigger facility. An increasingly concerned supervisor.',
+    'Your job book',
+    'One project at a time. Small jobs build a bigger campus.',
   ],
   facility: [
-    'Keep building the future.',
-    'Racks stay online between shifts. Capacity is simulated game progress.',
+    'Build & upgrade racks',
+    'Each rack has 3 levels. Installed levels stay built between repair shifts.',
   ],
   market: [
-    'Bit’s parts exchange.',
+    'Bit’s spare-parts shop',
     'Buy missing parts, sell a surplus, or trade with the crew.',
   ],
   skills: [
-    'Your life on the night shift.',
+    'Patch’s skills & outfits',
     'Earn your expertise. Wear the slightly nicer shirt.',
   ],
   social: [
@@ -101,6 +103,12 @@ type Props = {
   onMarket: (a: string, b: Record<string, unknown>) => Promise<unknown>;
   onPanel: (p: ExpansionPanel) => void;
   onTravel: () => void;
+  objective: Objective;
+  onFollow: () => void;
+  onRepair: () => void;
+  onHelp: (request: { items?: Bag; build?: string; recipe?: ItemId }) => void;
+  onGuide: (object: WorldObject) => void;
+  jobTab?: string;
 };
 function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   return (
@@ -126,9 +134,15 @@ export default function FacilityPanels({
   onMarket,
   onPanel,
   onTravel,
+  objective,
+  onFollow,
+  onRepair,
+  onHelp,
+  onGuide,
+  jobTab = 'story',
 }: Props) {
   const f = profile.facility!,
-    [now, setNow] = useState(Date.now()),
+    [now, setNow] = useState(Date.now),
     [quantity, setQuantity] = useState(1),
     [item, setItem] = useState<ItemId>('scrap'),
     [price, setPrice] = useState(10),
@@ -193,7 +207,7 @@ export default function FacilityPanels({
             <strong>{capacity(f)}</strong> compute
           </span>
           <span>
-            <strong>{modules(f)}</strong> modules
+            <strong>{modules(f)}</strong> rack levels
           </span>
           <span>
             <strong>{f.unlocked.length}/7</strong> open
@@ -232,7 +246,7 @@ export default function FacilityPanels({
                   ? 'Travel here'
                   : z.id === 'core' && !f.unlocked.includes('compute')
                     ? 'Open GPU Foundry first'
-                    : `${z.modules} modules · ${z.cost} CR`}
+                    : `${z.modules} rack levels · ${z.cost} credits`}
               </small>
             </button>
           ))}
@@ -247,7 +261,7 @@ export default function FacilityPanels({
           ).map((o) => (
             <button
               disabled={busy || (f.cooldowns[o.id] ?? 0) > now}
-              onClick={() => action({ type: 'gather', id: o.id })}
+              onClick={() => onGuide(o)}
               key={o.id}
             >
               <i style={{ background: ITEMS[o.item!].color }} />
@@ -258,7 +272,7 @@ export default function FacilityPanels({
               <small>
                 {(f.cooldowns[o.id] ?? 0) > now
                   ? `${Math.ceil((f.cooldowns[o.id] - now) / 1000)}s`
-                  : 'Salvage'}
+                  : 'Go collect'}
               </small>
             </button>
           ))}
@@ -276,7 +290,7 @@ export default function FacilityPanels({
             backpack
           </span>
           <span>
-            <strong>{itemCount(f.bank)}</strong> banked parts
+            <strong>{itemCount(f.bank)}</strong> stored parts
           </span>
           <span>
             <strong>{energyNow(f, now)}</strong> suit energy
@@ -285,7 +299,7 @@ export default function FacilityPanels({
         <Tabs defaultValue="bag">
           <TabsList className="expansion-tabs">
             <TabsTrigger value="bag">Backpack</TabsTrigger>
-            <TabsTrigger value="bank">Bank</TabsTrigger>
+            <TabsTrigger value="bank">Locker</TabsTrigger>
           </TabsList>
           {(['bag', 'bank'] as const).map((where) => (
             <TabsContent value={where} key={where}>
@@ -361,7 +375,7 @@ export default function FacilityPanels({
               {itemCount(where === 'bag' ? f.inventory : f.bank) === 0 && (
                 <p className="empty-state">
                   Empty for now. Salvage parts around the campus. Maintenance
-                  repair drops arrive safely in your bank.
+                  repair drops arrive safely in your locker.
                 </p>
               )}
             </TabsContent>
@@ -377,7 +391,7 @@ export default function FacilityPanels({
           }
           onClick={() => action({ type: 'storage' })}
         >
-          Expand backpack +40 · 1 kit + {80 + f.storage * 60} CR
+          Expand backpack +40 · 1 kit + {80 + f.storage * 60} credits
         </button>
       </div>
     );
@@ -441,6 +455,14 @@ export default function FacilityPanels({
                   </div>
                 </div>
                 <Parts cost={r.cost} bag={f.inventory} />
+                {open && !canPay(f.inventory, r.cost) && !f.craft && (
+                  <button
+                    className="find-parts-button"
+                    onClick={() => onHelp({ recipe: r.id })}
+                  >
+                    Find the missing parts <ArrowRight size={14} />
+                  </button>
+                )}
                 <div className="recipe-bottom">
                   <small>
                     {r.seconds}s · Engineering {r.skill}
@@ -455,8 +477,8 @@ export default function FacilityPanels({
                     className="outline-button"
                     onClick={() => action({ type: 'craft', id: r.id })}
                   >
-                    {!open ? <Lock size={14} /> : <Wrench size={14} />}{' '}
-                    {r.id === 'kit' ? 'Make kit · 5 sec' : 'Fabricate'}
+                    {!open ? <Lock size={14} /> : <Wrench size={14} />} Make{' '}
+                    {r.name.toLowerCase()} · {r.seconds}s
                   </Button>
                 </div>
               </div>
@@ -469,10 +491,37 @@ export default function FacilityPanels({
     const daily = f.day === dayKey(now) ? f.daily : {},
       claimed = f.day === dayKey(now) ? f.dailyClaims : [];
     return (
-      <Tabs defaultValue="story">
+      <Tabs defaultValue={jobTab}>
+        <div className="dispatcher-note">
+          <span className="bot-badge">M</span>
+          <p>
+            <strong>Margo / Shift supervisor</strong>“You’re the only Noobius on
+            this floor. We’re the bots trying to keep up.”
+          </p>
+        </div>
+        <button
+          className="job-next-step"
+          onClick={onFollow}
+          disabled={busy || objective.wait}
+        >
+          <span>{objective.chapter}</span>
+          <strong>{objective.title}</strong>
+          <p>{objective.detail}</p>
+          <small>
+            {objective.cta} <ArrowRight size={16} />
+          </small>
+        </button>
+        <button className="repair-shortcut" onClick={onRepair}>
+          <Wrench size={20} />
+          <span>
+            <strong>Quick repair jobs</strong>
+            <small>Fix a system · +25 credits + spare parts</small>
+          </span>
+          <ArrowRight size={17} />
+        </button>
         <TabsList className="expansion-tabs">
-          <TabsTrigger value="story">Story</TabsTrigger>
-          <TabsTrigger value="daily">Daily shift</TabsTrigger>
+          <TabsTrigger value="story">My project</TabsTrigger>
+          <TabsTrigger value="daily">Daily card</TabsTrigger>
           <TabsTrigger value="orders">Deliveries</TabsTrigger>
         </TabsList>
         <TabsContent value="story">
@@ -511,14 +560,24 @@ export default function FacilityPanels({
                     />
                     <div className="quest-bottom">
                       <small>
-                        {Math.min(value, c.target)}/{c.target} · +{c.credits} CR
-                        / {c.xp} XP
+                        {Math.min(value, c.target)}/{c.target} · +{c.credits}{' '}
+                        credits / {c.xp} XP
                       </small>
                       <button
-                        disabled={busy || done || locked || value < c.target}
-                        onClick={() => action({ type: 'claim', id: c.id })}
+                        disabled={busy || done || locked}
+                        onClick={() =>
+                          value >= c.target
+                            ? action({ type: 'claim', id: c.id })
+                            : onFollow()
+                        }
                       >
-                        {done ? 'Claimed' : locked ? 'Locked' : 'Claim'}
+                        {done
+                          ? 'Collected'
+                          : locked
+                            ? 'Up next'
+                            : value >= c.target
+                              ? 'Collect reward'
+                              : 'Show next step'}
                         {!done && <ArrowRight size={14} />}
                       </button>
                     </div>
@@ -536,65 +595,100 @@ export default function FacilityPanels({
         </TabsContent>
         <TabsContent value="daily">
           <p className="muted-small">
-            Three optional objectives. Resets at midnight UTC. No streak to
-            lose.
+            Three small jobs each day. Collect all three rewards, then stamp
+            your card. New jobs at midnight UTC. Your stamps never expire.
           </p>
-          {[
-            {
-              id: 'gather',
-              name: 'Rescue 30 parts',
-              stat: 'gathered',
-              target: 30,
-              cr: 35,
-            },
-            {
-              id: 'craft',
-              name: 'Fabricate 3 components',
-              stat: 'crafted',
-              target: 3,
-              cr: 35,
-            },
-            {
-              id: 'repair',
-              name: 'Repair 3 systems',
-              stat: 'repairs',
-              target: 3,
-              cr: 50,
-            },
-          ].map((c) => (
+          {DAILY_TASKS.map((c) => (
             <div className="daily-contract" key={c.id}>
               <div>
                 <strong>{c.name}</strong>
                 <small>
                   {Math.min(daily[c.stat] ?? 0, c.target)}/{c.target} · {c.cr}{' '}
-                  CR + 15 XP
+                  credits + 15 XP
                 </small>
               </div>
               <Button
-                disabled={
-                  busy ||
-                  claimed.includes(c.id) ||
-                  (daily[c.stat] ?? 0) < c.target
-                }
+                disabled={busy || claimed.includes(c.id)}
                 className="outline-button"
-                onClick={() => action({ type: 'daily', id: c.id })}
+                onClick={() =>
+                  (daily[c.stat] ?? 0) >= c.target
+                    ? action({ type: 'daily', id: c.id })
+                    : c.id === 'repair'
+                      ? onRepair()
+                      : c.id === 'craft'
+                        ? onHelp({ recipe: 'kit' })
+                        : onGuide(
+                            OBJECTS.find(
+                              (o) =>
+                                o.id ===
+                                ((f.cooldowns['scrap-a'] ?? 0) > now
+                                  ? 'scrap-c'
+                                  : 'scrap-a'),
+                            )!,
+                          )
+                }
               >
-                {claimed.includes(c.id) ? 'Claimed' : 'Claim'}
+                {claimed.includes(c.id)
+                  ? 'Collected'
+                  : (daily[c.stat] ?? 0) >= c.target
+                    ? 'Collect reward'
+                    : 'Do this job'}
               </Button>
             </div>
           ))}
+          <div className="daily-stamp-card">
+            <span className="section-label">AFTER-HOURS CLUB</span>
+            <h3>Three good days. One gold shirt.</h3>
+            <p>
+              Finish this card on 3 different days to earn an exclusive outfit.
+              Take days off whenever you want.
+            </p>
+            <div className="stamp-row">
+              {[1, 2, 3].map((n) => (
+                <span key={n} className={f.workdays >= n ? 'earned' : ''}>
+                  {f.workdays >= n ? <Check size={24} /> : n}
+                  <small>Day {n}</small>
+                </span>
+              ))}
+            </div>
+            <Button
+              className="primary-action"
+              disabled={
+                busy ||
+                f.lastWorkday === dayKey(now) ||
+                !DAILY_TASKS.every((t) => claimed.includes(t.id))
+              }
+              onClick={() => action({ type: 'daily-bonus' })}
+            >
+              {f.lastWorkday === dayKey(now)
+                ? 'Today is stamped ✓'
+                : 'Stamp my card · +25 credits'}
+            </Button>
+            <small>
+              {f.workdays} completed day{f.workdays === 1 ? '' : 's'} · Game
+              rewards only
+            </small>
+          </div>
         </TabsContent>
         <TabsContent value="orders">
           <p className="muted-small">
-            Deliver parts to NPC customers for game credits. These are simulated
-            contracts.
+            Help the crew with spare parts. Deliveries pay credits and can be
+            repeated.
           </p>
           {ORDERS.map((o) => (
             <div className="delivery-order" key={o.id}>
               <h3>{o.name}</h3>
               <Parts cost={o.cost} bag={f.inventory} />
+              {!canPay(f.inventory, o.cost) && f.unlocked.includes(o.zone) && (
+                <button
+                  className="find-parts-button"
+                  onClick={() => onHelp({ items: o.cost })}
+                >
+                  Find delivery parts <ArrowRight size={14} />
+                </button>
+              )}
               <div className="recipe-bottom">
-                <small>+{o.reward} CR · +10 XP</small>
+                <small>+{o.reward} credits · +10 XP</small>
                 <Button
                   disabled={
                     busy ||
@@ -650,7 +744,7 @@ export default function FacilityPanels({
         <p className="muted-small">
           {firstRack
             ? 'Your kit + 4 copper + 15 credits bring this rack online. It stays built between shifts. Credits buy upgrades; compute helps unlock new departments.'
-            : 'Every rack holds three modules. Each module needs 2 power and 1 cooling and adds 4 simulated compute capacity. Expand utilities when you need more room.'}
+            : 'Each rack has 3 upgrade levels. A level uses 2 power and 1 cooling. Need more room? Add a power cell or cooling pump below.'}
         </p>
         {!firstRack && (
           <div className="utility-grid">
@@ -672,7 +766,7 @@ export default function FacilityPanels({
                   onClick={() => action({ type: 'utility', id: type })}
                 >
                   1 {type === 'power' ? 'cell' : 'pump'} + {40 + f[type] * 20}{' '}
-                  CR
+                  credits
                 </Button>
               </div>
             ))}
@@ -698,11 +792,27 @@ export default function FacilityPanels({
                     <h3>{o.name}</h3>
                     <small>
                       {ZONES.find((z) => z.id === o.zone)?.name} · {level}/3
-                      modules
+                      rack levels
                     </small>
                   </div>
                 </div>
                 {level < 3 && <Parts cost={cost.items} bag={f.inventory} />}
+                {level < 3 && open && (
+                  <button
+                    className="find-parts-button"
+                    onClick={() => onHelp({ build: o.id })}
+                  >
+                    {!canPay(f.inventory, cost.items)
+                      ? 'Help me get the parts'
+                      : profile.credits < cost.credits
+                        ? 'Help me earn credits'
+                        : (modules(f) + 1) * 2 > powerBudget(f) ||
+                            modules(f) + 1 > coolingBudget(f)
+                          ? 'Help me add utilities'
+                          : 'Build this in the world'}{' '}
+                    <ArrowRight size={14} />
+                  </button>
+                )}
                 <Button
                   className="outline-button"
                   disabled={
@@ -719,8 +829,8 @@ export default function FacilityPanels({
                   {!open
                     ? 'Department locked'
                     : level >= 3
-                      ? 'Fully commissioned'
-                      : `${level ? 'Upgrade' : 'Restore'} · ${cost.credits} CR`}
+                      ? 'Fully upgraded'
+                      : `${level ? 'Upgrade' : 'Restore'} · ${cost.credits} credits`}
                 </Button>
               </div>
             );
@@ -799,7 +909,7 @@ export default function FacilityPanels({
                     {l.quantity} × {ITEMS[l.item as ItemId]?.name ?? l.item}
                   </strong>
                   <small>
-                    Listed by {l.name} · {l.price} CR total
+                    Listed by {l.name} · {l.price} credits total
                   </small>
                 </div>
                 <Button
@@ -884,8 +994,8 @@ export default function FacilityPanels({
               List items <ArrowRight size={16} />
             </Button>
             <p className="muted-small">
-              Up to 10 open listings. Cancelled items return to your bank. Sales
-              transfer existing credits between players.
+              Up to 10 open listings. Cancelled items return to your locker.
+              Sales transfer existing credits between players.
             </p>
           </div>
         </TabsContent>
@@ -932,7 +1042,9 @@ export default function FacilityPanels({
             <button
               className={f.outfit === o.id ? 'selected' : ''}
               disabled={
-                busy || (!f.owned.includes(o.id) && profile.credits < o.price)
+                busy ||
+                (!f.owned.includes(o.id) &&
+                  (profile.credits < o.price || o.id === 'afterhours'))
               }
               onClick={() => action({ type: 'outfit', id: o.id })}
               key={o.id}
@@ -944,7 +1056,9 @@ export default function FacilityPanels({
                   ? 'Wearing'
                   : f.owned.includes(o.id)
                     ? 'Equip'
-                    : o.price + ' CR'}
+                    : o.id === 'afterhours'
+                      ? `${Math.min(f.workdays, 3)}/3 daily cards`
+                      : o.price + ' credits'}
               </small>
             </button>
           ))}

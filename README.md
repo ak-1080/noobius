@@ -1,19 +1,19 @@
 # Noobius — The Night Shift
 
-An original browser data-center game with a minimal cinematic title and fullscreen 3D campus. Seven connected departments support salvage, a backpack and bank, five crafting recipes, seven persistent racks with three levels each, power/cooling expansion, nine story contracts, three daily contracts, five repeatable deliveries, three skills, and four outfits. The original three maintenance puzzles remain a repeatable subsystem that earns credits and supplies.
+An original browser data-center game with a minimal cinematic title and fullscreen 3D campus. Seven connected departments support salvage, a backpack and locker, five crafting recipes, seven persistent racks with three levels each, power/cooling expansion, nine story projects, three daily jobs, five repeatable deliveries, three skills, and five outfits. Completing daily cards on three days earns the gold outfit; stamps never expire. The original three maintenance puzzles remain a repeatable subsystem that earns credits and supplies.
 
-A contextual first-rack tutorial guides salvage, kit fabrication, credit claims, and construction. It shows the next action, reduces early recipe choices, and keeps the contract board focused on the next two steps. Wheel zoom, keyboard movement, click-to-walk/interact, camera rotation, department fast travel, and accessible menu alternatives work together. Wallet players save their facility and trade listed parts for game credits. Other connected players appear through periodic presence updates; a crew channel supports messages and session-local muting. This is a private playable alpha, not a completed MMO or a launched financial rewards program.
+Play now enters a temporary guest game immediately. Margo's next-job card guides all nine story projects and then daily work, including recovery from missing credits, stored parts, and a full backpack. Noobius is the sole bean character; Margo, Bit, and Patch are distinct robot coworkers, and connected players appear as drones. Walking, tools, salvage, fabrication, fans, and project milestones respond to play. Wheel zoom, keyboard movement, click-to-walk/interact, camera rotation, department fast travel, and menu alternatives work together. Wallet players save their facility and trade listed parts for game credits. A crew channel supports messages and session-local muting. This is a private playable alpha, not a completed MMO or a launched financial rewards program.
 
 ## Run locally
 
 Requires Node 22.13 or newer. Use `npm install`, then `npm run db:local` **once on a fresh local database** to apply both migrations. Existing v1 local databases should apply only `drizzle/0001_calm_mister_fear.sql` with the same Wrangler configuration/persistence path. Start `npm run dev`. Local D1 state stays in `.wrangler/state`.
 
-- `npm test`: 21 tests for game rules, inventory/progression, energy, pathfinding, and the wallet handshake.
+- `npm test`: 25 tests for game rules, inventory/progression, old-save compatibility, permanent daily stamps, the full nine-project objective route, energy, pathfinding, and the wallet handshake.
 - `npm run test:api`: real signatures, account isolation, CSRF, persistence, concurrent repairs, exact repair loot, and competing equipment purchases against a running local server.
-- `npm run test:campus-api`: D1 crafting/claims, escrow, competing buyers, cancellation, bank persistence, and presence checks.
+- `npm run test:campus-api`: D1 crafting/claims, escrow, competing buyers, cancellation, locker persistence, presence, simultaneous chat cooldown, and premature daily/cosmetic reward rejection.
 - `npm run typecheck` and `npm run build`: TypeScript and production Worker/browser build.
 
-API suites create random test-wallet identities locally. Run suites separately with a minute between them if the shared local IP request limit is reached. Do not point these mutation tests at production.
+API suites create random test-wallet identities locally. Reads have a separate IP limit; authenticated actions and presence also have separate per-wallet limits. Do not point these mutation tests at production.
 
 ## Game economy and persistence
 
@@ -35,4 +35,4 @@ The app does not handle private keys. Installed wallet extension UI and real mob
 
 The original portrait and cinematic are user-supplied. The playable Three.js model is an interpretation of the same broad pale-blue bean silhouette, worried unequal eyes, off-white shirt, and black headset, with moving arms and feet. See [asset notes](docs/art-assets.md). No Kintara or Touch Grass code or art is copied.
 
-[Game research](docs/game-research.md) compares Kintara's depth with Valhalla, Pixels, Sunflower Land, and Axie using primary sources and explicit evidence limits. [Expansion verification](docs/expansion-verification.md) records this update's checks and remaining gaps.
+[Game research](docs/game-research.md) compares Kintara's depth with Valhalla, Pixels, Sunflower Land, and Axie using primary sources and explicit evidence limits. [Gameplay audit](docs/gameplay-audit-2026-09-07.md) records the latest changes and verification; [expansion verification](docs/expansion-verification.md) preserves the previous iteration's evidence.

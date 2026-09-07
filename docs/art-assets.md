@@ -14,6 +14,8 @@ The playable room and avatar are native Three.js geometry, animated and controll
 
 The campus revision uses a continuous lathed bean silhouette, unequal oversized eyes, curved worried brows, a small open frown with two teeth, a loose shirt collar/sleeves, padded earcups, an arched headband, and a curved microphone boom. Walking animates arms and feet; the source portrait remains unchanged.
 
+The gameplay audit removes all NPC reuse of Noobius. Margo is a cream rectangular dispatcher with a visor and clipboard; Bit is an amber wheeled scrap collector; Patch is a teal mechanic with a triangular head and wrench. Other player presence uses hovering drones. These are original native Three.js models. The only Noobius avatar is the local player, marked YOU. Work sparks, a handheld tool, moving fabrication gantries, depleted scrap piles, rack fans, and objective markers provide action feedback. Ambient animation respects reduced motion and pauses in hidden tabs.
+
 The edit is reproducible with `scripts/build-homepage-reel.py --ffmpeg /path/to/ffmpeg --source-dir /path/to/originals`. It uses the original desk clip from 0–3.5 seconds, cable clip from 0.75–7.5 seconds, running clip from 1–4.5 seconds, and button clip from 1.5–7.75 seconds. The running clip's awkward opening and slowdown are removed. Original Flow exports are untouched; only the edited derivatives are served. Audio tracks are removed entirely.
 
 Background clips are listed in `components/noobius/TitleScene.tsx`. The reel loops natively. Failed clips are skipped with a poster fallback if none remain. Playback pauses in hidden tabs, and the title scene unmounts when entering the game. The corner control pauses/resumes motion; background audio is always muted.

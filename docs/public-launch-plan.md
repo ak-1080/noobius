@@ -2,6 +2,8 @@
 
 Prepared September 7, 2026. This is a release plan, not a production certification. It reflects a read-only inspection of `/Users/main/Documents/ChatGPT/Noobius 2` at commit `1e42db7` plus files present during active development. The major game expansion is being built concurrently; none of its planned features are counted as finished here. Reconcile this checklist against the final release commit before opening access.
 
+Later implementation evidence is recorded in [the gameplay audit](gameplay-audit-2026-09-07.md) and [expansion verification](expansion-verification.md). These supersede the old feature snapshot below: campus progression, presence/chat, read limits, separate authenticated action limits, daily-card rewards, and continued onboarding now exist and have local checks. Current access was re-read as owner-only. Public load, real-device wallet, restore, moderation, and operating gates remain open; this note does not mark the release checklist complete.
+
 The recommended first public release is a free game with saved, nontransferable credits and clearly stated beta status. Real-value rewards are a separate, optional release. Public access does not depend on launching a token.
 
 ## How to use this plan

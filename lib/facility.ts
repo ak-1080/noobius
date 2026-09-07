@@ -42,6 +42,8 @@ export type Facility = {
   day: string;
   daily: Record<string, number>;
   dailyClaims: string[];
+  workdays: number;
+  lastWorkday: string;
   requests: string[];
   seen: string[];
 };
@@ -645,6 +647,24 @@ export const OUTFITS = [
   { id: 'hazmat', name: 'Hazard pay', price: 180, color: '#f1ae52' },
   { id: 'night', name: 'Night supervisor', price: 250, color: '#485d83' },
   { id: 'mint', name: 'Green lights only', price: 350, color: '#8dba74' },
+  { id: 'afterhours', name: 'After-hours gold', price: 0, color: '#f4cc65' },
+];
+export const DAILY_TASKS = [
+  {
+    id: 'gather',
+    name: 'Collect 30 parts',
+    stat: 'gathered',
+    target: 30,
+    cr: 35,
+  },
+  {
+    id: 'craft',
+    name: 'Make 3 useful parts',
+    stat: 'crafted',
+    target: 3,
+    cr: 35,
+  },
+  { id: 'repair', name: 'Fix 3 systems', stat: 'repairs', target: 3, cr: 50 },
 ];
 export function newFacility(now = Date.now()): Facility {
   return {
@@ -669,11 +689,32 @@ export function newFacility(now = Date.now()): Facility {
     day: dayKey(now),
     daily: {},
     dailyClaims: [],
+    workdays: 0,
+    lastWorkday: '',
     requests: [],
     seen: ['commons'],
   };
 }
 export const dayKey = (now: number) => new Date(now).toISOString().slice(0, 10);
+// Saved facility versions are concurrency counters. Read-time defaults and
+// day rollover must preserve that counter and every existing earned item.
+export function normalizeFacility(
+  saved: Partial<Facility>,
+  now = Date.now(),
+): Facility {
+  const fresh = newFacility(now);
+  const f = {
+    ...fresh,
+    ...saved,
+    skills: { ...fresh.skills, ...saved.skills },
+  };
+  if (f.day !== dayKey(now)) {
+    f.day = dayKey(now);
+    f.daily = {};
+    f.dailyClaims = [];
+  }
+  return f;
+}
 export const itemCount = (bag: Bag) =>
   Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
 export const skillLevel = (xp: number) => 1 + Math.floor(Math.sqrt(xp / 20));
@@ -714,16 +755,11 @@ export function applyFacility(
   credits: number,
   now = Date.now(),
 ): { facility: Facility; credits: number; xp: number; message: string } {
-  const f = structuredClone(previous);
+  const f = normalizeFacility(structuredClone(previous), now);
   if (f.requests.includes(action.requestId))
     return { facility: f, credits: 0, xp: 0, message: 'Already recorded.' };
   if (!/^[a-zA-Z0-9-]{8,80}$/.test(action.requestId))
     throw new FacilityError('Missing action identifier.');
-  if (f.day !== dayKey(now)) {
-    f.day = dayKey(now);
-    f.daily = {};
-    f.dailyClaims = [];
-  }
   const ticks = Math.floor((now - f.energyAt) / 5000);
   f.energy = energyNow(f, now);
   f.energyAt = f.energy >= 100 ? now : f.energyAt + ticks * 5000;
@@ -800,7 +836,7 @@ export function applyFacility(
         throw new FacilityError('Raise your engineering skill first.');
       spend(recipe.cost);
       f.craft = { recipe: recipe.id, readyAt: now + recipe.seconds * 1000 };
-      message = 'Fabrication started.';
+      message = `Making ${recipe.name.toLowerCase()} · ${recipe.seconds} seconds`;
       break;
     }
     case 'collect': {
@@ -850,7 +886,10 @@ export function applyFacility(
       );
       f[action.id]++;
       xp = 10;
-      message = 'Facility budget expanded.';
+      message =
+        action.id === 'power'
+          ? 'More power. Room for 3 more rack levels.'
+          : 'More cooling. Room for 4 more rack levels.';
       break;
     }
     case 'unlock': {
@@ -881,16 +920,11 @@ export function applyFacility(
       f.claims.push(c.id);
       delta += c.credits;
       xp = c.xp;
-      message = 'Contract paid. Margo is briefly impressed.';
+      message = `+${c.credits} credits · +${c.xp} XP. Margo is briefly impressed.`;
       break;
     }
     case 'daily': {
-      const tasks = [
-        { id: 'gather', stat: 'gathered', target: 30, cr: 35 },
-        { id: 'craft', stat: 'crafted', target: 3, cr: 35 },
-        { id: 'repair', stat: 'repairs', target: 3, cr: 50 },
-      ];
-      const c = tasks.find((t) => t.id === action.id);
+      const c = DAILY_TASKS.find((t) => t.id === action.id);
       if (
         !c ||
         f.dailyClaims.includes(c.id) ||
@@ -900,7 +934,27 @@ export function applyFacility(
       f.dailyClaims.push(c.id);
       delta += c.cr;
       xp = 15;
-      message = 'Daily contract paid.';
+      message = `Daily job complete · +${c.cr} credits · +15 XP`;
+      break;
+    }
+    case 'daily-bonus': {
+      if (
+        f.lastWorkday === f.day ||
+        !DAILY_TASKS.every((t) => f.dailyClaims.includes(t.id))
+      )
+        throw new FacilityError(
+          'Finish and collect all three daily jobs first.',
+        );
+      f.lastWorkday = f.day;
+      f.workdays++;
+      delta += 25;
+      xp = 25;
+      if (f.workdays >= 3 && !f.owned.includes('afterhours'))
+        f.owned.push('afterhours');
+      message =
+        f.workdays === 3
+          ? 'After-hours gold unlocked! Try it on at Patch’s.'
+          : `Day ${f.workdays} stamped! +25 credits. No streak to lose.`;
       break;
     }
     case 'order': {
@@ -981,6 +1035,10 @@ export function applyFacility(
     case 'outfit': {
       const outfit = OUTFITS.find((o) => o.id === action.id);
       if (!outfit) throw new FacilityError('Unknown outfit.');
+      if (outfit.id === 'afterhours' && !f.owned.includes(outfit.id))
+        throw new FacilityError(
+          'Finish the daily card on 3 different days to earn this shirt.',
+        );
       if (!f.owned.includes(outfit.id)) {
         spend({}, outfit.price);
         f.owned.push(outfit.id);
@@ -1001,12 +1059,7 @@ export function repairLoot(
   job: string,
   now = Date.now(),
 ): Facility {
-  const f = structuredClone(previous);
-  if (f.day !== dayKey(now)) {
-    f.day = dayKey(now);
-    f.daily = {};
-    f.dailyClaims = [];
-  }
+  const f = normalizeFacility(structuredClone(previous), now);
   const item: ItemId =
     job === 'cooling' ? 'coolant' : job === 'boot' ? 'silicon' : 'copper';
   f.bank[item] = (f.bank[item] ?? 0) + 2;

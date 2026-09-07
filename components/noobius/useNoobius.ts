@@ -103,17 +103,75 @@ export function useNoobius() {
     inFlight = useRef(false);
   const generation = useRef(0),
     operationGeneration = useRef(0);
+  const appliedRevision = useRef(0);
   const apply = useCallback(
     (
       data: { profile: Profile | null; shift: Shift | null },
       epoch = operationGeneration.current,
     ) => {
       if (epoch !== generation.current) return;
+      appliedRevision.current++;
+      state.current = {
+        ...state.current,
+        profile: data.profile,
+        shift: data.shift,
+      };
       setProfile(data.profile);
       setShift(data.shift);
     },
     [],
   );
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      const wallet = state.current.profile?.wallet;
+      if (
+        !wallet ||
+        wallet === 'practice' ||
+        document.hidden ||
+        inFlight.current
+      )
+        return;
+      const epoch = generation.current,
+        revision = appliedRevision.current;
+      try {
+        const data = await api('profile');
+        if (
+          !alive ||
+          epoch !== generation.current ||
+          revision !== appliedRevision.current ||
+          inFlight.current
+        )
+          return;
+        if (!data.profile || data.profile.wallet !== wallet) {
+          generation.current++;
+          appliedRevision.current++;
+          state.current = { profile: null, shift: null, mode: 'lobby' };
+          setProfile(null);
+          setShift(null);
+          setMode('lobby');
+          setError(
+            'Your sign-in changed or expired. Reconnect to continue your saved game.',
+          );
+        } else if (
+          (data.profile.facility?.version ?? 0) >=
+          (state.current.profile?.facility?.version ?? 0)
+        )
+          apply(data, epoch);
+      } catch {
+        /* A background refresh must not interrupt an active game. */
+      }
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    const timer = setInterval(refresh, 60000);
+    return () => {
+      alive = false;
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+      clearInterval(timer);
+    };
+  }, [apply]);
   useEffect(() => {
     let alive = true;
     api('profile')
@@ -184,9 +242,21 @@ export function useNoobius() {
             : 'Something went wrong. Please try again.',
         );
         if (e instanceof ClientError && e.status === 401) {
+          generation.current++;
+          appliedRevision.current++;
+          state.current = { profile: null, shift: null, mode: 'lobby' };
           setMode('lobby');
           setProfile(null);
           setShift(null);
+        }
+        if (e instanceof ClientError && e.status === 409) {
+          const wallet = state.current.profile?.wallet;
+          try {
+            const fresh = await api('profile');
+            if (wallet && fresh.profile?.wallet === wallet) apply(fresh);
+          } catch {
+            /* Keep the existing error and allow a safe retry. */
+          }
         }
         return;
       } finally {
@@ -194,7 +264,7 @@ export function useNoobius() {
         setBusy(false);
       }
     },
-    [],
+    [apply],
   );
   const connect = async (option: WalletOption) =>
     run(async () => {
@@ -209,7 +279,11 @@ export function useNoobius() {
       apply(data);
       setMode('lobby');
       pending.current = null;
-      localStorage.setItem('noobius-wallet', option.name);
+      try {
+        localStorage.setItem('noobius-wallet', option.name);
+      } catch {
+        /* Remembering the provider is optional. */
+      }
       listeners.current?.();
       providerRef.current = p;
       const changed = (accounts?: unknown) => {
@@ -247,7 +321,12 @@ export function useNoobius() {
     )
       return;
     let alive = true;
-    const remembered = localStorage.getItem('noobius-wallet');
+    let remembered: string | null = null;
+    try {
+      remembered = localStorage.getItem('noobius-wallet');
+    } catch {
+      /* Wallet discovery still works without browser storage. */
+    }
     const chosen = wallets.find((w) => w.name === remembered);
     if (!chosen) return;
     const p = chosen.provider;

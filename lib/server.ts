@@ -15,6 +15,7 @@ import {
 import {
   applyFacility,
   newFacility,
+  normalizeFacility,
   repairLoot,
   ITEMS,
   ZONES,
@@ -93,10 +94,15 @@ async function bodyOf(request: Request) {
     throw new ApiError(400, 'Invalid request.');
   }
 }
-async function rate(request: Request, action: string, limit = 120) {
+async function rate(
+  request: Request,
+  action: string,
+  limit = 120,
+  wallet?: string,
+) {
   const now = Date.now(),
     key = await hash(
-      `${request.headers.get('cf-connecting-ip') ?? 'local'}:${action}:${Math.floor(now / 60000)}`,
+      `${wallet ? 'wallet:' + wallet : (request.headers.get('cf-connecting-ip') ?? 'local')}:${action}:${Math.floor(now / 60000)}`,
     );
   const row = await db()
     .prepare(
@@ -152,7 +158,10 @@ async function player(wallet: string): Promise<Profile> {
     shifts: p.shifts,
     bestScore: p.best_score,
     equipment: { scanner: !!p.scanner, visor: !!p.visor, tracer: !!p.tracer },
-    facility: { ...JSON.parse(p.facility_state!), version: p.facility_version },
+    facility: normalizeFacility({
+      ...JSON.parse(p.facility_state!),
+      version: p.facility_version,
+    }),
   };
 }
 async function identity(request: Request) {
@@ -179,9 +188,11 @@ async function getRun(wallet: string, id?: string) {
   return row ? (JSON.parse(row.state) as Shift) : null;
 }
 function result(data: unknown, status = 200, headers?: HeadersInit) {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set('Cache-Control', 'no-store');
   return Response.json(data, {
     status,
-    headers: { 'Cache-Control': 'no-store', ...headers },
+    headers: responseHeaders,
   });
 }
 async function responseFor(wallet: string, shift?: Shift | null) {
@@ -242,6 +253,7 @@ async function saveRun(wallet: string, previous: Shift, next: Shift) {
 }
 export async function handleGame(request: Request, action: string) {
   if (request.method === 'GET') {
+    await rate(request, 'reads', 1200);
     if (action === 'leaderboard') {
       const rows = await db()
         .prepare(
@@ -299,7 +311,7 @@ export async function handleGame(request: Request, action: string) {
   await rate(
     request,
     action === 'nonce' || action === 'verify' ? 'auth' : 'game',
-    action === 'nonce' || action === 'verify' ? 20 : 120,
+    action === 'nonce' || action === 'verify' ? 20 : 600,
   );
   if (action === 'nonce') {
     if (
@@ -448,6 +460,13 @@ export async function handleGame(request: Request, action: string) {
       'Your wallet session changed in another tab. Reconnect before continuing.',
     );
 
+  await rate(
+    request,
+    action === 'presence' ? 'presence' : 'actions',
+    action === 'presence' ? 30 : 120,
+    wallet,
+  );
+
   if (action === 'facility') {
     const p = await player(wallet),
       previous = p.facility!,
@@ -508,23 +527,18 @@ export async function handleGame(request: Request, action: string) {
     const msg = body.message.trim();
     if (msg.length < 1 || msg.length > 180 || /[\x00-\x1f]/.test(msg))
       throw new ApiError(400, 'Use 1–180 characters.');
-    const last = await db()
+    const now = Date.now();
+    const inserted = await db()
       .prepare(
-        'SELECT created_at FROM crew_messages WHERE wallet=? ORDER BY created_at DESC LIMIT 1',
+        'INSERT INTO crew_messages (id,wallet,message,created_at) SELECT ?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?)',
       )
-      .bind(wallet)
-      .first<{ created_at: number }>();
-    if (last && Date.now() - last.created_at < 5000)
+      .bind(crypto.randomUUID(), wallet, msg, now, wallet, now - 5000)
+      .run();
+    if (inserted.meta.changes !== 1)
       throw new ApiError(
         429,
         'Wait a few seconds before sending another message.',
       );
-    await db()
-      .prepare(
-        'INSERT INTO crew_messages (id,wallet,message,created_at) VALUES (?,?,?,?)',
-      )
-      .bind(crypto.randomUUID(), wallet, msg, Date.now())
-      .run();
     return result({ ok: true });
   }
   if (action === 'listing-create') {
