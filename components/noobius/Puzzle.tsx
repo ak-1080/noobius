@@ -1,23 +1,324 @@
 'use client';
-import {useEffect,useState} from 'react';
-import {Check,ChevronRight,Eye,RotateCcw,Send,Triangle,Diamond,Circle,Square} from 'lucide-react';
-import {Button} from '@/components/ui/button';
-import {Slider} from '@/components/ui/slider';
-import {JOBS,type Job,type Equipment} from '@/lib/game';
-const SYMBOLS=['△','◇','○','□'];
-type Props={initialReveal:boolean;job:Job;equipment:Equipment;busy:boolean;onAnswer:(answer:unknown)=>Promise<boolean|undefined>;onHint:()=>Promise<boolean|undefined>;onClose:()=>void};
-export default function Puzzle({initialReveal,job,equipment,busy,onAnswer,onHint,onClose}:Props){
- const [cooling,setCooling]=useState([33,33,34]),[sequence,setSequence]=useState<number[]>([]),[watching,setWatching]=useState(job.id==='boot'&&initialReveal),[lit,setLit]=useState(-1),[replay,setReplay]=useState(0),[connections,setConnections]=useState<number[]>([-1,-1,-1,-1]),[selected,setSelected]=useState<number|null>(null),[feedback,setFeedback]=useState(''),[ready,setReady]=useState(false);
- const solved=job.status==='repaired',failed=job.status==='failed';
- useEffect(()=>{const t=setTimeout(()=>setReady(true),1100);return()=>clearTimeout(t);},[]);
- useEffect(()=>{if(job.id!=='boot'||!watching)return;setSequence([]);const timers:ReturnType<typeof setTimeout>[]=[];const seq=job.puzzle.sequence!;seq.forEach((v,i)=>{timers.push(setTimeout(()=>setLit(v),700+i*800));timers.push(setTimeout(()=>setLit(-1),1250+i*800));});timers.push(setTimeout(()=>{setWatching(false);setLit(-1);},700+seq.length*800));return()=>timers.forEach(clearTimeout);},[replay,watching,job.id]);
- const submit=async(answer:unknown)=>{setFeedback('');const correct=await onAnswer(answer);if(correct===false){setFeedback('Not quite. Check the diagnostics and try again.');if(job.id==='boot'){setWatching(true);setReplay(n=>n+1);}}};
- const useHint=async()=>{if(await onHint()){if(job.id==='boot'){setWatching(true);setReplay(n=>n+1);}else{setConnections(c=>{const port=job.puzzle.mapping![0];return c.map((v,i)=>i===0?port:v===port?-1:v);});}}};
- if(solved||failed)return <div className={`station-result ${solved?'success':'failure'}`}><span className="result-symbol">{solved?<Check size={35}/>:<RotateCcw size={30}/>}</span><h3>{solved?'Back online.':'Escalated to day shift.'}</h3><p>{solved?['Temperatures normal. Noobius, slightly less so.','The GPUs are awake. Your coffee is still cold.','Connection restored. It was the cable. Of course it was.'][JOBS.findIndex(j=>j.id===job.id)]:'Three attempts used. Keep the repairs you earned and move to the next station.'}</p>{solved&&<div className="earned-reward">+25 credits <span>+20 XP</span></div>}<Button className="primary-action" onClick={onClose}>Back to the floor <ChevronRight size={18}/></Button></div>;
- return <div className="puzzle"><div className="puzzle-meta"><span>STATION {JOBS.findIndex(j=>j.id===job.id)+1} / {job.id==='cooling'?'COOLING':job.id==='boot'?'GPU BOOT':'NETWORK'}</span><span>{3-job.attempts} attempts left</span></div>
- {job.id==='cooling'&&<><p>Share <strong>100 units</strong> of coolant between the racks. Keep every rack inside its target range.</p><div className={`cooling-budget ${cooling.reduce((a,b)=>a+b,0)===100?'balanced':''}`}><span>COOLANT ALLOCATED</span><strong>{cooling.reduce((a,b)=>a+b,0)} <small>/ 100</small></strong></div><div className="cooling-controls">{cooling.map((value,i)=><div className="cooling-row" key={i}><div><label id={'rack-label-'+i}>Rack {String.fromCharCode(65+i)}</label><span>Target {job.puzzle.targets![i]-job.puzzle.tolerance!}–{job.puzzle.targets![i]+job.puzzle.tolerance!}</span><output>{value}</output></div><Slider aria-labelledby={'rack-label-'+i} value={[value]} min={0} max={100} step={1} onValueChange={v=>{const next=[...cooling];next[i]=Array.isArray(v)?v[0]:v;setCooling(next);}} disabled={busy}/></div>)}</div>{equipment.scanner&&<p className="equipment-hint"><Eye size={14}/> Thermal scanner active: wider safe ranges.</p>}<Button className="primary-action" disabled={busy||!ready||cooling.reduce((a,b)=>a+b,0)!==100} onClick={()=>submit(cooling)}>{busy?'Checking…':'Run cooling test'} <ChevronRight size={17}/></Button></>}
- {job.id==='boot'&&<><p>{watching?'Watch the four-pulse boot sequence. Then repeat it.':'Repeat the sequence using the four modules below.'}</p><div className="boot-status" aria-live="polite">{watching?lit>=0?`Pulse: ${SYMBOLS[lit]}`:'Watching sequence…':`${sequence.length} of 4 pulses entered`}</div><div className="boot-modules">{SYMBOLS.map((s,i)=><button key={s} aria-label={`Module ${['triangle','diamond','circle','square'][i]}`} className={`boot-module module-${i} ${lit===i?'lit':''}`} disabled={watching||busy||sequence.length>=4} onClick={()=>{setSequence(a=>[...a,i]);setLit(i);setTimeout(()=>setLit(-1),160);}}><span>{s}</span><small>{i+1}</small></button>)}</div><div className="entered-sequence" aria-label="Your entered sequence">{[0,1,2,3].map(i=><span key={i}>{sequence[i]===undefined?'·':SYMBOLS[sequence[i]]}</span>)}</div><div className="puzzle-actions"><button className="text-action" disabled={watching||busy} onClick={()=>setSequence([])}><RotateCcw size={15}/> Clear</button>{equipment.visor&&!job.hintUsed&&<button className="text-action" disabled={busy||watching} onClick={useHint}><Eye size={15}/> Visor replay</button>}</div><Button className="primary-action" disabled={busy||watching||sequence.length!==4||!ready} onClick={()=>submit(sequence)}>{busy?'Checking…':'Boot cluster'} <ChevronRight size={17}/></Button></>}
- {job.id==='network'&&<><p>Patch each service into the port carrying its symbol. Select a service, then its matching port.</p><div className="patch-bay"><div className="patch-column"><span>SERVICES</span>{job.puzzle.labels!.map((label,i)=><button key={label} className={`patch-service ${selected===i?'selected':''} ${connections[i]>=0?'patched':''}`} onClick={()=>setSelected(i)} disabled={busy}><span>{label}</span><strong>{SYMBOLS[job.puzzle.mapping![i]]}</strong>{connections[i]>=0&&<small>→ {connections[i]+1}</small>}</button>)}</div><div className="patch-column"><span>PORTS</span>{SYMBOLS.map((s,i)=><button key={s} className={`patch-port ${connections.includes(i)?'patched':''}`} disabled={selected===null||busy} onClick={()=>{if(selected===null)return;setConnections(c=>c.map((v,j)=>j===selected?i:v===i?-1:v));setSelected(null);}}><strong>{s}</strong><span>Port {i+1}</span><span className="port-light"/></button>)}</div></div>{equipment.tracer&&!job.hintUsed&&<button className="text-action" onClick={useHint} disabled={busy}><Eye size={15}/> Trace first connection</button>}<Button className="primary-action" disabled={busy||connections.includes(-1)||!ready} onClick={()=>submit(connections)}>{busy?'Checking…':'Test connection'} <ChevronRight size={17}/></Button></>}
- {feedback&&<p className="puzzle-feedback" role="status">{feedback}</p>}
- </div>;
+import { useEffect, useState } from 'react';
+import {
+  Check,
+  ChevronRight,
+  Eye,
+  RotateCcw,
+  Send,
+  Triangle,
+  Diamond,
+  Circle,
+  Square,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { JOBS, type Job, type Equipment } from '@/lib/game';
+const SYMBOLS = ['△', '◇', '○', '□'];
+type Props = {
+  initialReveal: boolean;
+  job: Job;
+  equipment: Equipment;
+  busy: boolean;
+  onAnswer: (answer: unknown) => Promise<boolean | undefined>;
+  onHint: () => Promise<boolean | undefined>;
+  onClose: () => void;
+};
+export default function Puzzle({
+  initialReveal,
+  job,
+  equipment,
+  busy,
+  onAnswer,
+  onHint,
+  onClose,
+}: Props) {
+  const [cooling, setCooling] = useState([33, 33, 34]),
+    [sequence, setSequence] = useState<number[]>([]),
+    [watching, setWatching] = useState(job.id === 'boot' && initialReveal),
+    [lit, setLit] = useState(-1),
+    [replay, setReplay] = useState(0),
+    [connections, setConnections] = useState<number[]>([-1, -1, -1, -1]),
+    [selected, setSelected] = useState<number | null>(null),
+    [feedback, setFeedback] = useState(''),
+    [ready, setReady] = useState(false);
+  const solved = job.status === 'repaired',
+    failed = job.status === 'failed';
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 1100);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (job.id !== 'boot' || !watching) return;
+    setSequence([]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const seq = job.puzzle.sequence!;
+    seq.forEach((v, i) => {
+      timers.push(setTimeout(() => setLit(v), 700 + i * 800));
+      timers.push(setTimeout(() => setLit(-1), 1250 + i * 800));
+    });
+    timers.push(
+      setTimeout(
+        () => {
+          setWatching(false);
+          setLit(-1);
+        },
+        700 + seq.length * 800,
+      ),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [replay, watching, job.id]);
+  const submit = async (answer: unknown) => {
+    setFeedback('');
+    const correct = await onAnswer(answer);
+    if (correct === false) {
+      setFeedback('Not quite. Check the diagnostics and try again.');
+      if (job.id === 'boot') {
+        setWatching(true);
+        setReplay((n) => n + 1);
+      }
+    }
+  };
+  const useHint = async () => {
+    if (await onHint()) {
+      if (job.id === 'boot') {
+        setWatching(true);
+        setReplay((n) => n + 1);
+      } else {
+        setConnections((c) => {
+          const port = job.puzzle.mapping![0];
+          return c.map((v, i) => (i === 0 ? port : v === port ? -1 : v));
+        });
+      }
+    }
+  };
+  if (solved || failed)
+    return (
+      <div className={`station-result ${solved ? 'success' : 'failure'}`}>
+        <span className="result-symbol">
+          {solved ? <Check size={35} /> : <RotateCcw size={30} />}
+        </span>
+        <h3>{solved ? 'Back online.' : 'Escalated to day shift.'}</h3>
+        <p>
+          {solved
+            ? [
+                'Temperatures normal. Noobius, slightly less so.',
+                'The GPUs are awake. Your coffee is still cold.',
+                'Connection restored. It was the cable. Of course it was.',
+              ][JOBS.findIndex((j) => j.id === job.id)]
+            : 'Three attempts used. Keep the repairs you earned and move to the next station.'}
+        </p>
+        {solved && (
+          <div className="earned-reward">
+            +25 credits <span>+20 XP</span>
+          </div>
+        )}
+        <Button className="primary-action" onClick={onClose}>
+          Back to the floor <ChevronRight size={18} />
+        </Button>
+      </div>
+    );
+  return (
+    <div className="puzzle">
+      <div className="puzzle-meta">
+        <span>
+          STATION {JOBS.findIndex((j) => j.id === job.id) + 1} /{' '}
+          {job.id === 'cooling'
+            ? 'COOLING'
+            : job.id === 'boot'
+              ? 'GPU BOOT'
+              : 'NETWORK'}
+        </span>
+        <span>{3 - job.attempts} attempts left</span>
+      </div>
+      {job.id === 'cooling' && (
+        <>
+          <p>
+            Share <strong>100 units</strong> of coolant between the racks. Keep
+            every rack inside its target range.
+          </p>
+          <div
+            className={`cooling-budget ${cooling.reduce((a, b) => a + b, 0) === 100 ? 'balanced' : ''}`}
+          >
+            <span>COOLANT ALLOCATED</span>
+            <strong>
+              {cooling.reduce((a, b) => a + b, 0)} <small>/ 100</small>
+            </strong>
+          </div>
+          <div className="cooling-controls">
+            {cooling.map((value, i) => (
+              <div className="cooling-row" key={i}>
+                <div>
+                  <label id={'rack-label-' + i}>
+                    Rack {String.fromCharCode(65 + i)}
+                  </label>
+                  <span>
+                    Target {job.puzzle.targets![i] - job.puzzle.tolerance!}–
+                    {job.puzzle.targets![i] + job.puzzle.tolerance!}
+                  </span>
+                  <output>{value}</output>
+                </div>
+                <Slider
+                  aria-labelledby={'rack-label-' + i}
+                  value={[value]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={(v) => {
+                    const next = [...cooling];
+                    next[i] = Array.isArray(v) ? v[0] : v;
+                    setCooling(next);
+                  }}
+                  disabled={busy}
+                />
+              </div>
+            ))}
+          </div>
+          {equipment.scanner && (
+            <p className="equipment-hint">
+              <Eye size={14} /> Thermal scanner active: wider safe ranges.
+            </p>
+          )}
+          <Button
+            className="primary-action"
+            disabled={
+              busy || !ready || cooling.reduce((a, b) => a + b, 0) !== 100
+            }
+            onClick={() => submit(cooling)}
+          >
+            {busy ? 'Checking…' : 'Run cooling test'} <ChevronRight size={17} />
+          </Button>
+        </>
+      )}
+      {job.id === 'boot' && (
+        <>
+          <p>
+            {watching
+              ? 'Watch the four-pulse boot sequence. Then repeat it.'
+              : 'Repeat the sequence using the four modules below.'}
+          </p>
+          <div className="boot-status" aria-live="polite">
+            {watching
+              ? lit >= 0
+                ? `Pulse: ${SYMBOLS[lit]}`
+                : 'Watching sequence…'
+              : `${sequence.length} of 4 pulses entered`}
+          </div>
+          <div className="boot-modules">
+            {SYMBOLS.map((s, i) => (
+              <button
+                key={s}
+                aria-label={`Module ${['triangle', 'diamond', 'circle', 'square'][i]}`}
+                className={`boot-module module-${i} ${lit === i ? 'lit' : ''}`}
+                disabled={watching || busy || sequence.length >= 4}
+                onClick={() => {
+                  setSequence((a) => [...a, i]);
+                  setLit(i);
+                  setTimeout(() => setLit(-1), 160);
+                }}
+              >
+                <span>{s}</span>
+                <small>{i + 1}</small>
+              </button>
+            ))}
+          </div>
+          <div className="entered-sequence" aria-label="Your entered sequence">
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i}>
+                {sequence[i] === undefined ? '·' : SYMBOLS[sequence[i]]}
+              </span>
+            ))}
+          </div>
+          <div className="puzzle-actions">
+            <button
+              className="text-action"
+              disabled={watching || busy}
+              onClick={() => setSequence([])}
+            >
+              <RotateCcw size={15} /> Clear
+            </button>
+            {equipment.visor && !job.hintUsed && (
+              <button
+                className="text-action"
+                disabled={busy || watching}
+                onClick={useHint}
+              >
+                <Eye size={15} /> Visor replay
+              </button>
+            )}
+          </div>
+          <Button
+            className="primary-action"
+            disabled={busy || watching || sequence.length !== 4 || !ready}
+            onClick={() => submit(sequence)}
+          >
+            {busy ? 'Checking…' : 'Boot cluster'} <ChevronRight size={17} />
+          </Button>
+        </>
+      )}
+      {job.id === 'network' && (
+        <>
+          <p>
+            Patch each service into the port carrying its symbol. Select a
+            service, then its matching port.
+          </p>
+          <div className="patch-bay">
+            <div className="patch-column">
+              <span>SERVICES</span>
+              {job.puzzle.labels!.map((label, i) => (
+                <button
+                  key={label}
+                  className={`patch-service ${selected === i ? 'selected' : ''} ${connections[i] >= 0 ? 'patched' : ''}`}
+                  onClick={() => setSelected(i)}
+                  disabled={busy}
+                >
+                  <span>{label}</span>
+                  <strong>{SYMBOLS[job.puzzle.mapping![i]]}</strong>
+                  {connections[i] >= 0 && <small>→ {connections[i] + 1}</small>}
+                </button>
+              ))}
+            </div>
+            <div className="patch-column">
+              <span>PORTS</span>
+              {SYMBOLS.map((s, i) => (
+                <button
+                  key={s}
+                  className={`patch-port ${connections.includes(i) ? 'patched' : ''}`}
+                  disabled={selected === null || busy}
+                  onClick={() => {
+                    if (selected === null) return;
+                    setConnections((c) =>
+                      c.map((v, j) => (j === selected ? i : v === i ? -1 : v)),
+                    );
+                    setSelected(null);
+                  }}
+                >
+                  <strong>{s}</strong>
+                  <span>Port {i + 1}</span>
+                  <span className="port-light" />
+                </button>
+              ))}
+            </div>
+          </div>
+          {equipment.tracer && !job.hintUsed && (
+            <button className="text-action" onClick={useHint} disabled={busy}>
+              <Eye size={15} /> Trace first connection
+            </button>
+          )}
+          <Button
+            className="primary-action"
+            disabled={busy || connections.includes(-1) || !ready}
+            onClick={() => submit(connections)}
+          >
+            {busy ? 'Checking…' : 'Test connection'} <ChevronRight size={17} />
+          </Button>
+        </>
+      )}
+      {feedback && (
+        <p className="puzzle-feedback" role="status">
+          {feedback}
+        </p>
+      )}
+    </div>
+  );
 }

@@ -8,6 +8,13 @@
       "when": 1788804294223,
       "tag": "0000_spicy_the_watchers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788808150446,
+      "tag": "0001_calm_mister_fear",
+      "breakpoints": true
     }
   ]
 }

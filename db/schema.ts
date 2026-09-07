@@ -1,7 +1,109 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-export const players=sqliteTable('players',{wallet:text('wallet').primaryKey(),name:text('name').notNull(),credits:integer('credits').notNull().default(0),xp:integer('xp').notNull().default(0),shifts:integer('shifts').notNull().default(0),bestScore:integer('best_score').notNull().default(0),scanner:integer('scanner').notNull().default(0),visor:integer('visor').notNull().default(0),tracer:integer('tracer').notNull().default(0),createdAt:integer('created_at').notNull()},t=>[index('idx_players_best_score').on(t.bestScore)]);
-export const sessions=sqliteTable('sessions',{tokenHash:text('token_hash').primaryKey(),wallet:text('wallet').notNull().references(()=>players.wallet),expiresAt:integer('expires_at').notNull()},t=>[index('idx_sessions_expiry').on(t.expiresAt)]);
-export const challenges=sqliteTable('challenges',{tokenHash:text('token_hash').primaryKey(),wallet:text('wallet').notNull(),message:text('message').notNull(),expiresAt:integer('expires_at').notNull()},t=>[index('idx_challenges_expiry').on(t.expiresAt)]);
-export const shifts=sqliteTable('shifts',{id:text('id').primaryKey(),wallet:text('wallet').notNull().references(()=>players.wallet),state:text('state').notNull(),version:integer('version').notNull().default(0),mutation:text('mutation').notNull(),startedAt:integer('started_at').notNull(),completedAt:integer('completed_at')},t=>[uniqueIndex('idx_shifts_active_wallet').on(t.wallet).where(sql`${t.completedAt} IS NULL`),index('idx_shifts_wallet_started').on(t.wallet,t.startedAt)]);
-export const rateLimits=sqliteTable('rate_limits',{key:text('key').primaryKey(),count:integer('count').notNull(),resetsAt:integer('resets_at').notNull()});
+export const players = sqliteTable(
+  'players',
+  {
+    wallet: text('wallet').primaryKey(),
+    name: text('name').notNull(),
+    credits: integer('credits').notNull().default(0),
+    xp: integer('xp').notNull().default(0),
+    shifts: integer('shifts').notNull().default(0),
+    bestScore: integer('best_score').notNull().default(0),
+    scanner: integer('scanner').notNull().default(0),
+    visor: integer('visor').notNull().default(0),
+    tracer: integer('tracer').notNull().default(0),
+    facilityState: text('facility_state'),
+    facilityVersion: integer('facility_version').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('idx_players_best_score').on(t.bestScore)],
+);
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('idx_sessions_expiry').on(t.expiresAt)],
+);
+export const challenges = sqliteTable(
+  'challenges',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    wallet: text('wallet').notNull(),
+    message: text('message').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('idx_challenges_expiry').on(t.expiresAt)],
+);
+export const shifts = sqliteTable(
+  'shifts',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    state: text('state').notNull(),
+    version: integer('version').notNull().default(0),
+    mutation: text('mutation').notNull(),
+    startedAt: integer('started_at').notNull(),
+    completedAt: integer('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('idx_shifts_active_wallet')
+      .on(t.wallet)
+      .where(sql`${t.completedAt} IS NULL`),
+    index('idx_shifts_wallet_started').on(t.wallet, t.startedAt),
+  ],
+);
+export const rateLimits = sqliteTable('rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull(),
+  resetsAt: integer('resets_at').notNull(),
+});
+
+export const presence = sqliteTable('crew_presence', {
+  wallet: text('wallet')
+    .primaryKey()
+    .references(() => players.wallet),
+  x: integer('x').notNull(),
+  z: integer('z').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+export const messages = sqliteTable(
+  'crew_messages',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    text: text('message').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('idx_messages_time').on(t.createdAt)],
+);
+export const listings = sqliteTable(
+  'market_listings',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    item: text('item').notNull(),
+    quantity: integer('quantity').notNull(),
+    price: integer('price').notNull(),
+    status: text('status').notNull().default('open'),
+    buyer: text('buyer'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('idx_listings_status_time').on(t.status, t.createdAt)],
+);

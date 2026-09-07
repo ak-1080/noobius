@@ -8,3 +8,5 @@
 Generation prompt: Create one original wide stylized 3D isometric AI data-center night-shift diorama in midnight navy. Brushed blue-gray floor tiles, a few chunky charcoal GPU racks with mint/teal and amber LEDs, thick cooling pipes, maintenance cart, tiny coffee cup and yellow maintenance markings. Tactile toy-scale indie-game quality with crisp controlled detail. Room in the right 60%, quiet dark negative space left. Soft teal and amber lighting. No people, characters, text, logos, typography, interface or watermark; no purple or cyberpunk city.
 
 The playable room and avatar are native Three.js geometry, animated and controlled by game state. They do not use copied reference-site artwork.
+
+The campus revision uses a continuous lathed bean silhouette, unequal oversized eyes, curved worried brows, a small open frown with two teeth, a loose shirt collar/sleeves, padded earcups, an arched headband, and a curved microphone boom. Walking animates arms and feet; the source portrait remains unchanged.

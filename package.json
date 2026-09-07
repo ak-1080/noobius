@@ -12,10 +12,11 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test tests/game.test.mjs tests/wallet.test.mjs tests/navigation.test.mjs",
+    "test": "node --test tests/game.test.mjs tests/wallet.test.mjs tests/navigation.test.mjs tests/facility.test.mjs",
     "test:api": "node --test tests/api.test.mjs",
     "typecheck": "tsc --noEmit",
-    "db:local": "wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0000_spicy_the_watchers.sql"
+    "db:local": "wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0000_spicy_the_watchers.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0001_calm_mister_fear.sql",
+    "test:campus-api": "node --test tests/facility-api.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

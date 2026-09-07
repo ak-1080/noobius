@@ -39,18 +39,48 @@ export function planPath(
     goal = anchor(to),
     key = (p: [number, number]) => p[0] + ',' + p[1];
   if (!start || !goal) return [];
-  const open = [start],
-    cost = new Map([[key(start), 0]]),
+  if (segmentClear(from, to)) return [to];
+  type Entry = { p: [number, number]; priority: number };
+  const open: Entry[] = [];
+  const push = (p: [number, number], priority: number) => {
+    const entry = { p, priority };
+    let i = open.length;
+    open.push(entry);
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (open[parent].priority <= priority) break;
+      open[i] = open[parent];
+      i = parent;
+    }
+    open[i] = entry;
+  };
+  const pop = () => {
+    const first = open[0],
+      tail = open.pop()!;
+    if (open.length) {
+      let i = 0;
+      while (true) {
+        let child = i * 2 + 1;
+        if (child >= open.length) break;
+        if (
+          child + 1 < open.length &&
+          open[child + 1].priority < open[child].priority
+        )
+          child++;
+        if (tail.priority <= open[child].priority) break;
+        open[i] = open[child];
+        i = child;
+      }
+      open[i] = tail;
+    }
+    return first.p;
+  };
+  push(start, 0);
+  const cost = new Map([[key(start), 0]]),
     previous = new Map<string, [number, number]>(),
     closed = new Set<string>();
   for (let count = 0; open.length && count < 5000; count++) {
-    open.sort(
-      (a, b) =>
-        cost.get(key(a))! +
-        Math.hypot(a[0] - goal[0], a[1] - goal[1]) -
-        (cost.get(key(b))! + Math.hypot(b[0] - goal[0], b[1] - goal[1])),
-    );
-    const current = open.shift()!,
+    const current = pop(),
       ck = key(current);
     if (closed.has(ck)) continue;
     closed.add(ck);
@@ -89,7 +119,7 @@ export function planPath(
       if (g < (cost.get(nk) ?? Infinity)) {
         cost.set(nk, g);
         previous.set(nk, current);
-        open.push(next);
+        push(next, g + Math.hypot(next[0] - goal[0], next[1] - goal[1]));
       }
     }
   }
