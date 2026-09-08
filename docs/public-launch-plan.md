@@ -1,5 +1,26 @@
 # Noobius public launch plan
 
+## Current handoff — September 8, 2026
+
+The playable checkpoint is private Sites version **27**, source `6d9f1e339c64bda443fa1c49e84897f0f03487b3`. Its deployment succeeded. [Open the current preview](https://noobius-compute-crew.rivd609.chatgpt.site/). The detailed implementation and acceptance record is in [the revamp record](tycoon-revamp.md).
+
+The game now includes the simplified tycoon loop, saved guest progress, visual onboarding/help, room previews, growth milestones, daily rewards, gold-outfit previews, and the branded wallet picker. Sixty game/provider/navigation/save tests, TypeScript, and the production build passed for this checkpoint. Desktop and 390 × 844 layout checks have evidence; these do not establish real-device or public-load readiness.
+
+Multiplayer presence, visits, cooperative jobs and GET rate limits exist. The historical snapshot below predates them. Guest saves survive reload on the same browser/origin and remain separate from wallet accounts.
+
+The final handoff also fixes fresh local setup to apply all four migrations. The exact setup command passed against an isolated temporary database; the campus tables, presence room column and presence indexes were verified without touching existing saves.
+
+The remaining launch decision is broader than publishing a URL:
+
+1. **Owner:** choose the initial audience, supported wallets/devices, launch budget, operator and enabled social features.
+2. **QA:** test real extension/mobile sign-in, account changes, reload and reconnection; exercise two-player visits and shared jobs on actual devices.
+3. **Engineering/operator:** prove the hosting load/cost envelope, recovery/rollback, monitoring and moderation for enabled chat/trading before opening public access.
+4. **Token release, separately:** connect a specified quote/settlement service and funded reward program. The current Exchange only previews an amount; it creates no payout request or token transfer. WalletConnect QR transport and contract-wallet authentication are also unimplemented.
+
+The old tables and proposed numeric gates below remain planning material. No public audience transition or real-value reward program has been approved or completed by this checkpoint. Console/AAA readiness remains unproven.
+
+## Original release planning baseline
+
 Prepared September 7, 2026. This is a release plan, not a production certification. It reflects a read-only inspection of `/Users/main/Documents/ChatGPT/Noobius 2` at commit `1e42db7` plus files present during active development. The major game expansion is being built concurrently; none of its planned features are counted as finished here. Reconcile this checklist against the final release commit before opening access.
 
 Later implementation evidence is recorded in [the gameplay audit](gameplay-audit-2026-09-07.md) and [expansion verification](expansion-verification.md). These supersede the old feature snapshot below: campus progression, presence/chat, read limits, separate authenticated action limits, daily-card rewards, and continued onboarding now exist and have local checks. Current access was re-read as owner-only. Public load, real-device wallet, restore, moderation, and operating gates remain open; this note does not mark the release checklist complete.

@@ -8,7 +8,7 @@ Margo introduces one free machine. Machines produce Compute every 15 seconds; th
 
 The next-action card gives one goal, cost or countdown at a time and can guide Noobius to its location. The main dock is Build, Goals, Travel and Locker. Optional outages are three-button bonus games that do not stop normal income. Collecting 100 Compute completes the daily goal for a 35 bonus; three different completed days unlock the gold outfit without a streak requirement. Parts, crafting, trading and the original three repair puzzles remain optional activities through the menu and world.
 
-Character creation and the large Locker preview support names, outfits and accessories. Connected players own separate saved facilities, can visit one another, and can enter shared campuses for cooperative jobs. Movement uses periodic presence updates. Guests can try the game, but reloading clears guest progress and it cannot be transferred into a wallet account.
+Character creation and the large Locker preview support names, outfits and accessories. Connected players own separate saved facilities, can visit one another, and can enter shared campuses for cooperative jobs. Movement uses periodic presence updates. Guest progress saves on the same browser and origin and survives reloading. Clearing browser data removes it; it cannot be transferred into a wallet account.
 
 - `/how-to-play`: illustrated instructions and actual game captures.
 - `/docs`: prices, saving, currencies, multiplayer and help.
@@ -18,7 +18,7 @@ Character creation and the large Locker preview support names, outfits and acces
 
 ## Run locally
 
-Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once on a fresh local database**. Existing v1 databases should apply only `drizzle/0001_calm_mister_fear.sql` using the same Wrangler configuration and persistence path. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
+Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once on a fresh local database**. This applies all four SQL migrations in order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
 
 - `npm test`: game rules, wallet handshake, navigation, progression, migration preservation, purchase clocks, daily rewards and retry protection.
 - `npm run typecheck` and `npm run build`: TypeScript and the production Worker/browser build.
@@ -44,4 +44,4 @@ The Site remains owner-private. Public access, payout economics, real-wallet/dev
 
 ## Assets and research
 
-The portrait and cinematics are user-supplied. The playable Three.js model interprets Noobius’s pale-blue silhouette, worried unequal eyes, shirt and black headset. Other illustration assets and notes are in [the art record](docs/art-assets.md). The guide uses Noobius artwork and local gameplay captures; no Kintara or Touch Grass assets were copied. [P2E research](docs/p2e-research-2026-09-07.md) records sources and evidence limits. Earlier iteration notes in `docs/` are historical where superseded by the revamp record.
+The portrait and cinematics are user-supplied. The playable Three.js model interprets Noobius’s pale-blue silhouette, worried unequal eyes, shirt and black headset. Other illustration assets and notes are in [the art record](docs/art-assets.md). The guide uses Noobius artwork and local gameplay captures; no Kintara or Touch Grass assets were copied. [Game research](docs/game-research.md) records sources and evidence limits. Earlier iteration notes in `docs/` are historical where superseded by the revamp record.
