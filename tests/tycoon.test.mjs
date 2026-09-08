@@ -1,0 +1,205 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  applyFacility,
+  newFacility,
+  normalizeFacility,
+  storedComputeNow,
+  modules,
+  computePerTick,
+  computeTankCapacity,
+  rackPrice,
+  BOOST_PRICES,
+} from '../lib/facility.ts';
+import { tycoonObjective } from '../lib/tycoon.ts';
+
+const action = (f, type, balance, now, extras = {}) =>
+  applyFacility(
+    f,
+    { type, requestId: crypto.randomUUID(), ...extras },
+    balance,
+    now,
+  );
+test('zero-balance player can build, earn, upgrade, expand, and finish the whole tycoon path', () => {
+  let f = newFacility(0),
+    balance = 0,
+    now = 0,
+    builds = 0;
+  f.seen.push('intro:welcome');
+  const seen = new Set();
+  for (let turn = 0; turn < 3000; turn++) {
+    const step = tycoonObjective(f, balance, now);
+    if (step.action) {
+      const n = action(f, step.action.type, balance, now, step.action);
+      f = n.facility;
+      balance += n.credits;
+      assert.ok(balance >= 0);
+      seen.add(step.action.type);
+      if (step.action.type === 'build') builds++;
+    } else if (f.computeBoost === 5 && modules(f) === 21) break;
+    now += 15000;
+  }
+  assert.equal(f.unlocked.length, 7);
+  assert.equal(modules(f), 21);
+  assert.equal(f.computeBoost, 5);
+  assert.equal(builds, 21);
+  assert.deepEqual([...seen].sort(), [
+    'build',
+    'compute-harvest',
+    'compute-upgrade',
+    'unlock',
+  ]);
+  assert.deepEqual(f.inventory, {});
+});
+test('starter is free only once; no parts or power gate, and purchases cannot overspend or replay', () => {
+  let f = newFacility(0);
+  const id = crypto.randomUUID();
+  const first = action(f, 'build', 0, 0, { id: 'rack-a', requestId: id });
+  assert.equal(first.credits, 0);
+  f = first.facility;
+  assert.equal(
+    action(f, 'build', 0, 1, { id: 'rack-a', requestId: id }).facility.builds[
+      'rack-a'
+    ],
+    1,
+  );
+  assert.equal(rackPrice(f, 'rack-a'), 90);
+  assert.throws(() => action(f, 'build', 0, 0, { id: 'rack-a' }), /Compute/);
+  assert.throws(() => action(f, 'build', 74, 0, { id: 'rack-b' }), /Compute/);
+  const second = action(f, 'build', 75, 0, { id: 'rack-b' });
+  assert.equal(second.credits, -75);
+  assert.deepEqual(second.facility.inventory, {});
+  assert.equal(second.facility.power, 0);
+});
+test('first speed upgrade is earned in one minute and raises income from 24 to 36', () => {
+  let f = action(newFacility(0), 'build', 0, 0, { id: 'rack-a' }).facility;
+  assert.equal(storedComputeNow(f, 14999), 0);
+  assert.equal(storedComputeNow(f, 15000), 6);
+  assert.equal(computePerTick(f) * 4, 24);
+  const collected = action(f, 'compute-harvest', 0, 60000);
+  assert.equal(collected.credits, 24);
+  const boost = action(collected.facility, 'compute-upgrade', 24, 60000);
+  assert.equal(boost.credits, -BOOST_PRICES[0]);
+  assert.equal(computePerTick(boost.facility) * 4, 36);
+  assert.equal(computeTankCapacity(boost.facility), 2160);
+});
+test('legacy rate settles once, honors its old cap/outage, and retains all saved work', () => {
+  const old = {
+    ...newFacility(0),
+    tycoonVersion: undefined,
+    economyVersion: 2,
+    compute: 500,
+    builds: { 'rack-a': 2 },
+    computeBoost: 2,
+    storedCompute: 7,
+    computeAt: 0,
+    version: 23,
+    inventory: { kit: 2 },
+    outfit: 'mint',
+    accessory: 'pack',
+    owned: ['classic', 'mint', 'pack'],
+    craft: { recipe: 'kit', readyAt: 5000 },
+    workload: {
+      id: 'old-job',
+      rack: 'rack-a',
+      label: 'Quick batch',
+      startedAt: 0,
+      readyAt: 15000,
+      reward: 40,
+    },
+    incident: { at: 31000, rack: 'rack-a', kind: 'heat', startedAt: null },
+  };
+  const now = 864000000;
+  const migrated = normalizeFacility(old, now);
+  assert.equal(migrated.storedCompute, 19); // two old ticks × six, plus seven saved
+  assert.equal(migrated.computeAt, now);
+  assert.equal(migrated.economyVersion, 2);
+  assert.equal(migrated.tycoonVersion, 1);
+  for (const key of [
+    'version',
+    'inventory',
+    'owned',
+    'outfit',
+    'accessory',
+    'craft',
+    'workload',
+    'incident',
+    'compute',
+  ])
+    assert.deepEqual(migrated[key], old[key]);
+  assert.deepEqual(normalizeFacility(migrated, now + 1000), migrated);
+  assert.equal(storedComputeNow(migrated, now + 15000), 43);
+  const batch = action(migrated, 'compute-collect', 500, now);
+  assert.equal(batch.credits, 40);
+  assert.equal(batch.facility.compute, 540);
+  const full = normalizeFacility(
+    { ...old, incident: null, storedCompute: 200 },
+    now,
+  );
+  assert.equal(full.storedCompute, 280); // old cap, never retroactive new-rate income
+});
+test('bonus boost recharge and daily reward are enforced once, across nonconsecutive days', () => {
+  let f = action(newFacility(0), 'build', 0, 0, { id: 'rack-a' }).facility;
+  f = action(f, 'compute-start', 0, 0, { id: 'quick' }).facility;
+  f = action(f, 'compute-collect', 0, 15000).facility;
+  assert.throws(
+    () => action(f, 'compute-start', 10, 15000, { id: 'quick' }),
+    /charging/,
+  );
+  assert.ok(
+    action(f, 'compute-start', 10, 90000, { id: 'quick' }).facility.workload,
+  );
+  let balance = 10;
+  for (const now of [1200000, 86400000 * 3, 86400000 * 7]) {
+    const collected = action(f, 'compute-harvest', balance, now);
+    f = collected.facility;
+    balance += collected.credits;
+    assert.ok(f.daily.computeEarned >= 100);
+    const id = crypto.randomUUID();
+    const reward = action(f, 'tycoon-daily', balance, now, { requestId: id });
+    f = reward.facility;
+    balance += reward.credits;
+    assert.equal(reward.credits, 35);
+    assert.equal(
+      action(f, 'tycoon-daily', balance, now, { requestId: id }).credits,
+      0,
+    );
+    assert.throws(() => action(f, 'tycoon-daily', balance, now), /100 Compute/);
+  }
+  assert.equal(f.workdays, 3);
+  assert.ok(f.owned.includes('afterhours'));
+});
+test('optional bonus repairs do not discard a nearly completed production tick', () => {
+  let f = action(newFacility(0), 'build', 0, 0, { id: 'rack-a' }).facility;
+  f.incident = { at: 0, rack: 'rack-a', kind: 'power', startedAt: 20000 };
+  f = action(f, 'outage-fix', 0, 29999, {
+    id: '0',
+    direction: 'Disconnect power|Reset the breaker|Reconnect power',
+  }).facility;
+  assert.equal(storedComputeNow(f, 30000), 12);
+});
+
+test('buying machines or speed keeps the production clock and settles old output first', () => {
+  const starter = action(newFacility(0), 'build', 0, 0, {
+    id: 'rack-a',
+  }).facility;
+  for (const [type, id, cost, nextTick] of [
+    ['build', 'rack-b', 75, 12],
+    ['build', 'rack-a', 90, 12],
+    ['compute-upgrade', undefined, 20, 9],
+  ]) {
+    const bought = action(starter, type, cost, 29999, { id });
+    assert.equal(
+      bought.facility.storedCompute,
+      6,
+      'completed tick uses old output',
+    );
+    assert.equal(
+      bought.facility.computeAt,
+      15000,
+      'purchase preserves the partial tick',
+    );
+    assert.equal(storedComputeNow(bought.facility, 30000), 6 + nextTick);
+    assert.equal(bought.credits, -cost);
+  }
+});

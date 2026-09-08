@@ -660,6 +660,24 @@ export default function Campus(props: Props) {
       spark.castShadow = false;
       return spark;
     });
+    const machineObjects = OBJECTS.filter((o) => o.kind === 'build');
+    const coinTexture = new T.TextureLoader().load(
+      '/assets/compute-currency.png',
+    );
+    coinTexture.colorSpace = T.SRGBColorSpace;
+    textures.push(coinTexture);
+    const rewardCoins = Array.from({ length: 7 }, () => {
+      const material = new T.SpriteMaterial({
+        map: coinTexture,
+        transparent: true,
+        depthWrite: false,
+      });
+      materials.push(material);
+      const coin = new T.Sprite(material);
+      coin.visible = false;
+      scene.add(coin);
+      return coin;
+    });
     const workTool = new T.Group();
     avatar.body.add(workTool);
     workTool.position.set(0.63, 0.6, 0.25);
@@ -1040,6 +1058,42 @@ export default function Campus(props: Props) {
         }
       });
       const workAt = OBJECTS.find((o) => o.id === workObject);
+      const collecting = [
+        'compute-harvest',
+        'compute-collect',
+        'outage-fix',
+        'tycoon-daily',
+      ].includes(p.workEvent?.kind ?? '');
+      rewardCoins.forEach((coin, i) => {
+        const age = (time - workStarted - i * 55) / 1450;
+        coin.visible =
+          collecting && !!workAt && age >= 0 && age < 1 && !motion.matches;
+        if (coin.visible && workAt) {
+          const angle = (i * Math.PI * 2) / 7;
+          coin.position.set(
+            workAt.x + Math.cos(angle) * age * 1.6,
+            1.5 + age * 3.4,
+            workAt.z + Math.sin(angle) * age * 1.6,
+          );
+          coin.scale.setScalar(0.52 + Math.sin(age * Math.PI) * 0.15);
+          coin.material.opacity = Math.min(1, (1 - age) * 3);
+        }
+      });
+      for (const object of machineObjects) {
+        const g = objects.get(object.id);
+        if (g) {
+          const age = (time - workStarted) / 850;
+          const pop =
+            object.id === workObject &&
+            p.workEvent?.kind === 'build' &&
+            age >= 0 &&
+            age < 1 &&
+            !motion.matches
+              ? Math.sin(age * Math.PI) * 0.12
+              : 0;
+          g.scale.set(1 + pop * 0.3, 1 + pop, 1 + pop * 0.3);
+        }
+      }
       sparks.forEach((spark, i) => {
         spark.visible = working && !!workAt && !motion.matches;
         if (workAt) {
@@ -1117,9 +1171,9 @@ export default function Campus(props: Props) {
                 (child as T.Mesh).material =
                   activeIncident(f)?.rack === obj.id
                     ? faultRed
-                    : (f.builds[obj.id] ?? 0) * 2 >= child.userData.led
+                    : (f.builds[obj.id] ?? 0) > 0
                       ? mint
-                      : amber;
+                      : steel;
             });
         }
         lastAppearance = appearance;

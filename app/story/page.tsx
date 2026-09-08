@@ -58,8 +58,9 @@ export default function Story() {
             to turn it back on.
           </p>
           <p>
-            You start with one broken machine. Find parts, fix things, and build
-            a bigger data center. Margo, Bit, and Patch have your back. Mostly.
+            You start with one free machine. Collect Compute, buy upgrades, and
+            build a bigger data center. Margo, Bit, and Patch have your back.
+            Mostly.
           </p>
           <p className="story-mission">His mission: keep the future online.</p>
           <a className="story-play" href="/">

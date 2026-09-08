@@ -1,4 +1,5 @@
 'use client';
+import TycoonBuildPanel, { TycoonGoals } from './TycoonBuildPanel';
 import ItemIcon from './ItemIcon';
 import { useEffect, useState } from 'react';
 import {
@@ -27,6 +28,7 @@ import {
   buildCost,
   canPay,
   capacity,
+  computePerTick,
   modules,
   powerBudget,
   coolingBudget,
@@ -58,8 +60,8 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   map: ['Expand', 'Choose a room.'],
   inventory: ['Your parts', 'Carry or store parts.'],
   crafting: ['Workbench', 'Make what you need.'],
-  contracts: ['Jobs', 'Your next upgrade starts here.'],
-  facility: ['Your racks', 'Build. Upgrade. Produce.'],
+  contracts: ['Goals', 'A little win every day.'],
+  facility: ['Build', 'More machines. More Compute.'],
   market: ['Shop', 'Buy parts or trade with players.'],
   skills: ['Your progress', 'Earn new skills.'],
   social: ['Crew chat', 'Say hello.'],
@@ -175,10 +177,10 @@ export default function FacilityPanels({
       <div className="campus-directory">
         <div className="facility-summary">
           <span>
-            <strong>{capacity(f)}</strong> capacity
+            <strong>{computePerTick(f) * 4}</strong> Compute / min
           </span>
           <span>
-            <strong>{modules(f)}</strong> rack levels
+            <strong>{modules(f)}</strong> machine levels
           </span>
           <span>
             <strong>{f.unlocked.length}/7</strong> open
@@ -217,34 +219,12 @@ export default function FacilityPanels({
                   ? 'Go'
                   : z.id === 'core' && !f.unlocked.includes('compute')
                     ? 'Open GPU room first'
-                    : `${z.modules} rack levels · ${z.cost} Compute`}
+                    : `${z.modules} machine levels · ${z.cost} Compute`}
               </small>
             </button>
           ))}
         </div>
         <p className="muted-small">Choose a room to travel or unlock.</p>
-        <div className="directory-resources">
-          {OBJECTS.filter(
-            (o) => o.kind === 'node' && f.unlocked.includes(o.zone),
-          ).map((o) => (
-            <button
-              disabled={busy || (f.cooldowns[o.id] ?? 0) > now}
-              onClick={() => onGuide(o)}
-              key={o.id}
-            >
-              <ItemIcon item={o.item!} size={19} />
-              <span>
-                {ITEMS[o.item!].name}
-                <small>{ZONES.find((z) => z.id === o.zone)?.name}</small>
-              </span>
-              <small>
-                {(f.cooldowns[o.id] ?? 0) > now
-                  ? `${Math.ceil((f.cooldowns[o.id] - now) / 1000)}s`
-                  : 'Collect'}
-              </small>
-            </button>
-          ))}
-        </div>
       </div>
     );
   if (panel === 'inventory')
@@ -451,352 +431,26 @@ export default function FacilityPanels({
         </div>
       </div>
     );
-  if (panel === 'contracts') {
-    const daily = f.day === dayKey(now) ? f.daily : {},
-      claimed = f.day === dayKey(now) ? f.dailyClaims : [];
+  if (panel === 'contracts')
     return (
-      <Tabs defaultValue={jobTab}>
-        <button
-          className="job-next-step"
-          onClick={onFollow}
-          disabled={busy || objective.wait}
-        >
-          <span>{objective.chapter}</span>
-          <strong>{objective.title}</strong>
-
-          <small>
-            {objective.cta} <ArrowRight size={16} />
-          </small>
-        </button>
-        <button className="repair-shortcut" onClick={onRepair}>
-          <Wrench size={20} />
-          <span>
-            <strong>Quick repair jobs</strong>
-            <small>Fix a system · +40 Compute + spare parts</small>
-          </span>
-          <ArrowRight size={17} />
-        </button>
-        <TabsList className="expansion-tabs">
-          <TabsTrigger value="story">My project</TabsTrigger>
-          <TabsTrigger value="daily">Daily card</TabsTrigger>
-          <TabsTrigger value="orders">Deliveries</TabsTrigger>
-        </TabsList>
-        <TabsContent value="story">
-          <div className="quest-list">
-            {STORY.map((c, i) => {
-              const currentIndex = STORY.findIndex(
-                (q) => !f.claims.includes(q.id),
-              );
-              if (
-                !allContracts &&
-                currentIndex !== -1 &&
-                (i < currentIndex || i > currentIndex + 1)
-              )
-                return null;
-              const done = f.claims.includes(c.id),
-                locked = i > 0 && !f.claims.includes(STORY[i - 1].id),
-                value = storyValue(f, c.stat);
-              return (
-                <article
-                  className={`quest ${done ? 'done' : ''} ${locked ? 'locked' : ''}`}
-                  key={c.id}
-                >
-                  <span className="quest-index">
-                    {done ? (
-                      <Check size={17} />
-                    ) : (
-                      String(i + 1).padStart(2, '0')
-                    )}
-                  </span>
-                  <div>
-                    <h3>{c.name}</h3>
-                    <p>{c.text}</p>
-                    <Progress
-                      value={Math.min(100, (value / c.target) * 100)}
-                      aria-label={c.name + ' progress'}
-                    />
-                    <div className="quest-bottom">
-                      <small>
-                        {Math.min(value, c.target)}/{c.target} · +{c.credits}{' '}
-                        Compute / {c.xp} XP
-                      </small>
-                      <button
-                        disabled={busy || done || locked}
-                        onClick={() =>
-                          value >= c.target
-                            ? action({ type: 'claim', id: c.id })
-                            : onFollow()
-                        }
-                      >
-                        {done
-                          ? 'Collected'
-                          : locked
-                            ? 'Up next'
-                            : value >= c.target
-                              ? 'Collect'
-                              : 'Go'}
-                        {!done && <ArrowRight size={14} />}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <Button
-            className="outline-button"
-            onClick={() => setAllContracts((v) => !v)}
-          >
-            {allContracts ? 'Current project' : 'All projects'}
-          </Button>
-        </TabsContent>
-        <TabsContent value="daily">
-          <p className="muted-small">Three jobs. One daily bonus.</p>
-          {DAILY_TASKS.map((c) => (
-            <div className="daily-contract" key={c.id}>
-              <div>
-                <strong>{c.name}</strong>
-                <small>
-                  {Math.min(daily[c.stat] ?? 0, c.target)}/{c.target} · {c.cr}{' '}
-                  Compute + 15 XP
-                </small>
-              </div>
-              <Button
-                disabled={busy || claimed.includes(c.id)}
-                className="outline-button"
-                onClick={() =>
-                  (daily[c.stat] ?? 0) >= c.target
-                    ? action({ type: 'daily', id: c.id })
-                    : c.id === 'repair'
-                      ? onRepair()
-                      : c.id === 'craft'
-                        ? onHelp({ recipe: 'kit' })
-                        : onGuide(
-                            OBJECTS.find(
-                              (o) =>
-                                o.id ===
-                                ((f.cooldowns['scrap-a'] ?? 0) > now
-                                  ? 'scrap-c'
-                                  : 'scrap-a'),
-                            )!,
-                          )
-                }
-              >
-                {claimed.includes(c.id)
-                  ? 'Collected'
-                  : (daily[c.stat] ?? 0) >= c.target
-                    ? 'Collect'
-                    : 'Go'}
-              </Button>
-            </div>
-          ))}
-          <div className="daily-stamp-card">
-            <span className="section-label">AFTER-HOURS CLUB</span>
-            <h3>Three good days. One gold shirt.</h3>
-            <p>
-              Finish this card on 3 different days to earn an exclusive outfit.
-              Take days off whenever you want.
-            </p>
-            <div className="stamp-row">
-              {[1, 2, 3].map((n) => (
-                <span key={n} className={f.workdays >= n ? 'earned' : ''}>
-                  {f.workdays >= n ? <Check size={24} /> : n}
-                  <small>Day {n}</small>
-                </span>
-              ))}
-            </div>
-            <Button
-              className="primary-action"
-              disabled={
-                busy ||
-                f.lastWorkday === dayKey(now) ||
-                !DAILY_TASKS.every((t) => claimed.includes(t.id))
-              }
-              onClick={() => action({ type: 'daily-bonus' })}
-            >
-              {f.lastWorkday === dayKey(now)
-                ? 'Today is stamped ✓'
-                : 'Stamp my card · +25 Compute'}
-            </Button>
-            <small>
-              {f.workdays} completed day{f.workdays === 1 ? '' : 's'} · Game
-              rewards only
-            </small>
-          </div>
-        </TabsContent>
-        <TabsContent value="orders">
-          <p className="muted-small">
-            Help the crew with spare parts. Deliveries pay Compute and can be
-            repeated.
-          </p>
-          {ORDERS.map((o) => (
-            <div className="delivery-order" key={o.id}>
-              <h3>{o.name.split(' · ')[0]}</h3>
-              <Parts cost={o.cost} bag={f.inventory} />
-              {!canPay(f.inventory, o.cost) && f.unlocked.includes(o.zone) && (
-                <button
-                  className="find-parts-button"
-                  onClick={() => onHelp({ items: o.cost })}
-                >
-                  Find delivery parts <ArrowRight size={14} />
-                </button>
-              )}
-              <div className="recipe-bottom">
-                <small>+{o.reward} Compute · +10 XP</small>
-                <Button
-                  disabled={
-                    busy ||
-                    !f.unlocked.includes(o.zone) ||
-                    !canPay(f.inventory, o.cost) ||
-                    (f.cooldowns['order-' + o.id] ?? 0) > now
-                  }
-                  className="outline-button"
-                  onClick={() => action({ type: 'order', id: o.id })}
-                >
-                  {!f.unlocked.includes(o.zone)
-                    ? 'Department locked'
-                    : (f.cooldowns['order-' + o.id] ?? 0) > now
-                      ? 'Processing…'
-                      : 'Deliver'}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </TabsContent>
-      </Tabs>
+      <TycoonGoals
+        facility={f}
+        busy={busy}
+        onAction={onAction}
+        onFollow={onFollow}
+      />
     );
-  }
-  if (panel === 'facility') {
-    const firstRack = modules(f) === 0;
-    const builds = OBJECTS.filter(
-      (o) =>
-        o.kind === 'build' &&
-        f.unlocked.includes(o.zone) &&
-        (!firstRack ||
-          o.id === (selected?.kind === 'build' ? selected.id : 'rack-a')),
-    ).sort(
-      (a, b) => Number(b.id === selected?.id) - Number(a.id === selected?.id),
-    );
+  if (panel === 'facility')
     return (
-      <div>
-        <div className="facility-summary">
-          <span>
-            <strong>{capacity(f)}</strong> capacity
-          </span>
-          <span>
-            <strong>
-              {modules(f) * 2}/{powerBudget(f)}
-            </strong>{' '}
-            power
-          </span>
-          <span>
-            <strong>
-              {modules(f)}/{coolingBudget(f)}
-            </strong>{' '}
-            cooling
-          </span>
-        </div>
-        <p className="muted-small">
-          {firstRack
-            ? 'Your first rack makes Compute.'
-            : 'Each level uses 2 power + 1 cooling.'}
-        </p>
-        {!firstRack && (
-          <div className="utility-grid">
-            {(['power', 'cooling'] as const).map((type) => (
-              <div className="utility-card" key={type}>
-                <Zap size={19} />
-                <h3>{type === 'power' ? 'Power cells' : 'Cooling plant'}</h3>
-                <small>
-                  {type === 'power' ? '+6 power budget' : '+4 cooling budget'}
-                </small>
-                <Button
-                  disabled={
-                    busy ||
-                    f[type] >= 8 ||
-                    profile.credits < 40 + f[type] * 20 ||
-                    !(f.inventory[type === 'power' ? 'battery' : 'pump'] ?? 0)
-                  }
-                  className="outline-button"
-                  onClick={() => action({ type: 'utility', id: type })}
-                >
-                  1 {type === 'power' ? 'cell' : 'pump'} + {40 + f[type] * 20}{' '}
-                  Compute
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="build-list">
-          {builds.map((o) => {
-            const level = f.builds[o.id] ?? 0,
-              cost = buildCost(level),
-              open = f.unlocked.includes(o.zone);
-            return (
-              <div
-                className={`build-card ${selected?.id === o.id ? 'selected' : ''}`}
-                key={o.id}
-              >
-                <div className="build-heading">
-                  <span className="rack-pictogram">
-                    {[0, 1, 2].map((i) => (
-                      <i key={i} className={i < level ? 'online' : ''} />
-                    ))}
-                  </span>
-                  <div>
-                    <h3>{o.name.split(' · ')[0]}</h3>
-                    <small>
-                      {ZONES.find((z) => z.id === o.zone)?.name} · {level}/3
-                      rack levels
-                    </small>
-                  </div>
-                </div>
-                {level < 3 && <Parts cost={cost.items} bag={f.inventory} />}
-                {level < 3 && open && (
-                  <button
-                    className="find-parts-button"
-                    onClick={() => onHelp({ build: o.id })}
-                  >
-                    {!canPay(f.inventory, cost.items)
-                      ? 'Find parts'
-                      : profile.credits < cost.credits
-                        ? 'Earn Compute'
-                        : (modules(f) + 1) * 2 > powerBudget(f) ||
-                            modules(f) + 1 > coolingBudget(f)
-                          ? 'Add power or cooling'
-                          : 'Show rack'}{' '}
-                    <ArrowRight size={14} />
-                  </button>
-                )}
-                <Button
-                  className="outline-button"
-                  disabled={
-                    busy ||
-                    level >= 3 ||
-                    !open ||
-                    !canPay(f.inventory, cost.items) ||
-                    profile.credits < cost.credits ||
-                    (modules(f) + 1) * 2 > powerBudget(f) ||
-                    modules(f) + 1 > coolingBudget(f)
-                  }
-                  onClick={() => action({ type: 'build', id: o.id })}
-                >
-                  {!open
-                    ? 'Department locked'
-                    : level >= 3
-                      ? 'Fully upgraded'
-                      : `${level ? 'Upgrade' : 'Build'} · ${cost.credits} Compute`}
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-        <button className="text-action" onClick={() => onPanel('map')}>
-          Unlock another department <ArrowRight size={16} />
-        </button>
-      </div>
+      <TycoonBuildPanel
+        facility={f}
+        balance={profile.credits}
+        busy={busy}
+        selected={selected?.id}
+        onAction={onAction}
+        onExpand={() => onPanel('map')}
+      />
     );
-  }
   if (panel === 'market')
     return (
       <Tabs value={tab} onValueChange={setTab}>

@@ -10,22 +10,22 @@ const slides = [
     text: 'Tap “Next up” in the game. Noobius follows the glowing path to your next job.',
   },
   {
-    image: '/assets/tutorial/tutorial-scrap.png',
-    alt: 'Metal scrap and copper wire',
-    title: 'Pick up parts.',
-    text: 'Collect scrap and wire. Your next goal shows you where to find them.',
+    image: '/assets/tutorial/tutorial-server.png',
+    alt: 'Your first server machine',
+    title: 'Your first machine is free.',
+    text: 'Margo has a machine ready for you. Tap your next step to build it. No parts needed.',
   },
   {
-    image: '/assets/tutorial/tutorial-toolbox.png',
-    alt: 'Repair kit and wrench',
-    title: 'Make a kit. Build a rack.',
-    text: 'Use your parts at the workbench, then install your first server rack.',
+    image: '/assets/compute-currency.png',
+    alt: 'A Compute coin',
+    title: 'Green lights make Compute.',
+    text: 'Machines earn game money every 15 seconds. Tap Collect to pick it up.',
   },
   {
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'Server rack with green lights',
-    title: 'Green lights. More Compute.',
-    text: 'Working racks earn Compute. Tap Collect, upgrade your equipment, and build more.',
+    title: 'Small machine. Big plans.',
+    text: 'Spend Compute in Build. Buy faster machines, open new rooms, and make your data center bigger.',
   },
 ];
 export default function HowToSlides({

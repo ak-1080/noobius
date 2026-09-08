@@ -44,7 +44,7 @@ test('a new technician can gather, craft, build, and claim progress without free
   doAction('build', { id: 'rack-a' }, 120001);
   doAction('claim', { id: 'first-light' }, 120001);
   assert.equal(modules(f), 1);
-  assert.equal(cr, 115);
+  assert.equal(cr, 130);
   const persisted = JSON.parse(JSON.stringify(f));
   assert.equal(persisted.builds['rack-a'], 1);
   assert.throws(
@@ -87,7 +87,8 @@ test('locked wings, cooldowns, utility limits, and malformed quantities cannot b
     /replenishing/,
   );
   f.builds = { 'rack-a': 2, 'rack-b': 1 };
-  assert.throws(() => act(f, 'build', { id: 'rack-b' }), /power/);
+  assert.equal(act(f, 'build', { id: 'rack-b' }).facility.builds['rack-b'], 2);
+  assert.throws(() => act(f, 'build', { id: 'rack-b' }, 0), /Compute/);
   for (const quantity of [0, -1, 51, 1.5, '2', NaN])
     assert.throws(
       () => act(f, 'buy', { item: 'scrap', quantity }),
@@ -213,10 +214,10 @@ test('guidance recovers from spent starter credits, banked parts and full backpa
   f.claims = ['welcome', 'maker'];
   f.inventory = { kit: 1, copper: 4 };
   f.stats.crafted = 1;
-  assert.equal(resolveObjective(f, 0, now).repair, true);
+  assert.equal(resolveObjective(f, 0, now).action.type, 'build');
   f.inventory = { copper: 4 };
   f.bank = { kit: 1 };
-  assert.deepEqual(resolveObjective(f, 15, now).action, {
+  assert.deepEqual(resolveObjective(f, 15, now, { items: { kit: 1 } }).action, {
     type: 'bank',
     item: 'kit',
     quantity: 1,
@@ -234,7 +235,7 @@ test('one objective route can finish every story project without invented invent
     credits = 0;
   for (
     let step = 0;
-    step < 260 &&
+    step < 1400 &&
     f.claims.filter((id) => STORY.some((c) => c.id === id)).length < 9;
     step++
   ) {
@@ -261,23 +262,23 @@ test('one objective route can finish every story project without invented invent
   assert.ok(resolveObjective(f, credits, now).title);
 });
 
-test('compute storage is capped, keeps fractional ticks, and pauses exactly at an outage', async () => {
+test('tycoon storage is capped, keeps fractional ticks, and continues during optional outages', async () => {
   const { storedComputeNow, computeTankCapacity } =
     await import('../lib/facility.ts');
   let f = newFacility(0);
   f.builds = { 'rack-a': 1 };
   assert.equal(storedComputeNow(f, 14999), 0);
-  assert.equal(storedComputeNow(f, 15000), 1);
+  assert.equal(storedComputeNow(f, 15000), 6);
   f = act(f, 'intro', { id: 'arrival' }, 0, 16000).facility;
-  assert.equal(storedComputeNow(f, 30000), 2);
+  assert.equal(storedComputeNow(f, 30000), 12);
   assert.equal(storedComputeNow(f, 86400000), computeTankCapacity(f));
   f.incident = { at: 45000, rack: 'rack-a', kind: 'heat', startedAt: null };
-  assert.equal(storedComputeNow(f, 86400000), 3);
+  assert.equal(storedComputeNow(f, 86400000), computeTankCapacity(f));
   const claimed = act(f, 'compute-harvest', {}, 0, 50000);
-  assert.equal(claimed.facility.compute, 3);
+  assert.equal(claimed.facility.compute, 18);
   assert.equal(claimed.facility.storedCompute, 0);
   assert.throws(
-    () => act(claimed.facility, 'compute-harvest', {}, 0, 100000),
+    () => act(claimed.facility, 'compute-harvest', {}, 18, 50001),
     /warming up/,
   );
 });
@@ -287,7 +288,7 @@ test('compute jobs require racks and time, snapshot output, and pay once', () =>
   f.builds = { 'rack-a': 1 };
   assert.throws(() => act(f, 'compute-start', { id: 'heavy' }, 0, 0), /rack/);
   f = act(f, 'compute-start', { id: 'quick' }, 0, 0).facility;
-  assert.equal(f.workload.reward, 35);
+  assert.equal(f.workload.reward, 10);
   assert.throws(
     () => act(f, 'compute-start', { id: 'quick' }, 0, 0),
     /current/,
@@ -295,12 +296,12 @@ test('compute jobs require racks and time, snapshot output, and pay once', () =>
   assert.throws(() => act(f, 'compute-collect', {}, 0, 14999), /running/);
   const id = crypto.randomUUID();
   f = act(f, 'compute-collect', { requestId: id }, 0, 15000).facility;
-  assert.equal(f.compute, 35);
+  assert.equal(f.compute, 10);
   assert.equal(f.stats.computeJobs, 1);
-  assert.equal(f.incident.at, 60000);
+  assert.equal(f.incident.at, 315000);
   assert.equal(
-    act(f, 'compute-collect', { requestId: id }, 35, 16000).facility.compute,
-    35,
+    act(f, 'compute-collect', { requestId: id }, 10, 16000).facility.compute,
+    10,
   );
   assert.throws(() => act(f, 'compute-collect', {}, 0, 16000), /running/);
 });
@@ -310,7 +311,7 @@ test('outages preserve waiting batches and require a timed ordered repair, with 
   f.builds = { 'rack-a': 1 };
   f = act(f, 'compute-start', { id: 'quick' }, 0, 0).facility;
   f.incident = { at: 10000, rack: 'rack-a', kind: 'power', startedAt: null };
-  assert.throws(() => act(f, 'compute-collect', {}, 0, 15000), /Restore/);
+  assert.equal(act(f, 'compute-collect', {}, 0, 15000).credits, 10);
   assert.throws(
     () =>
       act(
@@ -336,7 +337,7 @@ test('outages preserve waiting batches and require a timed ordered repair, with 
   ).facility;
   assert.equal(f.compute, 40);
   assert.equal(f.builds['rack-a'], 1);
-  assert.equal(storedComputeNow(f, 20000), 0);
+  assert.equal(storedComputeNow(f, 20000), 6);
   assert.throws(
     () =>
       act(
@@ -349,15 +350,15 @@ test('outages preserve waiting batches and require a timed ordered repair, with 
     /no longer/,
   );
   f = act(f, 'compute-collect', {}, 40, 20000).facility;
-  assert.equal(f.compute, 75);
+  assert.equal(f.compute, 50);
 });
 test('Compute is the spendable balance; accessories and upgrades debit once and token exchange is closed', () => {
   let f = newFacility(0);
   f.builds = { 'rack-a': 1 };
   const id = crypto.randomUUID();
   const n = act(f, 'compute-upgrade', { requestId: id }, 180, 0);
-  assert.equal(n.credits, -80);
-  assert.equal(n.facility.compute, 100);
+  assert.equal(n.credits, -20);
+  assert.equal(n.facility.compute, 160);
   assert.equal(
     act(n.facility, 'compute-upgrade', { requestId: id }, 100, 0).credits,
     0,
@@ -378,21 +379,21 @@ test('Compute is the spendable balance; accessories and upgrades debit once and 
     /not open/,
   );
 });
-test('first shift introduces Margo, then production and outages without removing the project guide', async () => {
+test('first shift introduces Margo then guides building without forcing optional outages', async () => {
   const { shiftObjective, nextBriefing } = await import('../lib/experience.ts');
   let f = newFacility(0);
   assert.equal(nextBriefing(f).id, 'arrival');
   f = act(f, 'intro', { id: 'arrival' }, 0, 0).facility;
   assert.equal(shiftObjective(f, 0, 0).target, 'margo');
   f = act(f, 'intro', { id: 'welcome' }, 0, 0).facility;
-  assert.equal(shiftObjective(f, 0, 0).action.type, 'gather');
+  assert.equal(shiftObjective(f, 0, 0).action.type, 'build');
   assert.throws(() => act(f, 'intro', { id: 'compute' }, 0, 0), /not ready/);
   f.builds = { 'rack-a': 1 };
   assert.equal(shiftObjective(f, 0, 0).panel, 'compute');
   f.stats.computeJobs = 1;
-  assert.ok(shiftObjective(f, 0, 0).action);
+  assert.equal(shiftObjective(f, 20, 0).action.type, 'compute-upgrade');
   f.incident = { at: 0, rack: 'rack-a', kind: 'heat', startedAt: null };
-  assert.equal(shiftObjective(f, 0, 0).panel, 'outage');
+  assert.equal(shiftObjective(f, 0, 0).panel, 'compute');
   const old = { version: 17, builds: { 'rack-a': 1 }, computeAt: undefined };
   delete old.computeAt;
   assert.equal(normalizeFacility(old, 40000).computeAt, 40000);

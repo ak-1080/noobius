@@ -219,7 +219,7 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
   assert.equal(payouts.filter((r) => r.status === 200).length, 1);
   assert.ok(payouts.every((r) => [200, 400, 409].includes(r.status)));
   const computed = ok(await seller.request('profile')).profile.facility;
-  assert.equal(computed.compute, batchStartingBalance + 35);
+  assert.equal(computed.compute, batchStartingBalance + 10);
   assert.equal(computed.stats.computeJobs, 1);
   assert.equal(computed.workload, null);
   assert.ok(computed.incident.at > Date.now());

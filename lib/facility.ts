@@ -22,6 +22,7 @@ export type SkillId = 'salvaging' | 'engineering' | 'operations';
 export type Bag = Partial<Record<ItemId, number>>;
 export type Facility = {
   economyVersion?: number;
+  tycoonVersion?: number;
   accessory?: string;
   visiting?: boolean;
   version: number;
@@ -204,7 +205,7 @@ export const ZONES: {
     x: 0,
     z: -10,
     color: '#96b9f3',
-    cost: 180,
+    cost: 750,
     modules: 2,
     description:
       'Better silicon, bigger racks, and more requests from management.',
@@ -216,7 +217,7 @@ export const ZONES: {
     x: 22,
     z: -10,
     color: '#efca7a',
-    cost: 250,
+    cost: 2000,
     modules: 4,
     description: 'Recover fiber and get your growing cluster talking.',
   },
@@ -227,7 +228,7 @@ export const ZONES: {
     x: 0,
     z: -32,
     color: '#f69081',
-    cost: 400,
+    cost: 6000,
     modules: 6,
     description:
       'Recover rare data cores from the abandoned cluster. Pack coffee.',
@@ -252,7 +253,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'commons',
     x: -4,
     z: 9,
-    name: 'Margo · Dispatch',
+    name: 'Margo · Your guide',
     panel: 'contracts',
   },
   {
@@ -279,7 +280,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'commons',
     x: -4,
     z: 15,
-    name: 'Rack A · Your first cluster',
+    name: 'Starter machine',
   },
   {
     id: 'rack-b',
@@ -287,7 +288,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'commons',
     x: 4,
     z: 15,
-    name: 'Rack B · The backup plan',
+    name: 'Backup machine',
   },
   {
     id: 'scrap-a',
@@ -693,6 +694,7 @@ export const DAILY_TASKS = [
 export function newFacility(now = Date.now()): Facility {
   return {
     economyVersion: 2,
+    tycoonVersion: 1,
     accessory: 'none',
     version: 0,
     zone: 'commons',
@@ -746,6 +748,13 @@ export function normalizeFacility(
     f.daily = {};
     f.dailyClaims = [];
   }
+  // Settle the old rate once before enabling the tycoon economy. Keep every
+  // earned item, pending job, claim and the separate currency migration flag.
+  if (saved.tycoonVersion !== 1) {
+    f.storedCompute = storedComputeNow({ ...f, tycoonVersion: undefined }, now);
+    f.computeAt = now;
+    f.tycoonVersion = 1;
+  }
   return f;
 }
 export const itemCount = (bag: Bag) =>
@@ -757,18 +766,18 @@ export const capacity = (f: Facility) => modules(f) * 4;
 export const COMPUTE_JOBS = [
   {
     id: 'quick',
-    name: 'Quick batch',
+    name: 'Quick boost',
     seconds: 15,
-    base: 30,
-    perLevel: 5,
+    base: 8,
+    perLevel: 2,
     required: 1,
   },
   {
     id: 'heavy',
-    name: 'Big batch',
+    name: 'Big boost',
     seconds: 35,
-    base: 75,
-    perLevel: 10,
+    base: 20,
+    perLevel: 3,
     required: 3,
   },
 ] as const;
@@ -785,11 +794,48 @@ export const OUTAGE_NAMES = {
 export const activeIncident = (f: Facility, now = Date.now()) =>
   f.incident && now >= f.incident.at ? f.incident : null;
 export const computeTankCapacity = (f: Facility) =>
-  120 + modules(f) * 30 + f.computeBoost * 50;
+  f.tycoonVersion === 1
+    ? Math.max(240, computePerTick(f) * 4 * 60)
+    : 120 + modules(f) * 30 + f.computeBoost * 50;
 export const computePerTick = (f: Facility) =>
-  modules(f) * (1 + f.computeBoost);
+  f.tycoonVersion === 1
+    ? productionUnits(f) * (6 + f.computeBoost * 3)
+    : modules(f) * (1 + f.computeBoost);
+export const MACHINE_POWER: Record<string, number> = {
+  'rack-a': 1,
+  'rack-b': 1,
+  'rack-c': 2,
+  'rack-d': 3,
+  'rack-e': 4,
+  'rack-f': 6,
+  'rack-g': 10,
+};
+export const productionUnits = (f: Facility) =>
+  Object.entries(f.builds).reduce(
+    (sum, [id, level]) => sum + level * (MACHINE_POWER[id] ?? 1),
+    0,
+  );
+export const machineGain = (f: Facility, id: string) =>
+  (MACHINE_POWER[id] ?? 1) * (6 + f.computeBoost * 3) * 4;
+export const BOOST_PRICES = [20, 200, 900, 3500, 12000] as const;
+const RACK_PRICES: Record<string, number> = {
+  'rack-a': 45,
+  'rack-b': 75,
+  'rack-c': 180,
+  'rack-d': 450,
+  'rack-e': 800,
+  'rack-f': 1800,
+  'rack-g': 4500,
+};
+export const rackPrice = (f: Facility, id: string) =>
+  modules(f) === 0 ? 0 : (RACK_PRICES[id] ?? 75) * 2 ** (f.builds[id] ?? 0);
+export const rackCount = (f: Facility) =>
+  Object.values(f.builds).filter((n) => n > 0).length;
 export function storedComputeNow(f: Facility, now = Date.now()) {
-  const until = Math.max(f.computeAt, Math.min(now, f.incident?.at ?? now));
+  const until = Math.max(
+    f.computeAt,
+    f.tycoonVersion === 1 ? now : Math.min(now, f.incident?.at ?? now),
+  );
   return Math.min(
     computeTankCapacity(f),
     f.storedCompute +
@@ -826,7 +872,7 @@ function scheduleIncident(f: Facility, now: number, first = false) {
   if (!racks.length) return;
   const kinds = ['heat', 'power', 'network'] as const;
   f.incident = {
-    at: now + (first ? 45000 : 300000 + Math.floor(Math.random() * 300000)),
+    at: now + (first ? 300000 : 300000 + Math.floor(Math.random() * 300000)),
     rack: racks[Math.floor(Math.random() * racks.length)],
     kind: first ? 'heat' : kinds[Math.floor(Math.random() * kinds.length)],
     startedAt: null,
@@ -874,10 +920,7 @@ export function applyFacility(
     throw new FacilityError('Missing action identifier.');
   const ticks = Math.floor((now - f.energyAt) / 5000);
   f.storedCompute = storedComputeNow(f, now);
-  const computeUntil = Math.max(
-    f.computeAt,
-    Math.min(now, f.incident?.at ?? now),
-  );
+  const computeUntil = Math.max(f.computeAt, now);
   f.computeAt =
     f.storedCompute >= computeTankCapacity(f) || !modules(f)
       ? now
@@ -928,8 +971,9 @@ export function applyFacility(
       f.compute += reward;
       f.storedCompute = 0;
       count('computeEarned', reward);
+      count('collections');
       if (!f.incident) scheduleIncident(f, now, true);
-      message = `Collected ${reward} compute from your racks.`;
+      message = `+${reward} Compute. Your machines keep earning.`;
       break;
     }
     case 'compute-upgrade': {
@@ -939,13 +983,29 @@ export function applyFacility(
         );
       if (f.computeBoost >= 5)
         throw new FacilityError('Compute efficiency is fully upgraded.');
-      const cost = 80 * (f.computeBoost + 1);
+      const cost = BOOST_PRICES[f.computeBoost];
       if (f.compute < cost)
         throw new FacilityError(`You need ${cost} compute for this upgrade.`);
       f.compute -= cost;
       f.computeBoost++;
-      f.computeAt = now;
-      message = 'Efficiency upgraded! Every rack now generates more compute.';
+      message = 'Faster machines! Every machine now makes more Compute.';
+      break;
+    }
+    case 'tycoon-daily': {
+      if (f.lastWorkday === f.day || (f.daily.computeEarned ?? 0) < 100)
+        throw new FacilityError(
+          'Collect 100 Compute today to earn this reward.',
+        );
+      f.lastWorkday = f.day;
+      f.workdays++;
+      delta += 35;
+      xp = 25;
+      if (f.workdays >= 3 && !f.owned.includes('afterhours'))
+        f.owned.push('afterhours');
+      message =
+        f.workdays === 3
+          ? 'Gold outfit unlocked! Try it in your Locker.'
+          : 'Daily goal complete! +35 Compute.';
       break;
     }
     case 'intro': {
@@ -965,8 +1025,8 @@ export function applyFacility(
         throw new FacilityError('Build more rack levels to run this job.');
       if (f.workload)
         throw new FacilityError('Collect your current compute job first.');
-      if (activeIncident(f, now))
-        throw new FacilityError('Fix the outage before running more compute.');
+      if ((f.cooldowns['compute-boost'] ?? 0) > now)
+        throw new FacilityError('Your next bonus boost is still charging.');
       const rack = Object.keys(f.builds).find((id) => f.builds[id] > 0)!;
       f.workload = {
         id: action.requestId,
@@ -976,16 +1036,13 @@ export function applyFacility(
         readyAt: now + job.seconds * 1000,
         reward: job.base + modules(f) * job.perLevel,
       };
+      f.cooldowns['compute-boost'] = now + 90000;
       message = `${job.name} running. Explore while the rack works.`;
       break;
     }
     case 'compute-collect': {
       if (!f.workload || f.workload.readyAt > now)
         throw new FacilityError('The compute job is still running.');
-      if (activeIncident(f, now))
-        throw new FacilityError(
-          'Restore the rack to collect your compute. Nothing has been lost.',
-        );
       const reward = f.workload.reward;
       f.compute += reward;
       count('computeJobs');
@@ -1017,7 +1074,6 @@ export function applyFacility(
       count('computeEarned', 40);
       xp = 20;
       scheduleIncident(f, now);
-      f.computeAt = now;
       message = 'Back online! +40 compute · +20 XP. Your waiting job is safe.';
       break;
     }
@@ -1108,20 +1164,14 @@ export function applyFacility(
         throw new FacilityError('That rack is in a locked department.');
       const level = f.builds[plot.id] ?? 0;
       if (level >= 3) throw new FacilityError('This rack is fully upgraded.');
-      if ((modules(f) + 1) * 2 > powerBudget(f))
-        throw new FacilityError('Add a power module in Engineering first.');
-      if (modules(f) + 1 > coolingBudget(f))
-        throw new FacilityError('Add a cooling module in Engineering first.');
-      const cost = buildCost(level);
-      spend(cost.items, cost.credits);
+      spend({}, rackPrice(f, plot.id));
       f.builds[plot.id] = level + 1;
-      f.computeAt = now;
       f.skills.engineering += 15;
       count('built');
       xp = 15;
       message = level
-        ? 'Rack upgraded.'
-        : 'Another rack is online. Permanently.';
+        ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
+        : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
       break;
     }
     case 'utility': {

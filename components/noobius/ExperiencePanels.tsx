@@ -1,9 +1,12 @@
 'use client';
+import ComputeIcon from './ComputeIcon';
 import { useState } from 'react';
 import { ArrowRight, Check, Cpu, Gauge, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   COMPUTE_JOBS,
+  BOOST_PRICES,
+  productionUnits,
   OUTAGE_NAMES,
   OUTAGE_STEPS,
   activeIncident,
@@ -37,25 +40,14 @@ export function BriefingCard({
 }) {
   return (
     <div className="shift-briefing">
-      <MissionVisual
-        step={
-          briefing.id === 'craft'
-            ? 1
-            : ['rack', 'compute', 'outage'].includes(briefing.id)
-              ? 3
-              : 0
-        }
+      <img
+        className="welcome-machine"
+        src="/assets/tutorial/tutorial-server.png"
+        alt="Your free starter machine"
       />
       <p className="visual-briefing-line">
-        {briefing.id === 'welcome'
-          ? 'Tap below. Follow the glowing path.'
-          : briefing.id === 'salvage'
-            ? 'Collect the missing parts.'
-            : briefing.id === 'craft'
-              ? 'Kit ready. Time to build.'
-              : briefing.id === 'rack'
-                ? 'Your rack is earning Compute.'
-                : briefing.text}
+        “Your first machine is on me. Build it, collect Compute, then buy
+        something bigger.”
       </p>
       <Button className="primary-action" disabled={busy} onClick={onContinue}>
         {briefing.cta}
@@ -82,156 +74,147 @@ export function ComputeDesk({
 }: Props & { onStarted: () => void; onOutage: () => void }) {
   const stored = storedComputeNow(f, now),
     cap = computeTankCapacity(f),
-    incident = activeIncident(f, now),
     job = f.workload;
-  const progress = job
-    ? Math.min(
-        100,
-        Math.max(
-          0,
-          ((now - job.startedAt) / (job.readyAt - job.startedAt)) * 100,
-        ),
-      )
-    : 0;
+  const cost = BOOST_PRICES[f.computeBoost],
+    rate = computePerTick(f) * 4;
+  const bonusWait = Math.max(
+    0,
+    Math.ceil(((f.cooldowns['compute-boost'] ?? 0) - now) / 1000),
+  );
+  const tickWait = Math.max(
+    1,
+    15 - (Math.floor((now - f.computeAt) / 1000) % 15),
+  );
   return (
-    <div className="compute-desk">
-      <div className="compute-balance">
-        <Cpu size={28} />
+    <div className="compute-desk simple-compute">
+      <div className="tycoon-wallet">
+        <ComputeIcon size={44} />
         <strong>{f.compute.toLocaleString()}</strong>
-        <span>Compute</span>
+        <span>Compute to spend</span>
       </div>
-      <section className="compute-card">
-        <div className="compute-card-title">
-          <strong>Production</strong>
-          <span>{modules(f)} rack levels</span>
-        </div>
+      <section className="compute-card production-card">
+        <img
+          src="/assets/tutorial/tutorial-server.png"
+          alt="Your machines generate Compute automatically"
+        />
+        <h3>Your machines are working.</h3>
         <p>
-          {modules(f)
-            ? `${computePerTick(f) * 4} / min`
-            : 'Build a rack to start.'}
+          <strong>{rate} Compute / min</strong>
         </p>
         <div
           className="compute-tank"
           role="progressbar"
-          aria-label="Stored compute"
+          aria-label="Compute storage"
           aria-valuemin={0}
           aria-valuemax={cap}
           aria-valuenow={stored}
         >
           <i style={{ width: `${(stored / cap) * 100}%` }} />
         </div>
-        <div className="compute-card-title">
-          <span>
-            {stored} / {cap} stored
-          </span>
-          <span>
-            {incident
-              ? 'Paused'
-              : stored >= cap
-                ? 'Storage full'
-                : 'Generating'}
-          </span>
-        </div>
+        <small>
+          {stored.toLocaleString()} ready · room for {cap.toLocaleString()}
+        </small>
         <Button
           className="primary-action"
           disabled={busy || stored < 1}
           onClick={() => void onAction({ type: 'compute-harvest' })}
         >
-          Collect {stored}
-          <ArrowRight size={17} />
+          <ComputeIcon size={28} />
+          {stored ? `Collect ${stored}` : `Next Compute in ${tickWait}s`}
         </Button>
-      </section>
-      {incident && (
-        <button className="compute-outage-link" onClick={onOutage}>
-          <Zap size={18} />
-          {OUTAGE_NAMES[incident.kind]} · fix it for +40 compute
-          <ArrowRight size={17} />
-        </button>
-      )}
-      <section className="compute-card">
-        <div className="compute-card-title">
-          <strong>Bonus jobs</strong>
-          <span></span>
-        </div>
-        {job ? (
-          <>
-            <p>
-              {job.label} · +{job.reward} compute
-            </p>
-            <div
-              className="compute-tank"
-              role="progressbar"
-              aria-label="Compute batch progress"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.floor(progress)}
-            >
-              <i style={{ width: `${progress}%` }} />
-            </div>
-            <p>
-              {incident
-                ? 'Repair the rack to collect.'
-                : now >= job.readyAt
-                  ? 'Ready!'
-                  : `${Math.max(0, Math.ceil((job.readyAt - now) / 1000))} s left`}
-            </p>
-            <Button
-              className="primary-action"
-              disabled={busy || !!incident || now < job.readyAt}
-              onClick={() => void onAction({ type: 'compute-collect' })}
-            >
-              Collect +{job.reward}
-            </Button>
-          </>
-        ) : (
-          <div className="compute-job-options">
-            {COMPUTE_JOBS.map((j) => (
-              <button
-                key={j.id}
-                disabled={busy || !!incident || modules(f) < j.required}
-                onClick={async () => {
-                  if (await onAction({ type: 'compute-start', id: j.id }))
-                    onStarted();
-                }}
-              >
-                <Cpu size={20} />
-                <strong>{j.name}</strong>
-                <span>
-                  {j.seconds}s · +{j.base + modules(f) * j.perLevel} compute
-                </span>
-                <small>
-                  {modules(f) < j.required
-                    ? `Needs ${j.required} rack levels`
-                    : 'Start'}
-                </small>
-              </button>
-            ))}
-          </div>
-        )}
+        <p className="muted-small">
+          Collect whenever you like. There’s room for an hour of earnings.
+        </p>
       </section>
       <section className="compute-card">
-        <div className="compute-card-title">
-          <strong>
-            <Gauge size={17} /> Faster racks
-          </strong>
-          <span>Level {f.computeBoost} / 5</span>
-        </div>
-        <p>+4 / min per rack · +50 storage</p>
+        <h3>
+          <Gauge size={21} /> Faster machines
+        </h3>
+        <p>
+          {f.computeBoost >= 5
+            ? 'Top speed reached!'
+            : `${rate} → ${rate + productionUnits(f) * 12} Compute / min`}
+        </p>
         <Button
-          className="primary-action"
+          className="outline-button"
           disabled={
-            busy ||
-            !modules(f) ||
-            f.computeBoost >= 5 ||
-            f.compute < 80 * (f.computeBoost + 1)
+            busy || !modules(f) || f.computeBoost >= 5 || f.compute < cost
           }
           onClick={() => void onAction({ type: 'compute-upgrade' })}
         >
-          {f.computeBoost >= 5
-            ? 'Efficiency maxed'
-            : `Upgrade · ${80 * (f.computeBoost + 1)} Compute`}
+          {f.computeBoost >= 5 ? (
+            'Max speed'
+          ) : (
+            <>
+              <ComputeIcon size={24} />
+              {cost} · Upgrade
+            </>
+          )}
         </Button>
       </section>
+      <section className="compute-card">
+        <h3>
+          <Zap size={21} /> A little extra
+        </h3>
+        {job ? (
+          <>
+            <p>
+              {now >= job.readyAt
+                ? `Your bonus is ready: +${job.reward} Compute.`
+                : `Bonus cooking… ${Math.ceil((job.readyAt - now) / 1000)}s`}
+            </p>
+            <div className="compute-tank">
+              <i
+                style={{
+                  width: `${Math.min(100, ((now - job.startedAt) / (job.readyAt - job.startedAt)) * 100)}%`,
+                }}
+              />
+            </div>
+            <Button
+              className="primary-action"
+              disabled={busy || now < job.readyAt}
+              onClick={() => void onAction({ type: 'compute-collect' })}
+            >
+              Collect bonus <ComputeIcon size={24} />
+            </Button>
+          </>
+        ) : (
+          <>
+            <p>Tap a boost and let your machines do the rest.</p>
+            <div className="compute-job-options">
+              {COMPUTE_JOBS.map((j) => (
+                <button
+                  key={j.id}
+                  disabled={busy || bonusWait > 0 || modules(f) < j.required}
+                  onClick={async () => {
+                    if (await onAction({ type: 'compute-start', id: j.id }))
+                      onStarted();
+                  }}
+                >
+                  <ComputeIcon size={36} />
+                  <strong>{j.name}</strong>
+                  <span>
+                    +{j.base + modules(f) * j.perLevel} in {j.seconds}s
+                  </span>
+                  <small>
+                    {modules(f) < j.required
+                      ? `Needs ${j.required} machine levels`
+                      : bonusWait
+                        ? `Recharges in ${bonusWait}s`
+                        : 'Start boost'}
+                  </small>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+      {activeIncident(f, now) && (
+        <button className="compute-outage-link" onClick={onOutage}>
+          <Zap size={19} /> Bonus round · wake a sleepy machine{' '}
+          <ArrowRight size={18} />
+        </button>
+      )}
     </div>
   );
 }
@@ -250,19 +233,25 @@ export function OutageRepair({
     return (
       <div className="empty-state">
         <Check size={32} />
-        <p>Everything is back online.</p>
-        <Button onClick={onDone}>Back to the floor</Button>
+        <p>All bright again.</p>
+        <Button onClick={onDone}>Back to my machines</Button>
       </div>
     );
-  const steps = OUTAGE_STEPS[incident.kind],
-    started = incident.startedAt !== null;
+  const started = incident.startedAt !== null;
+  const order = [1, 2, 0];
   return (
-    <div className="outage-repair">
-      <div className="outage-icon">
-        <Zap size={34} />
+    <div className="spark-game">
+      <div className="spark-game-reward">
+        <ComputeIcon size={52} />
+        <strong>+40 Compute</strong>
       </div>
-      <p className="outage-reward">Reward · 40 Compute + 20 XP</p>
-      <p>Three steps. Follow the sequence.</p>
+      <h2>Wake up, sleepy server.</h2>
+      <p>Tap the glowing button. Light up all three!</p>
+      <div className="spark-score" aria-label={`${step} of 3 lights restored`}>
+        {[0, 1, 2].map((i) => (
+          <i className={i < step ? 'lit' : ''} key={i} />
+        ))}
+      </div>
       {!started ? (
         <Button
           className="primary-action"
@@ -271,50 +260,34 @@ export function OutageRepair({
             void onAction({ type: 'outage-start', id: String(incident.at) })
           }
         >
-          Inspect the fault
-          <ArrowRight size={18} />
+          Let’s play <ArrowRight size={18} />
         </Button>
       ) : (
         <>
-          <ol
-            className="outage-steps compact-stepper"
-            aria-label="Repair progress"
-          >
-            {steps.map((label, i) => (
-              <li
-                key={label}
-                aria-label={`${label}: ${i < step ? 'done' : i === step ? 'current' : 'next'}`}
-                className={i < step ? 'done' : i === step ? 'current' : ''}
+          <div className="spark-buttons">
+            {[0, 1, 2].map((i) => (
+              <button
+                key={i}
+                aria-label={
+                  order[step] === i
+                    ? 'Glowing button — tap here'
+                    : 'Unlit button'
+                }
+                className={order[step] === i ? 'glowing' : ''}
+                disabled={busy || step === 3}
+                onClick={() => {
+                  if (order[step] === i) {
+                    setStep(step + 1);
+                    setHint('Nice!');
+                  } else setHint('Look for the glowing one. Try again!');
+                }}
               >
-                <span>{i < step ? '✓' : i + 1}</span>
-              </li>
+                <Zap size={34} />
+              </button>
             ))}
-          </ol>
-          {step < 3 && (
-            <>
-              <p className="outage-instruction">
-                Step {step + 1}: {steps[step]}
-              </p>
-              <div className="outage-controls">
-                {[2, 0, 1].map((i) => (
-                  <button
-                    key={i}
-                    disabled={busy || i < step}
-                    onClick={() => {
-                      if (i === step) {
-                        setStep(step + 1);
-                        setHint('');
-                      } else setHint(`Try: ${steps[step].toLowerCase()}.`);
-                    }}
-                  >
-                    {steps[i]}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <p className="outage-hint" role="status">
-            {hint || (step === 3 ? 'Ready to restart.' : '')}
+          </div>
+          <p className="spark-hint" role="status">
+            {step === 3 ? 'You got them all!' : hint || 'Tap the glow.'}
           </p>
           {step === 3 && (
             <Button
@@ -325,19 +298,21 @@ export function OutageRepair({
                   await onAction({
                     type: 'outage-fix',
                     id: String(incident.at),
-                    direction: steps.join('|'),
+                    direction: OUTAGE_STEPS[incident.kind].join('|'),
                   })
                 )
                   onDone();
               }}
             >
               {now - incident.startedAt! < 3000
-                ? 'System resetting…'
-                : 'Restart · +40 Compute'}
+                ? 'Lighting up…'
+                : 'Collect 40 Compute'}
+              <ComputeIcon size={26} />
             </Button>
           )}
         </>
       )}
+      <small>Just a bonus. Your machines keep earning while you play.</small>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import {
-  Cpu,
   Check,
   ArrowRight,
   Home,
@@ -25,6 +24,7 @@ import {
 import { api } from './useNoobius';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from './AvatarPreview';
+import ComputeIcon from './ComputeIcon';
 
 export function LockerPanel({
   facility,
@@ -177,7 +177,7 @@ export function LockerPanel({
         </div>
         <div className="locker-save">
           <span>
-            <Cpu size={18} />
+            <ComputeIcon size={24} />
             {balance} Compute
           </span>
           <Button

@@ -174,6 +174,23 @@ async function player(wallet: string): Promise<Profile> {
       .run();
     return player(wallet);
   }
+  if (saved.tycoonVersion !== 1) {
+    // Commit the rate transition before returning it to the client. Otherwise
+    // a legacy read could display new-rate earnings that a later write reverts.
+    const migrated = normalizeFacility(saved, Date.now());
+    await db()
+      .prepare(
+        'UPDATE players SET facility_state=?,facility_version=facility_version+1 WHERE wallet=? AND facility_version=? AND facility_state=?',
+      )
+      .bind(
+        JSON.stringify(migrated),
+        wallet,
+        p.facility_version,
+        p.facility_state,
+      )
+      .run();
+    return player(wallet);
+  }
   return {
     wallet: p.wallet,
     name: p.name,

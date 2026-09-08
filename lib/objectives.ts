@@ -6,6 +6,8 @@ import {
   STORY,
   ZONES,
   buildCost,
+  rackPrice,
+  machineGain,
   coolingBudget,
   itemCount,
   modules,
@@ -191,33 +193,15 @@ export function resolveObjective(
         cta: 'Open job book',
         panel: 'contracts',
       };
-    for (const type of ['power', 'cooling'] as const) {
-      const short =
-        type === 'power'
-          ? (modules(f) + 1) * 2 > powerBudget(f)
-          : modules(f) + 1 > coolingBudget(f);
-      if (short)
-        return (
-          parts(type === 'power' ? { battery: 1 } : { pump: 1 }) ??
-          cash(40 + f[type] * 20) ?? {
-            title: `Add more ${type}`,
-            detail: 'Give your next racks the utilities they need.',
-            cta: `Expand ${type}`,
-            target: 'utilities',
-            action: { type: 'utility', id: type },
-          }
-        );
-    }
     const level = f.builds[rack.id] ?? 0,
-      cost = buildCost(level);
+      cost = rackPrice(f, rack.id);
     return (
-      parts(cost.items) ??
-      cash(cost.credits) ?? {
+      cash(cost) ?? {
         title: level
           ? `Upgrade ${rack.name.split(' · ')[0]}`
-          : 'Bring a rack online',
-        detail: `${rack.name.split(' · ')[0]} · ${cost.credits} Compute. The green lights stay on.`,
-        cta: level ? 'Install upgrade' : 'Start this rack',
+          : 'Build a machine',
+        detail: `${cost ? cost + ' Compute' : 'Free'} · adds ${machineGain(f, rack.id)} Compute/min.`,
+        cta: level ? 'Upgrade' : 'Build',
         target: rack.id,
         action: { type: 'build', id: rack.id },
       }

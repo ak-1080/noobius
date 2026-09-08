@@ -1,4 +1,7 @@
 'use client';
+import ComputeIcon from './ComputeIcon';
+import { QuickGuide } from './PlayGuide';
+import TokenExchange from './TokenExchange';
 import { LockerPanel, WorldPanel, CrewJobPanel } from './TycoonPanels';
 import {
   publicCampus,
@@ -10,7 +13,12 @@ import {
 import { BriefingCard, ComputeDesk, OutageRepair } from './ExperiencePanels';
 import Onboarding from './Onboarding';
 import { nextBriefing, shiftObjective } from '@/lib/experience';
-import { activeIncident, OUTAGE_NAMES, storedComputeNow } from '@/lib/facility';
+import {
+  activeIncident,
+  OUTAGE_NAMES,
+  storedComputeNow,
+  computePerTick,
+} from '@/lib/facility';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
@@ -200,6 +208,7 @@ export default function NoobiusGame() {
   const audio = useRef<AudioContext | null>(null),
     gain = useRef<GainNode | null>(null);
   const playing = mode !== 'lobby' && !!shift;
+  const panelHeading = useRef<HTMLHeadingElement>(null);
   const needsIdentity = playing && !facility.seen.includes('intro:identity');
   const repaired =
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
@@ -298,19 +307,6 @@ export default function NoobiusGame() {
     );
   }, [profile?.wallet, playing]);
   useEffect(() => {
-    if (
-      playing &&
-      !needsIdentity &&
-      room === 'home' &&
-      briefing &&
-      briefing.id !== 'welcome' &&
-      !panel &&
-      !activeJob &&
-      !busy
-    )
-      setPanel('briefing');
-  }, [playing, needsIdentity, briefing?.id, panel, activeJob, busy]);
-  useEffect(() => {
     return () => {
       void audio.current?.close();
     };
@@ -398,20 +394,20 @@ export default function NoobiusGame() {
           (facility.builds[action.id!] ?? 0)
             ? 'More power. Same noob.'
             : 'You brought a rack online!',
-        detail: `${modules(facility) + 1} rack levels installed. Your progress stays built.`,
+        detail: `More blinking lights. More Compute. Keep growing!`,
       });
     if (action.type === 'unlock')
       setCelebration({
         title: `${ZONES.find((z) => z.id === action.id)?.name} unlocked`,
-        detail: 'New parts. New projects. Go take a look.',
+        detail: 'More room for your machines. Go take a look.',
       });
-    if (action.type === 'daily-bonus')
+    if (action.type === 'daily-bonus' || action.type === 'tycoon-daily')
       setCelebration({
         title:
           facility.workdays === 2
             ? 'After-hours gold unlocked!'
             : 'Daily card complete!',
-        detail: '+25 Compute · +25 XP · Your stamp is permanent.',
+        detail: `${action.type === 'tycoon-daily' ? 35 : 25} Compute · +25 XP · Another day closer to gold.`,
       });
     if (
       action.type === 'compute-collect' ||
@@ -612,7 +608,7 @@ export default function NoobiusGame() {
             noobius<span>•</span>
           </button>
           <nav aria-label="Main navigation">
-            <button onClick={() => show('guide')}>How to play</button>
+            <a href="/how-to-play">How to play</a>
             <a href="/story">The story</a>
           </nav>
           <Button
@@ -704,7 +700,7 @@ export default function NoobiusGame() {
             aria-label={`${profile?.credits ?? 0} Compute`}
           >
             <span>
-              <Cpu size={15} />
+              <ComputeIcon size={28} />
               {profile?.credits ?? 0} Compute
             </span>
           </div>
@@ -730,51 +726,61 @@ export default function NoobiusGame() {
               </span>
             </button>
           )}
-          {room === 'home' && (
-            <button
-              className="objective-hud next-action"
-              onClick={followObjective}
-              disabled={busy || objective.wait}
-              aria-label={`${objective.title}. ${objective.cta}`}
-            >
-              <span className="next-action-icon">
-                <Navigation size={22} />
-              </span>
-              <span className="next-action-copy">
-                <small>Next up</small>
-                <strong>{objective.title}</strong>
-              </span>
-              <ArrowRight className="next-action-arrow" size={20} />
-              <i className="objective-meter">
-                <i style={{ width: `${objective.progress}%` }} />
-              </i>
-            </button>
-          )}
-          {room === 'home' && modules(facility) > 0 && (
-            <button
-              className={`compute-hud ${incident ? 'has-outage' : ''}`}
-              disabled={busy}
-              onClick={() =>
-                incident
-                  ? show('outage')
-                  : facility.workload && now >= facility.workload.readyAt
+          <div className="home-guidance">
+            {room === 'home' && (
+              <button
+                className="objective-hud next-action"
+                onClick={followObjective}
+                disabled={busy}
+                aria-label={`${objective.title}. ${objective.cta}`}
+              >
+                <span className="next-action-icon">
+                  <Navigation size={22} />
+                </span>
+                <span className="next-action-copy">
+                  <small>Next up</small>
+                  <strong>{objective.title}</strong>
+                  <span className="next-action-detail">{objective.detail}</span>
+                </span>
+                <ArrowRight className="next-action-arrow" size={20} />
+                <i className="objective-meter">
+                  <i style={{ width: `${objective.progress}%` }} />
+                </i>
+              </button>
+            )}
+            {room === 'home' && modules(facility) > 0 && (
+              <button
+                className={`compute-hud ${storedCompute > 0 ? 'is-ready' : ''}`}
+                disabled={busy}
+                onClick={() =>
+                  facility.workload && now >= facility.workload.readyAt
                     ? void act({ type: 'compute-collect' })
                     : storedCompute > 0
                       ? void act({ type: 'compute-harvest' })
                       : show('compute')
-              }
-            >
-              <Cpu size={17} />
-              <span>
-                {incident
-                  ? 'Repair needed'
-                  : facility.workload && now >= facility.workload.readyAt
+                }
+              >
+                <ComputeIcon size={30} />
+                <span>
+                  {facility.workload && now >= facility.workload.readyAt
                     ? `Collect +${facility.workload.reward}`
                     : storedCompute > 0
                       ? `Collect +${storedCompute}`
                       : 'Racks working'}
+                </span>
+                <ArrowRight size={15} />
+              </button>
+            )}
+          </div>
+          {room === 'home' && incident && (
+            <button
+              className="bonus-event-button"
+              onClick={() => show('outage')}
+            >
+              <Sparkles size={20} />
+              <span>
+                Bonus!<small>Wake a sleepy machine · +40</small>
               </span>
-              <ArrowRight size={15} />
             </button>
           )}
           {celebration && (
@@ -793,7 +799,7 @@ export default function NoobiusGame() {
                 name: inCampus ? 'Team job' : 'Build',
                 Icon: Hammer,
               },
-              { id: 'inventory', name: 'Parts', Icon: Backpack },
+              { id: 'contracts', name: 'Goals', Icon: Trophy },
               { id: 'world', name: 'Travel', Icon: Map },
               { id: 'appearance', name: 'Locker', Icon: Headphones },
             ]
@@ -881,770 +887,683 @@ export default function NoobiusGame() {
           }
         }}
       >
-        <DialogContent
-          className={`noobius-modal ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
-        >
-          <DialogTitle>
-            {
-              (
-                {
-                  ...Object.fromEntries(
-                    Object.entries(PANEL_COPY).map(([k, v]) => [k, v[0]]),
-                  ),
-                  world: 'Travel',
-                  appearance: 'Locker',
-                  crewjob: 'Cluster down',
-                  menu: 'Paused',
-                  jobs: 'Repairs',
-                  wallet: 'Clock in.',
-                  badge: 'Your employee badge.',
-                  profile: 'Your employee badge.',
-                  guide: 'How to play',
-                  crew: 'The night-shift crew.',
-                  token: 'A noob. A crew. A token.',
-                  locker: 'The equipment locker.',
-                  report:
-                    repaired === 3 ? 'Shift complete.' : 'Incident report.',
-                  briefing: briefing?.title ?? 'Your next step.',
-                  compute: 'Production',
-                  outage: incident
-                    ? OUTAGE_NAMES[incident.kind]
-                    : 'All systems online.',
-                } as Record<string, string>
-              )[panel ?? '']
-            }
-          </DialogTitle>
-          <DialogDescription
-            className={panel === 'wallet' || panel === 'token' ? '' : 'sr-only'}
+        {panel && (
+          <DialogContent
+            key={panel ?? 'closed'}
+            initialFocus={panelHeading}
+            className={`noobius-modal ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
           >
-            {
-              (
-                {
-                  ...Object.fromEntries(
-                    Object.entries(PANEL_COPY).map(([k, v]) => [k, v[1]]),
-                  ),
-                  world: 'Grow your own facility. Meet the crew next door.',
-                  appearance: 'Same noob. Your style.',
-                  crewjob: 'Three stations. One cluster. Work together.',
-                  menu:
-                    mode === 'practice'
-                      ? 'Practice shift · Progress lasts until reload.'
-                      : 'Your progress is saved to your wallet.',
-                  jobs: 'Fix a system, earn Compute, then improve your data center.',
-                  wallet:
-                    'Connect your wallet to save your progress. No purchase or transaction required.',
-                  badge: 'What should we put on your badge?',
-                  profile: 'Your place on the night shift.',
-                  guide: 'Everything you need for your first night on the job.',
-                  crew: 'Each technician’s best completed shift. Practice shifts are not ranked.',
-                  token: 'The community grows around Noobius.',
-                  locker: 'Better tools. Same questionable technician.',
-                  report:
-                    repaired === 3
-                      ? 'The future is online. You can breathe now.'
-                      : 'Some faults are tomorrow’s problem. Your completed repairs still count.',
-                  briefing: 'One step at a time. You’ve got this.',
-                  compute:
-                    'Build racks. Collect compute. Grow your data center.',
-                  outage:
-                    'Patch is on the radio. Follow the steps to restore service.',
-                } as Record<string, string>
-              )[panel ?? '']
-            }
-          </DialogDescription>
-          {panel === 'world' && (
-            <WorldPanel
-              onConnect={() => show('wallet')}
-              room={room}
-              practice={mode === 'practice'}
-              onGo={goWorld}
-              onVisit={(id) => void visitFacility(id)}
-            />
-          )}
-          {panel === 'appearance' && (
-            <LockerPanel
-              facility={facility}
-              name={profile?.name ?? 'Noobius'}
-              balance={profile?.credits ?? 0}
-              busy={busy}
-              onName={game.rename}
-              onWear={(type, id) => game.facilityAction({ type, id })}
-            />
-          )}
-          {panel === 'crewjob' && (
-            <CrewJobPanel
-              world={shared}
-              now={now}
-              busy={busy}
-              onWalk={(id) => {
-                setPanel(null);
-                setGuideCommand({ id, revision: Date.now() });
-              }}
-              onWork={(station, finish) => {
-                if (shared)
-                  void game.marketAction('crew-work', {
-                    room,
-                    event: shared.event,
-                    station,
-                    finish,
-                  });
-              }}
-              onClaim={() => {
-                if (shared)
-                  void game.marketAction('crew-claim', {
-                    room,
-                    event: shared.event,
-                  });
-              }}
-            />
-          )}
-          {panel === 'briefing' && briefing && (
-            <BriefingCard
-              briefing={briefing}
-              busy={busy}
-              onContinue={() => void continueBriefing()}
-              onSkip={async () => {
-                if (await act({ type: 'intro-skip' })) setPanel(null);
-              }}
-            />
-          )}
-          {panel === 'compute' && (
-            <ComputeDesk
-              facility={facility}
-              now={now}
-              busy={busy}
-              onAction={act}
-              onStarted={() => setPanel(null)}
-              onOutage={() => {
-                if (incident)
+            <DialogTitle ref={panelHeading} tabIndex={-1}>
+              {
+                (
+                  {
+                    ...Object.fromEntries(
+                      Object.entries(PANEL_COPY).map(([k, v]) => [k, v[0]]),
+                    ),
+                    world: 'Travel',
+                    appearance: 'Locker',
+                    crewjob: 'Cluster down',
+                    menu: 'Paused',
+                    jobs: 'Repairs',
+                    wallet: 'Clock in.',
+                    badge: 'Your employee badge.',
+                    profile: 'Your employee badge.',
+                    guide: 'How to play',
+                    crew: 'The night-shift crew.',
+                    token: 'Exchange',
+                    locker: 'The equipment locker.',
+                    report:
+                      repaired === 3 ? 'Shift complete.' : 'Incident report.',
+                    briefing: briefing?.title ?? 'Your next step.',
+                    compute: 'Production',
+                    outage: incident ? 'Bonus round' : 'All bright again.',
+                  } as Record<string, string>
+                )[panel ?? '']
+              }
+            </DialogTitle>
+            <DialogDescription
+              className={
+                panel === 'wallet' || panel === 'token' ? '' : 'sr-only'
+              }
+            >
+              {
+                (
+                  {
+                    ...Object.fromEntries(
+                      Object.entries(PANEL_COPY).map(([k, v]) => [k, v[1]]),
+                    ),
+                    world: 'Grow your own facility. Meet the crew next door.',
+                    appearance: 'Same noob. Your style.',
+                    crewjob: 'Three stations. One cluster. Work together.',
+                    menu:
+                      mode === 'practice'
+                        ? 'Practice shift · Progress lasts until reload.'
+                        : 'Your progress is saved to your wallet.',
+                    jobs: 'Fix a system, earn Compute, then improve your data center.',
+                    wallet:
+                      'Connect your wallet to save your progress. No purchase or transaction required.',
+                    badge: 'What should we put on your badge?',
+                    profile: 'Your place on the night shift.',
+                    guide: 'Four little steps. One big data center.',
+                    crew: 'Each technician’s best completed shift. Practice shifts are not ranked.',
+                    token: 'The community grows around Noobius.',
+                    locker: 'Better tools. Same questionable technician.',
+                    report:
+                      repaired === 3
+                        ? 'The future is online. You can breathe now.'
+                        : 'Some faults are tomorrow’s problem. Your completed repairs still count.',
+                    briefing: 'One step at a time. You’ve got this.',
+                    compute:
+                      'Build machines. Collect Compute. Grow your data center.',
+                    outage:
+                      'Tap the glowing buttons for a bonus. Your machines keep earning.',
+                  } as Record<string, string>
+                )[panel ?? '']
+              }
+            </DialogDescription>
+            {panel === 'world' && (
+              <WorldPanel
+                onConnect={() => show('wallet')}
+                room={room}
+                practice={mode === 'practice'}
+                onGo={goWorld}
+                onVisit={(id) => void visitFacility(id)}
+              />
+            )}
+            {panel === 'appearance' && (
+              <LockerPanel
+                facility={facility}
+                name={profile?.name ?? 'Noobius'}
+                balance={profile?.credits ?? 0}
+                busy={busy}
+                onName={game.rename}
+                onWear={(type, id) => game.facilityAction({ type, id })}
+              />
+            )}
+            {panel === 'crewjob' && (
+              <CrewJobPanel
+                world={shared}
+                now={now}
+                busy={busy}
+                onWalk={(id) => {
+                  setPanel(null);
+                  setGuideCommand({ id, revision: Date.now() });
+                }}
+                onWork={(station, finish) => {
+                  if (shared)
+                    void game.marketAction('crew-work', {
+                      room,
+                      event: shared.event,
+                      station,
+                      finish,
+                    });
+                }}
+                onClaim={() => {
+                  if (shared)
+                    void game.marketAction('crew-claim', {
+                      room,
+                      event: shared.event,
+                    });
+                }}
+              />
+            )}
+            {panel === 'briefing' && briefing && (
+              <BriefingCard
+                briefing={briefing}
+                busy={busy}
+                onContinue={() => void continueBriefing()}
+                onSkip={async () => {
+                  if (await act({ type: 'intro-skip' })) setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'compute' && (
+              <ComputeDesk
+                facility={facility}
+                now={now}
+                busy={busy}
+                onAction={act}
+                onStarted={() => setPanel(null)}
+                onOutage={() => {
+                  if (incident)
+                    executeStep({
+                      title: '',
+                      detail: '',
+                      cta: '',
+                      target: incident.rack,
+                      panel: 'outage',
+                    });
+                }}
+              />
+            )}
+            {panel === 'outage' && (
+              <OutageRepair
+                key={incident?.at ?? 'clear'}
+                facility={facility}
+                now={now}
+                busy={busy}
+                onAction={act}
+                onDone={() => setPanel(null)}
+              />
+            )}
+            {profile?.facility && panel && panel in PANEL_COPY && (
+              <FacilityPanels
+                panel={panel as ExpansionPanel}
+                profile={profile}
+                selected={selectedObject}
+                busy={busy}
+                onAction={act}
+                onMarket={game.marketAction}
+                onPanel={(p) => show(p)}
+                key={panel}
+                objective={objective}
+                jobTab="story"
+                onFollow={followObjective}
+                onRepair={() => show('jobs')}
+                onHelp={(request) =>
+                  executeStep(
+                    resolveObjective(facility, profile.credits, now, request),
+                  )
+                }
+                onGuide={(object) =>
                   executeStep({
-                    title: '',
+                    title: object.name,
                     detail: '',
                     cta: '',
-                    target: incident.rack,
-                    panel: 'outage',
-                  });
-              }}
-            />
-          )}
-          {panel === 'outage' && (
-            <OutageRepair
-              key={incident?.at ?? 'clear'}
-              facility={facility}
-              now={now}
-              busy={busy}
-              onAction={act}
-              onDone={() => setPanel(null)}
-            />
-          )}
-          {profile?.facility && panel && panel in PANEL_COPY && (
-            <FacilityPanels
-              panel={panel as ExpansionPanel}
-              profile={profile}
-              selected={selectedObject}
-              busy={busy}
-              onAction={act}
-              onMarket={game.marketAction}
-              onPanel={(p) => show(p)}
-              key={panel}
-              objective={objective}
-              jobTab="story"
-              onFollow={followObjective}
-              onRepair={() => show('jobs')}
-              onHelp={(request) =>
-                executeStep(
-                  resolveObjective(facility, profile.credits, now, request),
-                )
-              }
-              onGuide={(object) =>
-                executeStep({
-                  title: object.name,
-                  detail: '',
-                  cta: '',
-                  target: object.id,
-                  action:
-                    object.kind === 'node'
-                      ? { type: 'gather', id: object.id }
-                      : undefined,
-                  panel: object.panel,
-                })
-              }
-              onTravel={() => {
-                pendingStep.current = null;
-                setGuideCommand({ id: '', revision: Date.now() });
-                setTravelCommand((n) => n + 1);
-                setPanel(null);
-              }}
-            />
-          )}
-          {panel === 'menu' && (
-            <div className="pause-menu">
-              <div className="menu-employee">
-                <img src="/assets/noobius.jpeg" alt="Noobius" />
-                <div>
-                  <strong>{profile?.name}</strong>
+                    target: object.id,
+                    action:
+                      object.kind === 'node'
+                        ? { type: 'gather', id: object.id }
+                        : undefined,
+                    panel: object.panel,
+                  })
+                }
+                onTravel={() => {
+                  pendingStep.current = null;
+                  setGuideCommand({ id: '', revision: Date.now() });
+                  setTravelCommand((n) => n + 1);
+                  setPanel(null);
+                }}
+              />
+            )}
+            {panel === 'menu' && (
+              <div className="pause-menu">
+                <div className="menu-employee">
+                  <img src="/assets/noobius.jpeg" alt="Noobius" />
+                  <div>
+                    <strong>{profile?.name}</strong>
+                    <span>
+                      {titleFor(profile?.xp ?? 0)} · {profile?.credits ?? 0}{' '}
+                      Compute
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  className="primary-action"
+                  onClick={() => setPanel(null)}
+                >
+                  Resume <ArrowRight size={18} />
+                </Button>
+                <div className="pause-options">
+                  <button onClick={() => show('facility')}>
+                    <Cpu size={18} /> Build
+                  </button>
+                  <button onClick={() => show('market')}>
+                    <Coins size={18} /> Shop
+                  </button>
+                  <button onClick={() => show('token')}>
+                    <Coins size={18} /> Exchange
+                  </button>
+                  <button onClick={() => show('crafting')}>
+                    <Hammer size={18} /> Workshop
+                  </button>
+                  <button onClick={() => show('inventory')}>
+                    <Backpack size={18} /> Parts & storage
+                  </button>
+                  <button onClick={() => show('skills')}>
+                    <Sparkles size={18} /> Skills
+                  </button>
+                  <button onClick={() => show('social')}>
+                    <MessageCircle size={18} />
+                    Crew chat
+                  </button>
+                  <button onClick={() => show('jobs')}>
+                    <Wrench size={18} /> Repairs
+                  </button>
+                  <button onClick={() => show('contracts')}>
+                    <BriefcaseBusiness size={18} /> Jobs
+                  </button>
+                  <button onClick={() => show('locker')}>
+                    <Wrench size={18} /> Equipment
+                  </button>
+                  <button onClick={() => show('guide')}>
+                    <BookOpen size={18} /> How to play
+                  </button>
+                  <button onClick={() => show('crew')}>
+                    <Trophy size={18} /> Crew board
+                  </button>
+                  <button
+                    onClick={() =>
+                      show(
+                        profile && profile.wallet !== 'practice'
+                          ? 'profile'
+                          : 'wallet',
+                      )
+                    }
+                  >
+                    <Wallet size={18} />
+                    {mode === 'practice' ? 'Connect wallet' : 'My account'}
+                  </button>
+                  <button onClick={sound}>
+                    {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}{' '}
+                    Sound {muted ? 'off' : 'on'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveJob(null);
+                      setPanel(null);
+                      game.setMode('lobby');
+                    }}
+                  >
+                    <LogOut size={18} /> Title screen
+                  </button>
+                </div>
+                <p className="menu-controls">
+                  WASD / arrows to move · E to interact
+                  <br />
+                  Scroll to zoom · R to rotate · M map · I inventory.
+                </p>
+              </div>
+            )}
+            {panel === 'jobs' && shift && (
+              <>
+                <p className="muted-small">
+                  Each repair pays 40 Compute, and sends 2 spare parts to your
+                  locker. Fix all three for a 25-credit bonus. Your built racks
+                  stay online.
+                </p>
+                {shift?.completedAt && (
+                  <Button
+                    className="primary-action"
+                    disabled={busy}
+                    onClick={nextShift}
+                  >
+                    Get 3 new repair tickets <ArrowRight size={17} />
+                  </Button>
+                )}
+                <div className="job-dock" aria-label="Repair stations">
+                  {JOBS.map((j, i) => {
+                    const job = shift!.jobs.find((x) => x.id === j.id)!,
+                      Icon = ICONS[j.id];
+                    return (
+                      <button
+                        key={j.id}
+                        className={`job-button ${job.status}`}
+                        disabled={
+                          busy ||
+                          job.status === 'repaired' ||
+                          job.status === 'failed'
+                        }
+                        onClick={() => {
+                          setPanel(null);
+                          void station(j.id);
+                        }}
+                        aria-label={`${j.title} — ${job.status}`}
+                      >
+                        <span className="job-number">
+                          {job.status === 'repaired' ? (
+                            <Check size={18} />
+                          ) : job.status === 'failed' ? (
+                            <X size={18} />
+                          ) : (
+                            i + 1
+                          )}
+                        </span>
+                        <span>
+                          <small>{j.department}</small>
+                          <strong>{j.title}</strong>
+                        </span>
+                        <Icon size={19} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {panel === 'wallet' && (
+              <div className="wallet-flow">
+                <div className="login-steps">
                   <span>
-                    {titleFor(profile?.xp ?? 0)} · {profile?.credits ?? 0}{' '}
-                    Compute
+                    <span>1</span> Connect
+                  </span>
+                  <ChevronRight size={14} />
+                  <span>
+                    <span>2</span> Sign in
+                  </span>
+                  <ChevronRight size={14} />
+                  <span>
+                    <span>3</span> Play
                   </span>
                 </div>
-              </div>
-              <Button className="primary-action" onClick={() => setPanel(null)}>
-                Resume <ArrowRight size={18} />
-              </Button>
-              <div className="pause-options">
-                <button onClick={() => show('facility')}>
-                  <Cpu size={18} /> Build
-                </button>
-                <button onClick={() => show('market')}>
-                  <Coins size={18} /> Shop
-                </button>
-                <button onClick={() => show('skills')}>
-                  <Sparkles size={18} /> Skills
-                </button>
-                <button onClick={() => show('social')}>
-                  <MessageCircle size={18} />
-                  Crew chat
-                </button>
-                <button onClick={() => show('jobs')}>
-                  <Wrench size={18} /> Repairs
-                </button>
-                <button onClick={() => show('contracts')}>
-                  <BriefcaseBusiness size={18} /> Jobs
-                </button>
-                <button onClick={() => show('locker')}>
-                  <Wrench size={18} /> Equipment
-                </button>
-                <button onClick={() => show('guide')}>
-                  <BookOpen size={18} /> How to play
-                </button>
-                <button onClick={() => show('crew')}>
-                  <Trophy size={18} /> Crew board
-                </button>
+                {game.wallets.length ? (
+                  game.wallets.map((w) => (
+                    <button
+                      className="wallet-option"
+                      key={w.id}
+                      disabled={busy}
+                      onClick={async () => {
+                        if (await game.connect(w)) show('badge');
+                      }}
+                    >
+                      <Wallet size={22} />
+                      <strong>{w.name}</strong>
+                      <span>
+                        {busy ? 'Check wallet…' : 'Connect'}
+                        <ChevronRight size={15} />
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="wallet-empty">
+                    <Wallet size={28} />
+                    <h3>No wallet detected.</h3>
+                    <p>
+                      Use MetaMask or another Ethereum-compatible browser
+                      wallet. On mobile, open this site in your wallet’s
+                      browser.
+                    </p>
+                    <a
+                      className="outline-button"
+                      href="https://metamask.io/download/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Get MetaMask <ArrowRight size={15} />
+                    </a>
+                    <a
+                      className="text-action"
+                      href={`https://metamask.app.link/dapp/noobius-compute-crew.rivd609.chatgpt.site`}
+                    >
+                      Open in MetaMask <ChevronRight size={14} />
+                    </a>
+                  </div>
+                )}
+                <div className="wallet-fine-print">
+                  You’ll sign a readable login message. No gas fee, token
+                  approval, or spending permission. Standard Ethereum accounts
+                  supported.
+                </div>
                 <button
-                  onClick={() =>
-                    show(
-                      profile && profile.wallet !== 'practice'
-                        ? 'profile'
-                        : 'wallet',
-                    )
-                  }
+                  className="practice-button modal-practice"
+                  onClick={practice}
+                  disabled={busy || game.initializing}
                 >
-                  <Wallet size={18} />
-                  {mode === 'practice' ? 'Connect wallet' : 'My account'}
+                  <Gamepad2 size={16} /> Play a practice shift instead
                 </button>
-                <button onClick={sound}>
-                  {muted ? <VolumeX size={18} /> : <Volume2 size={18} />} Sound{' '}
-                  {muted ? 'off' : 'on'}
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveJob(null);
-                    setPanel(null);
-                    game.setMode('lobby');
+              </div>
+            )}
+            {(panel === 'badge' || panel === 'profile') && profile && (
+              <div className="profile-panel">
+                <div className="employee-card">
+                  <img
+                    src="/assets/noobius.jpeg"
+                    alt="Your Noobius employee portrait"
+                  />
+                  <div>
+                    <span>NOOBIUS / FACILITY 01</span>
+                    <strong>{profile.name}</strong>
+                    <small>{titleFor(profile.xp)}</small>
+                  </div>
+                </div>
+                <label className="input-label" htmlFor="employee-name">
+                  Employee name
+                </label>
+                <input
+                  id="employee-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={20}
+                  autoComplete="off"
+                  placeholder="Your crew name"
+                />
+                <div className="profile-numbers">
+                  <span>
+                    <strong>{profile.credits}</strong>Compute
+                  </span>
+                  <span>
+                    <strong>{profile.xp}</strong>XP
+                  </span>
+                  <span>
+                    <strong>{profile.shifts}</strong>shifts
+                  </span>
+                </div>
+                {rankTarget ? (
+                  <>
+                    <Progress
+                      value={(profile.xp / rankTarget) * 100}
+                      aria-label="Progress to next rank"
+                    />
+                    <p className="muted-small">
+                      {rankTarget - profile.xp} XP to your next promotion.
+                    </p>
+                  </>
+                ) : (
+                  <p className="muted-small">
+                    Shift Lead. Management is still not answering.
+                  </p>
+                )}
+                <Button
+                  className="primary-action"
+                  disabled={busy || name.trim().length < 2}
+                  onClick={async () => {
+                    if (name !== profile.name && !(await game.rename(name)))
+                      return;
+                    if (await game.start()) setPanel(null);
                   }}
                 >
-                  <LogOut size={18} /> Title screen
-                </button>
+                  {busy
+                    ? 'Clocking in…'
+                    : panel === 'badge'
+                      ? 'Start your shift'
+                      : 'Save & enter facility'}
+                  <ArrowRight size={18} />
+                </Button>
+                {panel === 'profile' && (
+                  <button
+                    className="text-action"
+                    disabled={busy}
+                    onClick={async () => {
+                      if (await game.logout()) setPanel(null);
+                    }}
+                  >
+                    <LogOut size={15} /> Disconnect wallet
+                  </button>
+                )}
               </div>
-              <p className="menu-controls">
-                WASD / arrows to move · E to interact
-                <br />
-                Scroll to zoom · R to rotate · M map · I inventory.
-              </p>
-            </div>
-          )}
-          {panel === 'jobs' && shift && (
-            <>
-              <p className="muted-small">
-                Each repair pays 40 Compute, and sends 2 spare parts to your
-                locker. Fix all three for a 25-credit bonus. Your built racks
-                stay online.
-              </p>
-              {shift?.completedAt && (
+            )}
+            {panel === 'guide' && <QuickGuide onFollow={followObjective} />}
+            {panel === 'token' && (
+              <TokenExchange
+                balance={profile?.credits ?? 0}
+                wallet={profile?.wallet}
+                onConnect={() => show('wallet')}
+              />
+            )}
+            {panel === 'crew' && (
+              <div className="crew-panel">
+                {crewLoading ? (
+                  <p className="empty-state">Checking the shift reports…</p>
+                ) : crewError ? (
+                  <div className="empty-state">
+                    <p>{crewError}</p>
+                    <button
+                      className="text-action"
+                      onClick={() => {
+                        setPanel(null);
+                        setTimeout(() => setPanel('crew'), 0);
+                      }}
+                    >
+                      Try again <RotateCcw size={14} />
+                    </button>
+                  </div>
+                ) : crew.length ? (
+                  <>
+                    <div className="crew-row crew-labels">
+                      <span>#</span>
+                      <span>TECHNICIAN</span>
+                      <span>BEST SHIFT</span>
+                    </div>
+                    {crew.map((p, i) => (
+                      <div className="crew-row" key={i}>
+                        <span>
+                          {i === 0 ? (
+                            <Trophy size={19} />
+                          ) : (
+                            String(i + 1).padStart(2, '0')
+                          )}
+                        </span>
+                        <span>
+                          <strong>{p.name}</strong>
+                          <small>
+                            {titleFor(p.xp)} · {p.shifts} shifts
+                          </small>
+                        </span>
+                        <strong>{p.score.toLocaleString()}</strong>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <Trophy size={38} />
+                    <h3>The first badge could be yours.</h3>
+                    <p>
+                      Finish a shift with your wallet connected to join the crew
+                      board.
+                    </p>
+                    <Button
+                      className="primary-action"
+                      onClick={() => show('wallet')}
+                    >
+                      Clock in <ArrowRight size={16} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            {panel === 'locker' && (
+              <div className="locker">
+                <div className="locker-balance">
+                  <Coins size={19} />
+                  <strong>{profile?.credits ?? 0}</strong> Compute
+                </div>
+                {UPGRADES.map((u) => {
+                  const owned = !!profile?.equipment[u.id];
+                  return (
+                    <div className="equipment-card" key={u.id}>
+                      <div className="equipment-icon">
+                        {u.id === 'scanner' ? (
+                          <Fan size={25} />
+                        ) : u.id === 'visor' ? (
+                          <Headphones size={25} />
+                        ) : (
+                          <Cable size={25} />
+                        )}
+                      </div>
+                      <div>
+                        <h3>{u.name}</h3>
+                        <p>{u.description}</p>
+                        <small>{u.effect}</small>
+                        <Button
+                          className={owned ? 'owned-button' : 'outline-button'}
+                          disabled={
+                            busy || owned || (profile?.credits ?? 0) < u.price
+                          }
+                          onClick={() => game.upgrade(u.id)}
+                        >
+                          {owned ? (
+                            <>
+                              <Check size={15} /> Installed
+                            </>
+                          ) : (
+                            <>
+                              {u.price} Compute <ChevronRight size={15} />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="muted-small">
+                  Equipment takes effect on your next shift. Compute is earned
+                  in-game and have no cash value.
+                </p>
+              </div>
+            )}
+            {panel === 'report' && shift && (
+              <div className="shift-report">
+                <div className="report-hero">
+                  <span>
+                    <Check size={33} />
+                  </span>
+                  <strong>{shift.score.toLocaleString()}</strong>
+                  <small>SHIFT SCORE</small>
+                </div>
+                <div className="report-rewards">
+                  <span>
+                    <strong>+{shift.credits + repaired * 15}</strong>Compute
+                  </span>
+                  <span>
+                    <strong>+{shift.xp}</strong>XP
+                  </span>
+                  <span>
+                    <strong>{repaired}/3</strong>repaired
+                  </span>
+                </div>
+                <div className="report-jobs">
+                  {JOBS.map((j) => (
+                    <div key={j.id}>
+                      <span>{j.title}</span>
+                      {shift.jobs.find((x) => x.id === j.id)?.status ===
+                      'repaired' ? (
+                        <Check size={17} />
+                      ) : (
+                        <X size={17} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="muted-small">
+                  {mode === 'practice'
+                    ? 'Practice shift. Connect your wallet for saved progress and ranked scores.'
+                    : 'Progress saved. Your best completed shift appears on the crew board.'}
+                </p>
                 <Button
                   className="primary-action"
                   disabled={busy}
-                  onClick={nextShift}
-                >
-                  Get 3 new repair tickets <ArrowRight size={17} />
-                </Button>
-              )}
-              <div className="job-dock" aria-label="Repair stations">
-                {JOBS.map((j, i) => {
-                  const job = shift!.jobs.find((x) => x.id === j.id)!,
-                    Icon = ICONS[j.id];
-                  return (
-                    <button
-                      key={j.id}
-                      className={`job-button ${job.status}`}
-                      disabled={
-                        busy ||
-                        job.status === 'repaired' ||
-                        job.status === 'failed'
-                      }
-                      onClick={() => {
-                        setPanel(null);
-                        void station(j.id);
-                      }}
-                      aria-label={`${j.title} — ${job.status}`}
-                    >
-                      <span className="job-number">
-                        {job.status === 'repaired' ? (
-                          <Check size={18} />
-                        ) : job.status === 'failed' ? (
-                          <X size={18} />
-                        ) : (
-                          i + 1
-                        )}
-                      </span>
-                      <span>
-                        <small>{j.department}</small>
-                        <strong>{j.title}</strong>
-                      </span>
-                      <Icon size={19} />
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          {panel === 'wallet' && (
-            <div className="wallet-flow">
-              <div className="login-steps">
-                <span>
-                  <span>1</span> Connect
-                </span>
-                <ChevronRight size={14} />
-                <span>
-                  <span>2</span> Sign in
-                </span>
-                <ChevronRight size={14} />
-                <span>
-                  <span>3</span> Play
-                </span>
-              </div>
-              {game.wallets.length ? (
-                game.wallets.map((w) => (
-                  <button
-                    className="wallet-option"
-                    key={w.id}
-                    disabled={busy}
-                    onClick={async () => {
-                      if (await game.connect(w)) show('badge');
-                    }}
-                  >
-                    <Wallet size={22} />
-                    <strong>{w.name}</strong>
-                    <span>
-                      {busy ? 'Check wallet…' : 'Connect'}
-                      <ChevronRight size={15} />
-                    </span>
-                  </button>
-                ))
-              ) : (
-                <div className="wallet-empty">
-                  <Wallet size={28} />
-                  <h3>No wallet detected.</h3>
-                  <p>
-                    Use MetaMask or another Ethereum-compatible browser wallet.
-                    On mobile, open this site in your wallet’s browser.
-                  </p>
-                  <a
-                    className="outline-button"
-                    href="https://metamask.io/download/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Get MetaMask <ArrowRight size={15} />
-                  </a>
-                  <a
-                    className="text-action"
-                    href={`https://metamask.app.link/dapp/noobius-compute-crew.rivd609.chatgpt.site`}
-                  >
-                    Open in MetaMask <ChevronRight size={14} />
-                  </a>
-                </div>
-              )}
-              <div className="wallet-fine-print">
-                You’ll sign a readable login message. No gas fee, token
-                approval, or spending permission. Standard Ethereum accounts
-                supported.
-              </div>
-              <button
-                className="practice-button modal-practice"
-                onClick={practice}
-                disabled={busy || game.initializing}
-              >
-                <Gamepad2 size={16} /> Play a practice shift instead
-              </button>
-            </div>
-          )}
-          {(panel === 'badge' || panel === 'profile') && profile && (
-            <div className="profile-panel">
-              <div className="employee-card">
-                <img
-                  src="/assets/noobius.jpeg"
-                  alt="Your Noobius employee portrait"
-                />
-                <div>
-                  <span>NOOBIUS / FACILITY 01</span>
-                  <strong>{profile.name}</strong>
-                  <small>{titleFor(profile.xp)}</small>
-                </div>
-              </div>
-              <label className="input-label" htmlFor="employee-name">
-                Employee name
-              </label>
-              <input
-                id="employee-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={20}
-                autoComplete="off"
-                placeholder="Your crew name"
-              />
-              <div className="profile-numbers">
-                <span>
-                  <strong>{profile.credits}</strong>Compute
-                </span>
-                <span>
-                  <strong>{profile.xp}</strong>XP
-                </span>
-                <span>
-                  <strong>{profile.shifts}</strong>shifts
-                </span>
-              </div>
-              {rankTarget ? (
-                <>
-                  <Progress
-                    value={(profile.xp / rankTarget) * 100}
-                    aria-label="Progress to next rank"
-                  />
-                  <p className="muted-small">
-                    {rankTarget - profile.xp} XP to your next promotion.
-                  </p>
-                </>
-              ) : (
-                <p className="muted-small">
-                  Shift Lead. Management is still not answering.
-                </p>
-              )}
-              <Button
-                className="primary-action"
-                disabled={busy || name.trim().length < 2}
-                onClick={async () => {
-                  if (name !== profile.name && !(await game.rename(name)))
-                    return;
-                  if (await game.start()) setPanel(null);
-                }}
-              >
-                {busy
-                  ? 'Clocking in…'
-                  : panel === 'badge'
-                    ? 'Start your shift'
-                    : 'Save & enter facility'}
-                <ArrowRight size={18} />
-              </Button>
-              {panel === 'profile' && (
-                <button
-                  className="text-action"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (await game.logout()) setPanel(null);
+                  onClick={() => {
+                    setPanel(null);
+                    followObjective();
                   }}
                 >
-                  <LogOut size={15} /> Disconnect wallet
-                </button>
-              )}
-            </div>
-          )}
-          {panel === 'guide' && (
-            <Tabs defaultValue="play">
-              <TabsList className="guide-tabs">
-                <TabsTrigger value="play">How to play</TabsTrigger>
-                <TabsTrigger value="credits">Compute & ranks</TabsTrigger>
-              </TabsList>
-              <TabsContent value="play">
-                <div className="guide-copy">
-                  <ol>
-                    <li>
-                      <strong>Clock in.</strong> Sign in with a wallet for saved
-                      progress, or try a practice shift without one.
-                    </li>
-                    <li>
-                      <strong>Follow Margo’s next step.</strong> Click the job
-                      card to find parts, make a repair kit, and bring your
-                      first rack online. The glowing arrow marks your next stop.
-                    </li>
-                    <li>
-                      <strong>Earn and expand.</strong> Open Jobs for quick
-                      repairs. Each fix pays 40 Compute and spare parts. Use
-                      them to build more rack levels and open new departments.
-                    </li>
-                    <li>
-                      <strong>Make the next shift count.</strong> Daily jobs
-                      fill your reward card. Complete it on 3 different days to
-                      earn the gold shirt. Your stamps and built racks stay with
-                      you; there is no streak to lose.
-                    </li>
-                  </ol>
-                  <p>
-                    Click or tap to walk. WASD / arrows also move Noobius; E
-                    interacts nearby. Scroll to zoom, R rotates the view, M
-                    opens the map, and I opens your backpack. On phones, use the
-                    job card and tap the world. Every puzzle supports keyboard
-                    controls.
-                  </p>
-                </div>
-              </TabsContent>
-              <TabsContent value="credits">
-                <div className="guide-copy">
-                  <p>
-                    Each repair earns <strong>40 Compute + 20 XP</strong>.
-                    Repair all three for an extra{' '}
-                    <strong>25 Compute + 40 XP</strong>: 145 Compute and 100 XP
-                    per full shift.
-                  </p>
-                  <p>
-                    Spend Compute on parts, rack modules, department access,
-                    tools, and outfits. Locker equipment takes effect on your
-                    next maintenance shift.
-                  </p>
-                  <p>
-                    Built racks generate stored compute every 15 seconds. Open
-                    Compute to collect it, run bonus batches, or reinvest in
-                    efficiency. If a rack goes red, follow Patch’s repair steps
-                    for bonus compute. Use Travel to join crew emergencies or
-                    visit a facility.
-                  </p>
-                  <div className="rank-list">
-                    {[0, 100, 300, 600].map((xp) => (
-                      <div key={xp}>
-                        <span>{titleFor(xp)}</span>
-                        <strong>{xp} XP</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <p>
-                    A ranked shift scores for repaired stations, fewer attempts,
-                    and time spent on each opened job. The maximum is 1,500
-                    points. Your best shift stays on the crew board.
-                  </p>
-                  <p>
-                    Practice progress lasts until you reload. It does not
-                    transfer into a wallet account or the leaderboard. Game
-                    Compute buys in-game goods, including other players’ listed
-                    parts. They have no cash value and cannot be redeemed for
-                    tokens or stocks.
-                  </p>
-                </div>
-              </TabsContent>
-              <div className="guide-links">
-                <button onClick={() => show('crew')}>
-                  Crew board <ArrowRight size={14} />
-                </button>
-                <button onClick={() => show('token')}>
-                  $NOOBIUS status <ArrowRight size={14} />
+                  Continue my project <ArrowRight size={18} />
+                </Button>
+                <p className="muted-small">
+                  Next: {objective.title}. Spare parts from these repairs are
+                  waiting in your locker.
+                </p>
+                <button className="outline-button" onClick={nextShift}>
+                  <Wrench size={16} /> Get more repair tickets
                 </button>
               </div>
-            </Tabs>
-          )}
-          {panel === 'token' && (
-            <div className="token-panel">
-              <span className="not-launched">NOT LAUNCHED</span>
-              <p>
-                Noobius is being built toward P2E, with a player marketplace
-                intended for a later release. $NOOBIUS is planned as the
-                community token around the character and game.
+            )}
+            {error && (
+              <p className="modal-error" role="alert">
+                {error}
               </p>
-              <p>
-                There is no official contract address, token sale, or redemption
-                program in this release. Game Compute buys equipment inside the
-                game; they are not $NOOBIUS and do not represent NBIS shares.
-              </p>
-              <div className="token-note">
-                Play the game. Meet the crew. The first shift is free.
-              </div>
-              <button className="text-action" onClick={() => show('guide')}>
-                Read the field guide <ArrowRight size={16} />
-              </button>
-            </div>
-          )}
-          {panel === 'crew' && (
-            <div className="crew-panel">
-              {crewLoading ? (
-                <p className="empty-state">Checking the shift reports…</p>
-              ) : crewError ? (
-                <div className="empty-state">
-                  <p>{crewError}</p>
-                  <button
-                    className="text-action"
-                    onClick={() => {
-                      setPanel(null);
-                      setTimeout(() => setPanel('crew'), 0);
-                    }}
-                  >
-                    Try again <RotateCcw size={14} />
-                  </button>
-                </div>
-              ) : crew.length ? (
-                <>
-                  <div className="crew-row crew-labels">
-                    <span>#</span>
-                    <span>TECHNICIAN</span>
-                    <span>BEST SHIFT</span>
-                  </div>
-                  {crew.map((p, i) => (
-                    <div className="crew-row" key={i}>
-                      <span>
-                        {i === 0 ? (
-                          <Trophy size={19} />
-                        ) : (
-                          String(i + 1).padStart(2, '0')
-                        )}
-                      </span>
-                      <span>
-                        <strong>{p.name}</strong>
-                        <small>
-                          {titleFor(p.xp)} · {p.shifts} shifts
-                        </small>
-                      </span>
-                      <strong>{p.score.toLocaleString()}</strong>
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <div className="empty-state">
-                  <Trophy size={38} />
-                  <h3>The first badge could be yours.</h3>
-                  <p>
-                    Finish a shift with your wallet connected to join the crew
-                    board.
-                  </p>
-                  <Button
-                    className="primary-action"
-                    onClick={() => show('wallet')}
-                  >
-                    Clock in <ArrowRight size={16} />
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-          {panel === 'locker' && (
-            <div className="locker">
-              <div className="locker-balance">
-                <Coins size={19} />
-                <strong>{profile?.credits ?? 0}</strong> Compute
-              </div>
-              {UPGRADES.map((u) => {
-                const owned = !!profile?.equipment[u.id];
-                return (
-                  <div className="equipment-card" key={u.id}>
-                    <div className="equipment-icon">
-                      {u.id === 'scanner' ? (
-                        <Fan size={25} />
-                      ) : u.id === 'visor' ? (
-                        <Headphones size={25} />
-                      ) : (
-                        <Cable size={25} />
-                      )}
-                    </div>
-                    <div>
-                      <h3>{u.name}</h3>
-                      <p>{u.description}</p>
-                      <small>{u.effect}</small>
-                      <Button
-                        className={owned ? 'owned-button' : 'outline-button'}
-                        disabled={
-                          busy || owned || (profile?.credits ?? 0) < u.price
-                        }
-                        onClick={() => game.upgrade(u.id)}
-                      >
-                        {owned ? (
-                          <>
-                            <Check size={15} /> Installed
-                          </>
-                        ) : (
-                          <>
-                            {u.price} Compute <ChevronRight size={15} />
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-              <p className="muted-small">
-                Equipment takes effect on your next shift. Compute is earned
-                in-game and have no cash value.
-              </p>
-            </div>
-          )}
-          {panel === 'report' && shift && (
-            <div className="shift-report">
-              <div className="report-hero">
-                <span>
-                  <Check size={33} />
-                </span>
-                <strong>{shift.score.toLocaleString()}</strong>
-                <small>SHIFT SCORE</small>
-              </div>
-              <div className="report-rewards">
-                <span>
-                  <strong>+{shift.credits + repaired * 15}</strong>Compute
-                </span>
-                <span>
-                  <strong>+{shift.xp}</strong>XP
-                </span>
-                <span>
-                  <strong>{repaired}/3</strong>repaired
-                </span>
-              </div>
-              <div className="report-jobs">
-                {JOBS.map((j) => (
-                  <div key={j.id}>
-                    <span>{j.title}</span>
-                    {shift.jobs.find((x) => x.id === j.id)?.status ===
-                    'repaired' ? (
-                      <Check size={17} />
-                    ) : (
-                      <X size={17} />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="muted-small">
-                {mode === 'practice'
-                  ? 'Practice shift. Connect your wallet for saved progress and ranked scores.'
-                  : 'Progress saved. Your best completed shift appears on the crew board.'}
-              </p>
-              <Button
-                className="primary-action"
-                disabled={busy}
-                onClick={() => {
-                  setPanel(null);
-                  followObjective();
-                }}
-              >
-                Continue my project <ArrowRight size={18} />
-              </Button>
-              <p className="muted-small">
-                Next: {objective.title}. Spare parts from these repairs are
-                waiting in your locker.
-              </p>
-              <button className="outline-button" onClick={nextShift}>
-                <Wrench size={16} /> Get more repair tickets
-              </button>
-            </div>
-          )}
-          {error && (
-            <p className="modal-error" role="alert">
-              {error}
-            </p>
-          )}
-        </DialogContent>
+            )}
+          </DialogContent>
+        )}
       </Dialog>
       <Dialog
         open={!!activeJob}
