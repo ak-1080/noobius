@@ -8,6 +8,13 @@ import {
   Users,
   Shirt,
   Radio,
+  Headphones,
+  HardHat,
+  Backpack,
+  Zap,
+  Fan,
+  Cable,
+  Wallet,
 } from 'lucide-react';
 import { ACCESSORIES, OUTFITS, type Facility } from '@/lib/facility';
 import {
@@ -34,6 +41,12 @@ export function LockerPanel({
   onWear: (type: string, id: string) => void;
 }) {
   const [draft, setDraft] = useState(name);
+  const accessoryIcons = {
+    none: Headphones,
+    cap: HardHat,
+    pack: Backpack,
+    beacon: Radio,
+  };
   return (
     <div className="tycoon-panel">
       <div className="locker-identity">
@@ -50,7 +63,7 @@ export function LockerPanel({
             void onName(draft);
           }}
         >
-          <label htmlFor="crew-name">Your name</label>
+          <label htmlFor="crew-name">Name</label>
           <input
             id="crew-name"
             value={draft}
@@ -59,7 +72,9 @@ export function LockerPanel({
             maxLength={20}
             required
           />
-          <Button type="submit" disabled={busy || draft === name}>Save name</Button>
+          <Button type="submit" disabled={busy || draft === name}>
+            Save
+          </Button>
         </form>
       </div>
       <p className="tycoon-balance">
@@ -102,6 +117,7 @@ export function LockerPanel({
       <h3>Accessories</h3>
       <div className="tycoon-grid">
         {ACCESSORIES.map((o) => {
+          const AccessoryIcon = accessoryIcons[o.id];
           const equipped = (facility.accessory ?? 'none') === o.id,
             owned = facility.owned.includes(o.id) || o.price === 0;
           return (
@@ -110,6 +126,9 @@ export function LockerPanel({
               disabled={busy || equipped || (!owned && balance < o.price)}
               onClick={() => onWear('accessory', o.id)}
             >
+              <span className="accessory-symbol">
+                <AccessoryIcon size={25} />
+              </span>
               <strong>{o.name}</strong>
               <small>
                 {equipped ? 'Wearing' : owned ? 'Equip' : `${o.price} Compute`}
@@ -118,13 +137,12 @@ export function LockerPanel({
           );
         })}
       </div>
-      <p className="tycoon-note">
-        Looks change your style. They don’t increase earnings.
-      </p>
+      <p className="tycoon-note">Cosmetic upgrades only.</p>
     </div>
   );
 }
 export function WorldPanel({
+  onConnect,
   room,
   practice,
   onGo,
@@ -134,6 +152,7 @@ export function WorldPanel({
   practice: boolean;
   onGo: (r: string) => void;
   onVisit: (id: string) => void;
+  onConnect: () => void;
 }) {
   const [facilities, setFacilities] = useState<
       { id: string; name: string; racks: number }[]
@@ -159,16 +178,15 @@ export function WorldPanel({
         <Home />
         <span>
           <strong>Your data center</strong>
-          <small>Your racks, your upgrades, your progress.</small>
+          <small>Build & upgrade</small>
         </span>
         <ArrowRight />
       </button>
-      <h3>Meet the crew</h3>
+      <h3>Campuses</h3>
       {practice && (
-        <p>
-          Connect your wallet to join players and save your facility. Practice
-          stays solo.
-        </p>
+        <Button className="primary-action" onClick={onConnect}>
+          <Wallet size={18} /> Connect to play together <ArrowRight size={18} />
+        </Button>
       )}
       {CAMPUS_ROOMS.map((r, i) => (
         <button
@@ -181,22 +199,16 @@ export function WorldPanel({
           <span>
             <strong>Campus {i + 1}</strong>
             <small>
-              {room === r
-                ? 'You are here'
-                : 'Shared jobs · crew chat · player market'}
+              {room === r ? 'You are here' : 'Jobs · chat · market'}
             </small>
           </span>
           <ArrowRight />
         </button>
       ))}
-      <h3>Visit a data center</h3>
-      <p className="tycoon-note">
-        Look around together. Only the owner can change equipment.
-      </p>
+      <h3>Visit</h3>
+      <p className="tycoon-note">Visits are read-only.</p>
       {error && <p role="alert">{error}</p>}
-      {!facilities.length && !error && (
-        <p>No crew facilities online yet. Yours can be the first.</p>
-      )}
+      {!facilities.length && !error && <p>No facilities online.</p>}
       {facilities.map((f) => (
         <button
           disabled={practice}
@@ -238,9 +250,7 @@ export function CrewJobPanel({
         <Radio />
         <div>
           <strong>
-            {done === 3
-              ? 'The cluster is back online!'
-              : 'Emergency: the cluster is down'}
+            {done === 3 ? 'The cluster is back online!' : 'Restore the cluster'}
           </strong>
           <p>
             {done}/3 stations restored · next job in{' '}
@@ -248,18 +258,26 @@ export function CrewJobPanel({
           </p>
         </div>
       </div>
-      <p>
-        Split the stations with your crew, or tackle them one at a time. Each
-        completed station earns 20 Compute.
-      </p>
+      <p>Repair a station. Earn 20 Compute.</p>
       {EMERGENCY_STATIONS.map((s) => {
         const w = world.work.find((w) => w.station === s.id),
           active = w && !w.completedAt && now - w.startedAt < 30000,
           ready = active && w.mine && now - w.startedAt >= 6000;
         return (
-          <div className="crew-station" key={s.id}>
+          <div
+            className={`crew-station ${w?.completedAt ? 'is-done' : active ? 'is-working' : ''}`}
+            key={s.id}
+          >
             <strong>
-              {w?.completedAt ? <Check size={18} /> : <Cpu size={18} />}{' '}
+              {w?.completedAt ? (
+                <Check size={18} />
+              ) : s.id === 'power' ? (
+                <Zap size={18} />
+              ) : s.id === 'cooling' ? (
+                <Fan size={18} />
+              ) : (
+                <Cable size={18} />
+              )}{' '}
               {s.name}
             </strong>
             <p>
@@ -272,7 +290,7 @@ export function CrewJobPanel({
             {!w?.completedAt && (
               <div>
                 <Button variant="outline" onClick={() => onWalk(s.object)}>
-                  Show me
+                  Go
                 </Button>
                 <Button
                   disabled={
@@ -282,11 +300,7 @@ export function CrewJobPanel({
                   }
                   onClick={() => onWork(s.id, !!ready)}
                 >
-                  {ready
-                    ? 'Finish repair'
-                    : active
-                      ? 'Working…'
-                      : 'Start repair'}
+                  {ready ? 'Finish' : active ? 'Working…' : 'Repair'}
                 </Button>
               </div>
             )}
@@ -302,12 +316,9 @@ export function CrewJobPanel({
         }
         onClick={onClaim}
       >
-        {world.claimed ? 'Bonus collected' : 'Collect team bonus · 30 Compute'}
+        {world.claimed ? 'Bonus collected' : 'Collect bonus · 30'}
       </Button>
-      <p className="tycoon-note">
-        Repair at least one station to earn the team bonus. Each reward can be
-        collected once.
-      </p>
+      <p className="tycoon-note">Finish one station to qualify.</p>
     </div>
   );
 }

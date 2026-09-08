@@ -74,14 +74,14 @@ export const ITEMS: Record<
   { name: string; short: string; color: string; buy: number; sell: number }
 > = {
   scrap: {
-    name: 'Alloy scrap',
+    name: 'Scrap',
     short: 'AL',
     color: '#a7bcc6',
     buy: 5,
     sell: 1,
   },
   copper: {
-    name: 'Copper cable',
+    name: 'Copper wire',
     short: 'CU',
     color: '#f8ad70',
     buy: 7,
@@ -89,14 +89,14 @@ export const ITEMS: Record<
   },
   coolant: { name: 'Coolant', short: 'H₂O', color: '#7bdedb', buy: 8, sell: 2 },
   silicon: {
-    name: 'Silicon chips',
+    name: 'Chips',
     short: 'SI',
     color: '#d1a9ef',
     buy: 12,
     sell: 3,
   },
   fiber: {
-    name: 'Optical fiber',
+    name: 'Fiber',
     short: 'FX',
     color: '#9cddbc',
     buy: 12,
@@ -175,8 +175,8 @@ export const ZONES: {
   },
   {
     id: 'workshop',
-    name: 'Engineering',
-    label: '03 / ENGINEERING',
+    name: 'Workshop',
+    label: '03 / WORKSHOP',
     x: 22,
     z: 12,
     color: '#d4b2ea',
@@ -187,8 +187,8 @@ export const ZONES: {
   },
   {
     id: 'thermal',
-    name: 'Thermal Gardens',
-    label: '04 / THERMAL GARDENS',
+    name: 'Cooling room',
+    label: '04 / COOLING',
     x: -22,
     z: -10,
     color: '#7be0d5',
@@ -199,8 +199,8 @@ export const ZONES: {
   },
   {
     id: 'compute',
-    name: 'GPU Foundry',
-    label: '05 / GPU FOUNDRY',
+    name: 'GPU room',
+    label: '05 / GPU ROOM',
     x: 0,
     z: -10,
     color: '#96b9f3',
@@ -211,8 +211,8 @@ export const ZONES: {
   },
   {
     id: 'network',
-    name: 'Network Exchange',
-    label: '06 / NETWORK EXCHANGE',
+    name: 'Network room',
+    label: '06 / NETWORK',
     x: 22,
     z: -10,
     color: '#efca7a',
@@ -222,8 +222,8 @@ export const ZONES: {
   },
   {
     id: 'core',
-    name: 'The Hot Zone',
-    label: '07 / THE HOT ZONE',
+    name: 'Core room',
+    label: '07 / CORE ROOM',
     x: 0,
     z: -32,
     color: '#f69081',
@@ -584,7 +584,7 @@ export const STORY = [
   {
     id: 'expansion',
     name: 'Management found another room',
-    text: 'Open Thermal Gardens and the GPU Foundry.',
+    text: 'Open Cooling room and the GPU room.',
     stat: 'departments',
     target: 5,
     credits: 100,
@@ -602,7 +602,7 @@ export const STORY = [
   {
     id: 'networked',
     name: 'The cloud has cables',
-    text: 'Gather 12 optical fibers in Network Exchange.',
+    text: 'Gather 12 optical fibers in Network room.',
     stat: 'fiber',
     target: 12,
     credits: 150,
@@ -1142,9 +1142,7 @@ export function applyFacility(
       if (!zone || f.unlocked.includes(zone.id))
         throw new FacilityError('That department is already open.');
       if (zone.id === 'core' && !f.unlocked.includes('compute'))
-        throw new FacilityError(
-          'Open GPU Foundry before entering the Hot Zone.',
-        );
+        throw new FacilityError('Open GPU room before entering the Hot Zone.');
       if (modules(f) < zone.modules)
         throw new FacilityError(`Install ${zone.modules} rack modules first.`);
       spend({}, zone.cost);

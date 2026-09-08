@@ -7,7 +7,7 @@ export const EMERGENCY_STATIONS = [
     object: 'rack-a',
     x: -4,
     z: 15,
-    instruction: 'Hold the breaker steady while the power stabilizes.',
+    instruction: 'Stabilize the power.',
   },
   {
     id: 'cooling',
@@ -15,7 +15,7 @@ export const EMERGENCY_STATIONS = [
     object: 'rack-b',
     x: 4,
     z: 15,
-    instruction: 'Flush the cooling line and wait for pressure to settle.',
+    instruction: 'Flush the cooling line.',
   },
   {
     id: 'network',
@@ -23,7 +23,7 @@ export const EMERGENCY_STATIONS = [
     object: 'repair',
     x: 0,
     z: 7,
-    instruction: 'Reconnect the uplink and wait for the cluster to respond.',
+    instruction: 'Reconnect the uplink.',
   },
 ] as const;
 export type WorldVisit = { owner: string; name: string; facility: Facility };

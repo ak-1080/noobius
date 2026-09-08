@@ -58,7 +58,7 @@ export function resolveObjective(
     credits < need
       ? {
           ...repair(),
-          detail: `You need ${need - credits} more Compute. Repairs pay 25 each.`,
+          detail: `You need ${need - credits} more Compute. Repairs pay 40 each.`,
         }
       : null;
   const bench = (): NextStep => ({
@@ -128,7 +128,7 @@ export function resolveObjective(
         )[0];
         return {
           title: 'Make space in your backpack',
-          detail: 'Your locker keeps parts safe for later.',
+          detail: 'Storage keeps parts safe for later.',
           cta: 'Store a stack',
           target: 'bank',
           action: {
@@ -141,7 +141,7 @@ export function resolveObjective(
       }
       if ((f.bank[id] ?? 0) > 0)
         return {
-          title: `Take ${ITEMS[id].name.toLowerCase()} from your locker`,
+          title: `Take ${ITEMS[id].name.toLowerCase()} from storage`,
           detail:
             'You already own some. Move them to your backpack to use them.',
           cta: 'Take stored parts',

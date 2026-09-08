@@ -14,6 +14,9 @@ import { activeIncident, OUTAGE_NAMES, storedComputeNow } from '@/lib/facility';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
+  Navigation,
+  Hammer,
+  CircleHelp,
   BookOpen,
   Cable,
   Check,
@@ -31,9 +34,7 @@ import {
   MessageCircle,
   Minus,
   Plus,
-  Radio,
   RotateCcw,
-  Settings2,
   Sparkles,
   Trophy,
   Volume2,
@@ -63,11 +64,8 @@ import FacilityPanels, {
 import { resolveObjective, type NextStep } from '@/lib/objectives';
 import {
   ZONES,
-  OBJECTS,
   newFacility,
   modules,
-  DAILY_TASKS,
-  dayKey,
   type FacilityAction,
   type WorldObject,
 } from '@/lib/facility';
@@ -97,7 +95,6 @@ export default function NoobiusGame() {
     { profile, shift, mode, busy, error } = game;
   const [initialReveal, setInitialReveal] = useState(false);
   const [now, setNow] = useState(Date.now);
-  const [jobTab, setJobTab] = useState('story');
   const [worldUnavailable, setWorldUnavailable] = useState(false);
   const [workEvent, setWorkEvent] = useState<{
     id: string;
@@ -207,25 +204,10 @@ export default function NoobiusGame() {
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
   const currentJob = shift?.jobs.find((j) => j.id === activeJob);
   const rankTarget = nextRank(profile?.xp ?? 0);
-  const currentZone = ZONES.reduce(
-    (best, z) =>
-      Math.hypot(z.x - position.x, z.z - position.z) <
-      Math.hypot(best.x - position.x, best.z - position.z)
-        ? z
-        : best,
-    ZONES[0],
-  );
   const objective = shiftObjective(facility, profile?.credits ?? 0, now);
   const briefing = nextBriefing(facility);
   const incident = activeIncident(facility, now);
   const storedCompute = storedComputeNow(facility, now);
-  const todayClaims = facility.day === dayKey(now) ? facility.dailyClaims : [];
-  const dailyReady = DAILY_TASKS.filter(
-    (t) =>
-      !todayClaims.includes(t.id) &&
-      facility.day === dayKey(now) &&
-      (facility.daily[t.stat] ?? 0) >= t.target,
-  ).length;
   useEffect(() => {
     if (!game.notice) return;
     const t = setTimeout(() => game.setNotice(''), 3500);
@@ -537,7 +519,6 @@ export default function NoobiusGame() {
     }
     show((object.panel ?? 'contracts') as Panel);
   };
-  const earlyShift = !facility.claims.includes('first-light');
   const followObjective = () => executeStep(objective);
   const continueBriefing = async (follow = true) => {
     if (!briefing || busy) return;
@@ -709,7 +690,7 @@ export default function NoobiusGame() {
             </strong>
             <span>
               {mode === 'practice'
-                ? 'Practice · temporary progress'
+                ? 'Solo practice'
                 : `${connection} · ${people.length + 1} here`}
             </span>
           </div>
@@ -746,50 +727,47 @@ export default function NoobiusGame() {
           )}
           {room === 'home' && (
             <button
-              className="objective-hud"
+              className="objective-hud next-action"
               onClick={followObjective}
               disabled={busy || objective.wait}
+              aria-label={`${objective.title}. ${objective.cta}`}
             >
-              <span>
-                {earlyShift ? 'MARGO / YOUR FIRST RACK' : objective.speaker}
+              <span className="next-action-icon">
+                <Navigation size={22} />
               </span>
-              <strong>{objective.title}</strong>
-              <small>{objective.detail}</small>
-              <span className="objective-action">
-                {objective.cta} <ArrowRight size={15} />
+              <span className="next-action-copy">
+                <small>Next up</small>
+                <strong>{objective.title}</strong>
               </span>
+              <ArrowRight className="next-action-arrow" size={20} />
               <i className="objective-meter">
                 <i style={{ width: `${objective.progress}%` }} />
               </i>
             </button>
           )}
-          {room === 'home' && !earlyShift && (
-            <button
-              className="daily-hud"
-              onClick={() => {
-                setJobTab('daily');
-                show('contracts');
-              }}
-            >
-              <Trophy size={16} />
-              <span>
-                Daily card <strong>{todayClaims.length}/3</strong>
-                {dailyReady > 0 ? ' · Reward ready' : ''}
-              </span>
-            </button>
-          )}
           {room === 'home' && modules(facility) > 0 && (
             <button
               className={`compute-hud ${incident ? 'has-outage' : ''}`}
-              onClick={() => show(incident ? 'outage' : 'compute')}
+              disabled={busy}
+              onClick={() =>
+                incident
+                  ? show('outage')
+                  : facility.workload && now >= facility.workload.readyAt
+                    ? void act({ type: 'compute-collect' })
+                    : storedCompute > 0
+                      ? void act({ type: 'compute-harvest' })
+                      : show('compute')
+              }
             >
               <Cpu size={17} />
               <span>
                 {incident
-                  ? OUTAGE_NAMES[incident.kind]
+                  ? 'Repair needed'
                   : facility.workload && now >= facility.workload.readyAt
-                    ? 'Batch ready!'
-                    : `${storedCompute} compute stored`}
+                    ? `Collect +${facility.workload.reward}`
+                    : storedCompute > 0
+                      ? `Collect +${storedCompute}`
+                      : 'Racks working'}
               </span>
               <ArrowRight size={15} />
             </button>
@@ -805,22 +783,25 @@ export default function NoobiusGame() {
           )}
           <div className="campus-hotbar" aria-label="Campus tools">
             {[
-              { id: 'world', name: 'Travel', Icon: Map },
-              { id: 'inventory', name: 'Backpack', Icon: Backpack },
               {
-                id: inCampus ? 'crewjob' : 'contracts',
-                name: 'Jobs',
-                Icon: BriefcaseBusiness,
+                id: inCampus ? 'crewjob' : 'facility',
+                name: inCampus ? 'Team job' : 'Build',
+                Icon: Hammer,
               },
+              { id: 'inventory', name: 'Parts', Icon: Backpack },
+              { id: 'world', name: 'Travel', Icon: Map },
               { id: 'appearance', name: 'Locker', Icon: Headphones },
-              { id: 'social', name: 'Crew', Icon: MessageCircle },
             ]
               .filter(
                 ({ id }) =>
                   !visit || ['world', 'appearance', 'social'].includes(id),
               )
               .map(({ id, name, Icon }) => (
-                <button key={id} onClick={() => show(id as Panel)}>
+                <button
+                  key={id}
+                  className={`dock-${id}`}
+                  onClick={() => show(id as Panel)}
+                >
                   <Icon size={19} />
                   <span>{name}</span>
                 </button>
@@ -840,9 +821,13 @@ export default function NoobiusGame() {
               <Minus size={17} />
             </button>
           </div>
-          <div className="campus-help">
-            Scroll to zoom · WASD to move · E to interact · R to rotate
-          </div>
+          <button
+            className="controls-help"
+            aria-label="Controls and help"
+            onClick={() => show('guide')}
+          >
+            <CircleHelp size={20} />
+          </button>
           {game.notice && (
             <div className="game-toast" role="status">
               <Check size={17} />
@@ -880,7 +865,7 @@ export default function NoobiusGame() {
         }}
       >
         <DialogContent
-          className={`noobius-modal ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+          className={`noobius-modal ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
         >
           <DialogTitle>
             {
@@ -889,22 +874,22 @@ export default function NoobiusGame() {
                   ...Object.fromEntries(
                     Object.entries(PANEL_COPY).map(([k, v]) => [k, v[0]]),
                   ),
-                  world: 'Your world.',
-                  appearance: 'Your locker.',
-                  crewjob: 'Crew emergency.',
-                  menu: 'On the night shift.',
-                  jobs: 'Your repair jobs.',
+                  world: 'Travel',
+                  appearance: 'Locker',
+                  crewjob: 'Cluster down',
+                  menu: 'Paused',
+                  jobs: 'Repairs',
                   wallet: 'Clock in.',
                   badge: 'Your employee badge.',
                   profile: 'Your employee badge.',
-                  guide: 'The field guide.',
+                  guide: 'How to play',
                   crew: 'The night-shift crew.',
                   token: 'A noob. A crew. A token.',
                   locker: 'The equipment locker.',
                   report:
                     repaired === 3 ? 'Shift complete.' : 'Incident report.',
                   briefing: briefing?.title ?? 'Your next step.',
-                  compute: 'Your compute floor.',
+                  compute: 'Production',
                   outage: incident
                     ? OUTAGE_NAMES[incident.kind]
                     : 'All systems online.',
@@ -912,7 +897,9 @@ export default function NoobiusGame() {
               )[panel ?? '']
             }
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription
+            className={panel === 'wallet' || panel === 'token' ? '' : 'sr-only'}
+          >
             {
               (
                 {
@@ -950,6 +937,7 @@ export default function NoobiusGame() {
           </DialogDescription>
           {panel === 'world' && (
             <WorldPanel
+              onConnect={() => show('wallet')}
               room={room}
               practice={mode === 'practice'}
               onGo={goWorld}
@@ -1043,7 +1031,7 @@ export default function NoobiusGame() {
               onPanel={(p) => show(p)}
               key={panel}
               objective={objective}
-              jobTab={jobTab}
+              jobTab="story"
               onFollow={followObjective}
               onRepair={() => show('jobs')}
               onHelp={(request) =>
@@ -1085,26 +1073,27 @@ export default function NoobiusGame() {
                 </div>
               </div>
               <Button className="primary-action" onClick={() => setPanel(null)}>
-                Back to the floor <ArrowRight size={18} />
+                Resume <ArrowRight size={18} />
               </Button>
               <div className="pause-options">
                 <button onClick={() => show('facility')}>
-                  <Cpu size={18} /> Build facility
+                  <Cpu size={18} /> Build
                 </button>
                 <button onClick={() => show('market')}>
-                  <Coins size={18} /> Parts exchange
+                  <Coins size={18} /> Shop
                 </button>
                 <button onClick={() => show('skills')}>
-                  <Sparkles size={18} /> Skills & outfits
+                  <Sparkles size={18} /> Skills
                 </button>
-                <button onClick={() => show('rewards')}>
-                  <Trophy size={18} /> Rewards
+                <button onClick={() => show('social')}>
+                  <MessageCircle size={18} />
+                  Crew chat
                 </button>
                 <button onClick={() => show('jobs')}>
-                  <Wrench size={18} /> Repair dispatch
+                  <Wrench size={18} /> Repairs
                 </button>
                 <button onClick={() => show('contracts')}>
-                  <BriefcaseBusiness size={18} /> Job book
+                  <BriefcaseBusiness size={18} /> Jobs
                 </button>
                 <button onClick={() => show('locker')}>
                   <Wrench size={18} /> Equipment

@@ -6,6 +6,7 @@ import {
   OBJECTS,
   ZONES,
   OUTFITS,
+  ITEMS,
   activeIncident,
   type Facility,
   type WorldObject,
@@ -110,6 +111,7 @@ export default function Campus(props: Props) {
       obstacles: { x: number; z: number; w: number; d: number }[] = [],
       objects = new Map<string, T.Group>(),
       labels = new Map<string, T.Sprite>(),
+      roomTitles: T.Sprite[] = [],
       fans: T.Object3D[] = [],
       bots: { body: T.Group; arm: T.Group; phase: number; id: string }[] = [];
     const mat = (color: string, metal = 0.3, emissive?: string) => {
@@ -130,7 +132,6 @@ export default function Campus(props: Props) {
       mint = mat('#b3e795', 0.1, '#6eae75'),
       amber = mat('#e6ad71', 0.1, '#a56429'),
       faultRed = mat('#ff826f', 0.1, '#bb3429'),
-      blue = mat('#a6c3d0', 0.05),
       white = mat('#e8f0e8', 0.05),
       shirt = mat(
         OUTFITS.find((x) => x.id === live.current.facility.outfit)?.color ??
@@ -258,7 +259,12 @@ export default function Campus(props: Props) {
       box(18, 0.14, 16, floorMat, g, 0, -0.02, 0);
       const tiles = mesh(
         new T.PlaneGeometry(18, 16),
-        roomFloor,
+        (() => {
+          const tinted = roomFloor.clone();
+          tinted.color.set(zone.color).lerp(new T.Color('#d4e6ee'), 0.68);
+          materials.push(tinted);
+          return tinted;
+        })(),
         g,
         0,
         0.052,
@@ -284,6 +290,7 @@ export default function Campus(props: Props) {
       );
       title.position.set(zone.x, 3.6, zone.z - 7.4);
       scene.add(title);
+      roomTitles.push(title);
       // Passive machinery makes every wing readable at a glance.
       for (let i = 0; i < 3; i++) {
         const x = -6 + i * 5.5;
@@ -786,7 +793,7 @@ export default function Campus(props: Props) {
           ? (EMERGENCY_STATIONS.find((s) => s.object === obj.id)?.name ??
               obj.name)
           : obj.kind === 'node'
-            ? '↓ ' + obj.name
+            ? '↓ ' + (obj.item ? ITEMS[obj.item].name : obj.name)
             : obj.name,
         ZONES.find((z) => z.id === obj.zone)!.color,
         obj.kind === 'gate' ? 4.6 : 3.5,
@@ -1210,7 +1217,8 @@ export default function Campus(props: Props) {
           0.12 +
           (moving ? Math.max(0, Math.sin(gait + i * Math.PI)) * 0.12 : 0);
       }
-      you.visible = targetScale < 11;
+      you.visible = targetScale < 9;
+      for (const title of roomTitles) title.visible = targetScale > 11;
       marker.visible = !!p.objectiveId && !p.paused;
       const objectiveObject = OBJECTS.find((o) => o.id === p.objectiveId);
       if (objectiveObject) {
@@ -1341,7 +1349,12 @@ export default function Campus(props: Props) {
               obj.z - avatar.g.position.z,
             ) < 5 &&
               targetScale < 15) ||
-            (obj.kind === 'npc' && targetScale < 11));
+            (obj.kind === 'npc' &&
+              Math.hypot(
+                obj.x - avatar.g.position.x,
+                obj.z - avatar.g.position.z,
+              ) < 4 &&
+              targetScale < 11));
         const contents = objects.get(obj.id)!.userData.contents as
           | T.Group
           | undefined;

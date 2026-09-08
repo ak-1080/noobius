@@ -77,7 +77,7 @@ button {
 }
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 0.72;
 }
 button:focus-visible,
 a:focus-visible,
@@ -374,16 +374,16 @@ a {
   letter-spacing: 1.3px;
 }
 .noobius-modal {
-  background: #11232c !important;
-  border: 1px solid #52757566 !important;
-  color: #e9f1e9 !important;
-  max-width: 540px !important;
+  background: #11232c;
+  border: 1px solid #52757566;
+  color: #e9f1e9;
+  max-width: 540px;
   max-height: calc(100dvh - 44px);
   overflow-y: auto;
-  padding: 28px !important;
-  border-radius: 18px !important;
-  font-size: 16px !important;
-  gap: 16px !important;
+  padding: 28px;
+  border-radius: 18px;
+  font-size: 16px;
+  gap: 16px;
   box-shadow: 0 35px 150px #000a;
 }
 .noobius-modal [data-slot='dialog-title'] {
@@ -3704,4 +3704,845 @@ a {
 .tycoon-panel button:focus-visible {
   outline: 2px solid #c1ef8a;
   outline-offset: 3px;
+}
+
+/* Game UI: one next action, four tools, and color tied to function. */
+.is-playing {
+  --ui-blue: #87caff;
+  --ui-gold: #ffd17e;
+  --ui-purple: #c5abff;
+  --ui-green: #c1ef8a;
+}
+.is-playing button {
+  touch-action: manipulation;
+}
+.campus-location {
+  top: 25px;
+  gap: 3px;
+}
+.campus-location strong {
+  font-size: 16px;
+  font-weight: 650;
+}
+.campus-location > span {
+  font-size: 13px;
+  color: #bdd3da;
+}
+.shift-hud {
+  border-radius: 18px !important;
+  background: #102631ee !important;
+  border: 1px solid #b5ddbb35 !important;
+  box-shadow: 0 6px 24px #06152025;
+}
+.shift-hud > span {
+  font-size: 16px !important;
+  font-weight: 650;
+  gap: 9px;
+}
+.shift-hud svg {
+  color: #bfea86;
+}
+.objective-hud.next-action {
+  top: 84px;
+  left: 22px;
+  width: 320px;
+  min-height: 84px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 17px 19px;
+  border: 1px solid #bde8a14d;
+  border-radius: 19px;
+  background: linear-gradient(125deg, #183b38ef, #0e252fec);
+  box-shadow: 0 10px 32px #06182335;
+  overflow: hidden;
+  transition:
+    transform 0.18s,
+    border-color 0.18s,
+    background 0.18s;
+}
+.objective-hud.next-action:hover {
+  transform: translateY(-2px);
+  border-color: #c1ef8a;
+}
+.next-action-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: #bfea86;
+  color: #14332c !important;
+  display: grid;
+  place-items: center;
+}
+.objective-hud .next-action-copy {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  font: inherit;
+  letter-spacing: 0;
+  color: #eaf5ea;
+}
+.objective-hud .next-action-copy small {
+  font-size: 13px;
+  color: #a8c8be;
+  line-height: 1;
+}
+.objective-hud .next-action-copy strong {
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.25px;
+}
+.next-action-arrow {
+  color: #bfea86;
+  flex-shrink: 0;
+}
+.next-action .objective-meter {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 0;
+  background: #80c77e20;
+}
+.objective-meter > i {
+  background: #bfea86;
+  transition: width 0.5s ease;
+}
+.objective-hud:disabled {
+  opacity: 0.75;
+}
+.compute-hud {
+  top: 81px;
+  right: 22px;
+  background: #bcf089;
+  color: #17382c;
+  border: 0;
+  border-radius: 16px;
+  min-height: 46px;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 650;
+  box-shadow: 0 8px 25px #061b2133;
+  transition:
+    transform 0.18s,
+    box-shadow 0.18s;
+}
+.compute-hud:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px #81bf7133;
+}
+.compute-hud.has-outage {
+  background: #ffbb87;
+  color: #4a251c;
+}
+.compute-hud:disabled {
+  opacity: 0.55;
+}
+.campus-hotbar {
+  bottom: 24px;
+  padding: 7px;
+  gap: 5px;
+  background: #0c2430eb;
+  border: 1px solid #b0d7e035;
+  border-radius: 24px;
+  box-shadow: 0 12px 35px #07172455;
+}
+.campus-hotbar button {
+  width: 74px;
+  height: 66px;
+  border-radius: 17px;
+  gap: 8px;
+  transition:
+    transform 0.18s,
+    background 0.18s;
+}
+.campus-hotbar button:hover {
+  transform: translateY(-4px);
+  background: #335362;
+}
+.campus-hotbar button:active {
+  transform: scale(0.96);
+}
+.campus-hotbar button span {
+  font-size: 14px;
+  font-weight: 550;
+}
+.campus-hotbar .dock-facility svg,
+.campus-hotbar .dock-crewjob svg {
+  color: #ffd17e;
+}
+.campus-hotbar .dock-inventory svg {
+  color: #87caff;
+}
+.campus-hotbar .dock-world svg {
+  color: #95e3ce;
+}
+.campus-hotbar .dock-appearance svg {
+  color: #c5abff;
+}
+.campus-hotbar button svg {
+  width: 23px;
+  height: 23px;
+}
+.controls-help {
+  position: absolute;
+  left: 22px;
+  bottom: 27px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  background: #112b37dd;
+  color: #bad3de;
+  border: 1px solid #a3c8d333;
+}
+.campus-zoom {
+  bottom: 27px;
+  gap: 7px;
+}
+.campus-zoom button {
+  width: 44px;
+  height: 40px;
+  border-radius: 13px;
+}
+.game-menu-button {
+  border-radius: 15px !important;
+  background: #112b37dd !important;
+}
+.game-toast {
+  bottom: 120px;
+  border-radius: 18px;
+  padding: 13px 20px;
+  box-shadow: 0 10px 30px #061b2155;
+  font-size: 16px;
+}
+.milestone-toast {
+  border-radius: 20px;
+  box-shadow: 0 14px 45px #03191c55;
+}
+.noobius-modal {
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(84dvh, 900px);
+  padding: 28px;
+  border-radius: 26px;
+  border: 1px solid #7095a259;
+  background: linear-gradient(145deg, #15333e, #0c202a);
+  box-shadow: 0 24px 100px #020d16aa;
+  animation: game-panel-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.noobius-modal [data-slot='dialog-title'] {
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  margin: 0;
+  padding-right: 40px;
+  font-weight: 700;
+}
+.noobius-modal [data-slot='dialog-close'] {
+  right: 16px;
+  top: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: #24424b;
+  color: #d5e6e8;
+}
+.noobius-modal [data-slot='dialog-description']:not(.sr-only) {
+  font-size: 16px;
+  line-height: 1.5;
+  margin-top: 10px;
+  color: #aac2c8;
+}
+.noobius-modal h3 {
+  font-size: 17px;
+}
+.noobius-modal p {
+  font-size: 16px;
+  line-height: 1.5;
+}
+.noobius-modal .primary-action {
+  min-height: 48px;
+  border-radius: 13px;
+  background: #c1ef8a;
+  color: #18352c;
+  font-weight: 650;
+  font-size: 16px;
+}
+.noobius-modal button:not(:disabled) {
+  transition:
+    background 0.16s,
+    transform 0.16s,
+    border-color 0.16s;
+}
+.noobius-modal button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.noobius-modal .muted-small {
+  font-size: 14px;
+}
+.expansion-tabs {
+  margin-top: 22px;
+  border-radius: 14px;
+  padding: 5px;
+  min-height: 46px;
+  background: #081d27;
+}
+.expansion-tabs button {
+  font-size: 14px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+.facility-summary {
+  margin: 22px 0 18px;
+  gap: 10px;
+}
+.facility-summary > span {
+  background: #0b232d;
+  border-radius: 15px;
+  padding: 13px;
+  color: #9dbbc5;
+  font-size: 14px;
+}
+.facility-summary strong {
+  font-size: 23px;
+  color: #e4eff0;
+  letter-spacing: -0.7px;
+}
+.briefing-modal {
+  width: min(460px, calc(100vw - 32px));
+}
+.briefing-speaker {
+  margin: 20px 0 16px;
+}
+.briefing-speaker > span {
+  width: 45px;
+  height: 45px;
+  border-radius: 14px;
+  background: #a3d6f7;
+  color: #1b3d53;
+}
+.briefing-speaker strong {
+  font-size: 16px;
+  color: #9fc5d5;
+}
+.shift-briefing > p {
+  font-size: 23px;
+  line-height: 1.35;
+  letter-spacing: -0.5px;
+  color: #eef5ed;
+}
+.briefing-tip {
+  padding: 0;
+  margin: 15px 0 24px;
+  background: none;
+  border: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #a9c5c6;
+  align-items: center;
+}
+.briefing-tip svg {
+  flex-shrink: 0;
+  color: #c1ef8a;
+}
+.briefing-skip {
+  display: block;
+  margin: 15px auto 0;
+  font-size: 14px;
+}
+.shift-briefing .primary-action {
+  width: 100%;
+}
+.compute-balance {
+  gap: 12px;
+  padding: 20px 0 0;
+}
+.compute-balance strong {
+  font-size: 38px;
+  color: #c1ef8a;
+  letter-spacing: -1.5px;
+}
+.compute-balance span {
+  font-size: 14px;
+}
+.compute-card {
+  padding: 19px;
+  border-radius: 18px;
+  background: #102a34;
+  border: 1px solid #56778345;
+  margin-top: 14px;
+}
+.compute-card-title {
+  gap: 12px;
+}
+.compute-card-title strong {
+  font-size: 17px;
+}
+.compute-card-title > span {
+  font-size: 14px;
+}
+.compute-card p {
+  margin: 10px 0;
+  font-size: 15px;
+  color: #adc6cc;
+}
+.compute-tank {
+  height: 12px;
+  border-radius: 20px;
+  background: #051b25;
+  margin: 15px 0;
+}
+.compute-tank > i {
+  background: linear-gradient(90deg, #68d3b0, #c1ef8a);
+  border-radius: 20px;
+  transition: width 0.6s ease;
+}
+.compute-job-options {
+  gap: 10px;
+}
+.compute-job-options button {
+  border-radius: 15px;
+  background: #143542;
+  padding: 16px;
+  border-color: #719ca448;
+}
+.compute-job-options button svg {
+  color: #9bd2ff;
+}
+.compute-job-options button:disabled {
+  opacity: 0.72;
+}
+.compute-job-options small {
+  font-size: 14px;
+  color: #c1ef8a;
+}
+.compute-outage-link {
+  margin-top: 14px;
+  border-radius: 14px;
+  background: #4c3025;
+  color: #ffc18e;
+  font-size: 15px;
+}
+.inventory-grid {
+  gap: 12px;
+}
+.inventory-item {
+  padding: 16px;
+  border-radius: 18px;
+  background: #102b36;
+}
+.item-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px !important;
+  background: #193e4d;
+}
+.inventory-item > strong {
+  font-size: 16px;
+}
+.inventory-item > b {
+  font-size: 25px;
+}
+.inventory-item button {
+  min-height: 36px;
+  font-size: 14px;
+}
+.parts-cost {
+  gap: 7px;
+}
+.parts-cost > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  background: #173b43;
+  border: 1px solid #527e7655;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+.parts-cost .shortage {
+  color: #ffbf95;
+  background: #472f26;
+  border-color: #a86a4b55;
+}
+.parts-cost svg {
+  flex-shrink: 0;
+}
+.build-card,
+.recipe-card,
+.quest-card {
+  border-radius: 19px !important;
+  background: #102b36;
+  border: 1px solid #597c8645;
+  padding: 20px;
+}
+.build-card.selected {
+  border-color: #bce79899;
+  background: #193a3d;
+}
+.build-heading h3 {
+  font-size: 18px !important;
+}
+.build-heading small {
+  font-size: 14px;
+}
+.find-parts-button {
+  font-size: 14px;
+  padding: 10px 0;
+  min-height: 40px;
+}
+.build-card > .outline-button {
+  min-height: 44px;
+  border-radius: 12px;
+}
+.utility-card {
+  border-radius: 16px;
+  background: #14333f;
+}
+.utility-card:first-child > svg {
+  color: #ffd17e;
+}
+.utility-card:last-child > svg {
+  color: #87d5fb;
+}
+.recipe-card > p {
+  font-size: 15px;
+}
+.pause-options {
+  gap: 9px;
+}
+.pause-options button {
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 15px;
+  background: #18353f;
+}
+.menu-controls {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.menu-employee {
+  margin-top: 20px;
+}
+.menu-employee img {
+  border-radius: 18px;
+}
+.menu-employee strong {
+  font-size: 20px;
+}
+.menu-employee span {
+  font-size: 14px;
+}
+.world-destination {
+  padding: 16px;
+  border-radius: 17px;
+  background: #12323c;
+}
+.world-destination > svg:first-child {
+  color: #a1d8cf;
+}
+.world-destination:first-child > svg:first-child {
+  color: #ffd17e;
+}
+.world-destination small {
+  font-size: 14px;
+}
+.tycoon-grid > button {
+  border-radius: 17px;
+  min-height: 95px;
+}
+.tycoon-grid > button:disabled {
+  opacity: 0.72;
+}
+.tycoon-grid > button small {
+  font-size: 14px;
+}
+.crew-job-banner {
+  border-radius: 18px;
+  background: #264741;
+}
+.crew-station {
+  border-radius: 17px;
+  background: #122f3a;
+}
+.crew-station strong > svg {
+  color: #ffd17e;
+}
+@keyframes game-panel-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+@media (max-width: 640px) {
+  .campus-location {
+    left: 68px;
+    top: 20px;
+    max-width: calc(100vw - 208px);
+  }
+  .campus-location strong {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .campus-location > span {
+    font-size: 12px;
+  }
+  .shift-hud {
+    height: 43px;
+    top: 14px;
+    right: 14px;
+    padding: 0 11px;
+  }
+  .shift-hud > span {
+    font-size: 14px !important;
+  }
+  .objective-hud.next-action {
+    top: 76px;
+    left: 14px;
+    width: calc(100vw - 28px);
+    min-height: 75px;
+    padding: 13px 15px 17px;
+    gap: 11px;
+  }
+  .objective-hud .next-action-copy strong {
+    font-size: 16px;
+  }
+  .next-action-icon {
+    width: 35px;
+    height: 35px;
+    flex-basis: 35px;
+    border-radius: 11px;
+  }
+  .compute-hud {
+    top: 163px;
+    right: 14px;
+    min-height: 42px;
+    font-size: 14px;
+  }
+  .campus-hotbar {
+    bottom: 18px;
+    padding: 6px;
+    gap: 2px;
+    border-radius: 22px;
+  }
+  .campus-hotbar button {
+    width: 68px;
+    height: 61px;
+  }
+  .campus-hotbar button span {
+    font-size: 14px;
+  }
+  .campus-zoom {
+    right: 14px;
+    bottom: 103px;
+  }
+  .controls-help {
+    left: 14px;
+    bottom: 105px;
+  }
+  .noobius-modal {
+    padding: 22px;
+    max-height: 82dvh;
+    border-radius: 23px;
+  }
+  .noobius-modal [data-slot='dialog-title'] {
+    font-size: 25px;
+  }
+  .facility-summary > span {
+    padding: 10px;
+  }
+  .facility-summary strong {
+    font-size: 20px;
+  }
+  .facility-summary {
+    gap: 6px;
+  }
+  .shift-briefing > p {
+    font-size: 22px;
+  }
+  .game-toast {
+    bottom: 105px;
+    max-width: calc(100vw - 28px);
+    width: max-content;
+    font-size: 14px;
+  }
+  .locker-identity img {
+    width: 80px;
+    height: 104px;
+  }
+  .tycoon-grid {
+    gap: 8px;
+  }
+  .compute-balance strong {
+    font-size: 32px;
+  }
+  .campus-help {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .noobius-modal,
+  .is-playing * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .campus-hotbar button:hover {
+    transform: none;
+  }
+}
+.accessory-symbol {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #9c88d82b;
+  color: #d1b6ff;
+  border-radius: 13px;
+}
+.crew-station.is-done {
+  border-color: #a0d89166;
+  background: #1e3a34;
+}
+.crew-station.is-done strong > svg {
+  color: #bfea86;
+}
+.crew-station.is-working {
+  border-color: #85c9ee99;
+  box-shadow: inset 3px 0 #87caff;
+}
+.compact-stepper {
+  display: flex !important;
+  justify-content: center;
+  gap: 24px !important;
+  padding: 0 !important;
+  margin: 24px 0 !important;
+}
+.compact-stepper li {
+  width: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  background: none !important;
+  border: 0 !important;
+  display: grid;
+  place-items: center;
+}
+.compact-stepper li > span {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #254451;
+  color: #a1bbc5;
+}
+.compact-stepper li.current > span {
+  background: #ffd17e;
+  color: #4e351c;
+  box-shadow: 0 0 0 6px #ffd17e18;
+}
+.compact-stepper li.done > span {
+  background: #c1ef8a;
+  color: #1c3b2d;
+}
+.outage-controls button {
+  min-height: 50px;
+  border-radius: 14px;
+  font-size: 15px;
+}
+.outage-instruction {
+  font-size: 20px !important;
+  font-weight: 600;
+  text-align: center;
+}
+.outage-hint {
+  min-height: 0;
+  font-size: 14px !important;
+}
+.outage-icon {
+  background: #ffc58722;
+  color: #ffbd81;
+  border-radius: 18px;
+}
+.outage-reward {
+  font-size: 14px !important;
+}
+.quest {
+  border-radius: 18px !important;
+  background: #12313c !important;
+  border: 1px solid #52737e55 !important;
+  padding: 17px !important;
+}
+.quest-index {
+  border-radius: 12px;
+  background: #91c9ed20;
+  color: #a3d5f8;
+}
+.quest p {
+  font-size: 15px !important;
+}
+.quest-bottom {
+  gap: 10px;
+  align-items: center;
+}
+.quest-bottom small {
+  font-size: 14px;
+}
+.quest-bottom button {
+  min-height: 40px;
+  padding: 8px 13px;
+  border-radius: 11px;
+  background: #c1ef8a;
+  color: #1d392c;
+  font-size: 14px;
+}
+.job-next-step {
+  margin-top: 20px;
+  border-radius: 17px;
+  padding: 16px;
+  background: #1a3c3b;
+}
+.job-next-step strong {
+  font-size: 18px;
+}
+.job-next-step small {
+  font-size: 14px;
+}
+.repair-shortcut {
+  border-radius: 15px;
+  margin-top: 12px;
+}
+.daily-contract {
+  border-radius: 15px;
+}
+.directory-resources button {
+  border-radius: 13px;
+}
+.directory-resources button > svg {
+  color: #99cce5;
+}
+.department-map {
+  border-radius: 19px;
+}
+.map-node {
+  border-radius: 14px;
+}
+
+/* Keep the collection control compact when mobile rules set its top edge. */
+.compute-hud {
+  bottom: auto;
+}
+.noobius-modal {
+  scrollbar-width: thin;
+  scrollbar-color: #46606b transparent;
 }

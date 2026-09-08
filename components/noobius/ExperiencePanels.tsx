@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowRight, Check, Cpu, Gauge, Zap } from 'lucide-react';
+import { ArrowRight, Check, Cpu, Gauge, Zap, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   COMPUTE_JOBS,
@@ -37,10 +37,11 @@ export function BriefingCard({
   return (
     <div className="shift-briefing">
       <div className="briefing-speaker">
-        <span>{briefing.who[0]}</span>
+        <span>
+          <Bot size={28} />
+        </span>
         <div>
           <strong>{briefing.who}</strong>
-          <small>{briefing.role}</small>
         </div>
       </div>
       <p>{briefing.text}</p>
@@ -57,7 +58,7 @@ export function BriefingCard({
         disabled={busy}
         onClick={onSkip}
       >
-        I know my way around · skip tips
+        Skip tips
       </button>
     </div>
   );
@@ -89,17 +90,17 @@ export function ComputeDesk({
       <div className="compute-balance">
         <Cpu size={28} />
         <strong>{f.compute.toLocaleString()}</strong>
-        <span>compute available</span>
+        <span>Compute</span>
       </div>
       <section className="compute-card">
         <div className="compute-card-title">
-          <strong>Your racks are working</strong>
+          <strong>Production</strong>
           <span>{modules(f)} rack levels</span>
         </div>
         <p>
           {modules(f)
-            ? `${computePerTick(f) * 4} compute / minute · storage fills between visits`
-            : 'Build your first rack to start generating compute.'}
+            ? `${computePerTick(f) * 4} / min`
+            : 'Build a rack to start.'}
         </p>
         <div
           className="compute-tank"
@@ -117,10 +118,10 @@ export function ComputeDesk({
           </span>
           <span>
             {incident
-              ? 'Output paused · outage'
+              ? 'Paused'
               : stored >= cap
                 ? 'Storage full'
-                : 'New output every 15 seconds'}
+                : 'Generating'}
           </span>
         </div>
         <Button
@@ -128,13 +129,9 @@ export function ComputeDesk({
           disabled={busy || stored < 1}
           onClick={() => void onAction({ type: 'compute-harvest' })}
         >
-          Collect {stored} compute
+          Collect {stored}
           <ArrowRight size={17} />
         </Button>
-        <p className="muted-small">
-          Your collected balance is safe. Outages pause new output until
-          repaired.
-        </p>
       </section>
       {incident && (
         <button className="compute-outage-link" onClick={onOutage}>
@@ -145,8 +142,8 @@ export function ComputeDesk({
       )}
       <section className="compute-card">
         <div className="compute-card-title">
-          <strong>Run an extra batch</strong>
-          <span>Active-play bonus</span>
+          <strong>Bonus jobs</strong>
+          <span></span>
         </div>
         {job ? (
           <>
@@ -165,17 +162,17 @@ export function ComputeDesk({
             </div>
             <p>
               {incident
-                ? 'Fix the outage to collect. Your batch is safe.'
+                ? 'Repair the rack to collect.'
                 : now >= job.readyAt
-                  ? 'Batch finished. Ready to collect!'
-                  : `${Math.max(0, Math.ceil((job.readyAt - now) / 1000))} seconds left. You can keep exploring.`}
+                  ? 'Ready!'
+                  : `${Math.max(0, Math.ceil((job.readyAt - now) / 1000))} s left`}
             </p>
             <Button
               className="primary-action"
               disabled={busy || !!incident || now < job.readyAt}
               onClick={() => void onAction({ type: 'compute-collect' })}
             >
-              Collect batch · +{job.reward} compute
+              Collect +{job.reward}
             </Button>
           </>
         ) : (
@@ -197,7 +194,7 @@ export function ComputeDesk({
                 <small>
                   {modules(f) < j.required
                     ? `Needs ${j.required} rack levels`
-                    : 'Start batch →'}
+                    : 'Start'}
                 </small>
               </button>
             ))}
@@ -207,14 +204,11 @@ export function ComputeDesk({
       <section className="compute-card">
         <div className="compute-card-title">
           <strong>
-            <Gauge size={17} /> Upgrade efficiency
+            <Gauge size={17} /> Faster racks
           </strong>
           <span>Level {f.computeBoost} / 5</span>
         </div>
-        <p>
-          Every upgrade adds 4 compute per minute to each rack level and 50
-          storage. Build more racks to grow faster.
-        </p>
+        <p>+4 / min per rack · +50 storage</p>
         <Button
           className="primary-action"
           disabled={
@@ -227,7 +221,7 @@ export function ComputeDesk({
         >
           {f.computeBoost >= 5
             ? 'Efficiency maxed'
-            : `Upgrade · ${80 * (f.computeBoost + 1)} compute`}
+            : `Upgrade · ${80 * (f.computeBoost + 1)} Compute`}
         </Button>
       </section>
     </div>
@@ -259,11 +253,8 @@ export function OutageRepair({
       <div className="outage-icon">
         <Zap size={34} />
       </div>
-      <p className="outage-reward">Restore service · +40 compute +20 XP</p>
-      <p>
-        Patch: “We’ve found the problem. Three steps, in order. Your racks and
-        collected compute are safe.”
-      </p>
+      <p className="outage-reward">Reward · 40 Compute + 20 XP</p>
+      <p>Three steps. Follow the sequence.</p>
       {!started ? (
         <Button
           className="primary-action"
@@ -277,14 +268,17 @@ export function OutageRepair({
         </Button>
       ) : (
         <>
-          <ol className="outage-steps">
+          <ol
+            className="outage-steps compact-stepper"
+            aria-label="Repair progress"
+          >
             {steps.map((label, i) => (
               <li
                 key={label}
+                aria-label={`${label}: ${i < step ? 'done' : i === step ? 'current' : 'next'}`}
                 className={i < step ? 'done' : i === step ? 'current' : ''}
               >
                 <span>{i < step ? '✓' : i + 1}</span>
-                {label}
               </li>
             ))}
           </ol>
@@ -302,10 +296,7 @@ export function OutageRepair({
                       if (i === step) {
                         setStep(step + 1);
                         setHint('');
-                      } else
-                        setHint(
-                          `First: ${steps[step].toLowerCase()}. No damage done—try again.`,
-                        );
+                      } else setHint(`Try: ${steps[step].toLowerCase()}.`);
                     }}
                   >
                     {steps[i]}
@@ -315,10 +306,7 @@ export function OutageRepair({
             </>
           )}
           <p className="outage-hint" role="status">
-            {hint ||
-              (step === 3
-                ? 'All checks passed. Bring it back online.'
-                : 'Choose the matching control below.')}
+            {hint || (step === 3 ? 'Ready to restart.' : '')}
           </p>
           {step === 3 && (
             <Button
@@ -337,7 +325,7 @@ export function OutageRepair({
             >
               {now - incident.startedAt! < 3000
                 ? 'System resetting…'
-                : 'Restore service · collect bonus'}
+                : 'Restart · +40 Compute'}
             </Button>
           )}
         </>
