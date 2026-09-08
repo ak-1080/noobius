@@ -135,6 +135,7 @@ export default function AvatarPreview({
       avatar.g.rotation.y =
         angle + (reduced.matches ? -0.15 : Math.sin(t / 2200) * 0.12);
       avatar.body.position.y = reduced.matches ? 0 : Math.sin(t / 700) * 0.014;
+      avatar.animateFace(t, reduced.matches);
       renderer.render(scene, camera);
       frame = requestAnimationFrame(draw);
     };

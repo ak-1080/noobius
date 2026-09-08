@@ -121,6 +121,7 @@ export default function NoobiusGame() {
   } | null>(null);
   const [celebration, setCelebration] = useState<FacilityReceipt | null>(null);
   const summarizedWallets = useRef(new Set<string>());
+  const worldGeneration = useRef(0);
   const pendingStep = useRef<NextStep | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -173,6 +174,9 @@ export default function NoobiusGame() {
     setPeople([]);
   }, [profile?.wallet]);
   const goWorld = (next: string) => {
+    worldGeneration.current++;
+    setWorkEvent(null);
+    setCelebration(null);
     setRoom(next);
     setVisit(null);
     setPeople([]);
@@ -187,6 +191,9 @@ export default function NoobiusGame() {
       const d = await api<WorldVisit>(
         'visit?owner=' + encodeURIComponent(owner),
       );
+      worldGeneration.current++;
+      setWorkEvent(null);
+      setCelebration(null);
       setVisit(d);
       setRoom('home-' + owner);
       setPeople([]);
@@ -265,8 +272,7 @@ export default function NoobiusGame() {
           setConnection('Reconnecting…');
           setPeople([]);
           if (e instanceof Error && e.message.includes('room is full')) {
-            setRoom('home');
-            setVisit(null);
+            goWorld('home');
             game.setError(e.message);
           }
         }
@@ -322,7 +328,9 @@ export default function NoobiusGame() {
   }, [panel, profile?.wallet]);
   useEffect(() => {
     setActiveJob(null);
+    worldGeneration.current++;
     setCelebration(null);
+    setWorkEvent(null);
     pendingStep.current = null;
     setGuideCommand({ id: '', revision: Date.now() });
     setSelectedObject(null);
@@ -404,8 +412,10 @@ export default function NoobiusGame() {
     }
   };
   const act = async (action: Omit<FacilityAction, 'requestId'>) => {
+    const originWorld = worldGeneration.current;
     const ok = await game.facilityAction(action);
     if (!ok) return;
+    if (originWorld !== worldGeneration.current) return ok;
     if (!ok.applied) return ok;
     const target = action.type.startsWith('outage')
       ? (incident?.rack ?? 'margo')

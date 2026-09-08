@@ -102,3 +102,24 @@ Once per wallet per page session, an established player's Continue flow shows a 
 - [x] Daily claim showed +35 Compute/+25 XP and 1 of 3 days; Goals' ready dot cleared after claiming. Later machine upgrades showed their exact cost and income change.
 - [x] Phone help and Locker layouts reviewed after the scroll-container adjustment. Optional bonus prompt no longer overlaps help. Fresh reload → Continue → Look around first kept the 238-Compute balance unchanged; browser error log was empty.
 - [ ] Full-storage and final-upgrade receipt contents passed logic tests; those exact visual states still need acceptance on a fully progressed game.
+
+
+## Visible progression and world-character follow-up
+
+Empty personal plots are now low build pads with a plus marker and a “Build here” label. Buying a machine creates a compact cabinet; each additional level adds another hardware tier, and level 3 adds roof exhausts. Labels show the current level. Fans reflect speed upgrades, and optional bonus stations use amber lamps. Shared-campus stations keep their repair names and actual hardware before the crew job is completed.
+
+Each department has its own floor tint and painted room marker. Locked rooms keep subdued surfaces; unlocking turns on accent strips and reveals the department's fixtures. Cooling has spinning fans and tanks, Workshop has fabrication benches, GPU has stacks and chip displays, Network has cable arches, and Core has rotating cores. Existing fixture exclusions and machine walking footprints are preserved.
+
+Noobius blinks, raises his hands after collecting or speeding up machines, and gives a small working nod after building. Purchase effects wait until the covering panel closes. Collection coins appear near the player when the collection source is far away. Idle bobbing, blinking, optional character reactions and machine/fixture motion respect reduced motion; movement stays responsive. The local character's name appears when other players are nearby, leaving the solo view less cluttered.
+
+World transitions clear old effects, including the full-room fallback. An action resolving after a world change cannot trigger an old celebration in the new world. This guard complements the existing account-generation guard; it does not change reward rules.
+
+Verification:
+- [x] TypeScript and production build passed.
+- [x] Existing 53 game, navigation, save and feedback tests.
+- [x] Read-only Three.js probe: level 0/1/2/3 visible heights 0.235/1.04/1.79/2.798, fixed ±1 by ±0.85 footprint, lamps 0/2/4/6, and geometry count stayed 56 across updates.
+- [x] Resource/picking audit: helpers register the new geometry, materials and stencil textures; teardown disposes them; ancestor visibility excludes hidden tiers from ray hits.
+- [x] Browser: unlocked Cooling for 100, inspected the empty plot, followed the guided path to build the 180-Compute Chiller, then purchased its 360 and 720 upgrades. Each tier had the expected distinct silhouette and rate increase.
+- [x] Phone at 390 × 844: max-tier machine, label, floor marker and HUD remain readable. Desktop: working tool/spark effect is visible after closing Build.
+- [x] Desktop overview: unlocked GPU for 750 and inspected its fixtures alongside the active Cooling, Workshop and Commons rooms; Network and Core stayed dormant. Browser error log was empty.
+- [ ] Connected shared-campus repair labels and delayed cross-world responses have source evidence; real-wallet browser acceptance remains outstanding.

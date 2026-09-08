@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { avatarBuilder } from './avatarBuilder';
+import { makeMachine } from './machineBuilder';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   OBJECTS,
@@ -10,6 +11,7 @@ import {
   ITEMS,
   activeIncident,
   type Facility,
+  type ZoneId,
   type WorldObject,
 } from '@/lib/facility';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
@@ -113,7 +115,22 @@ export default function Campus(props: Props) {
       objects = new Map<string, T.Group>(),
       labels = new Map<string, T.Sprite>(),
       roomTitles: T.Sprite[] = [],
-      fans: T.Object3D[] = [],
+      machines = new Map<string, ReturnType<typeof makeMachine>>(),
+      rooms = new Map<
+        string,
+        {
+          floor: T.MeshStandardMaterial;
+          accent: T.MeshStandardMaterial;
+          landmark: T.Group;
+          stamp: T.MeshBasicMaterial;
+          title: T.Sprite;
+        }
+      >(),
+      ambientRotors: {
+        rotor: T.Object3D;
+        zone: ZoneId;
+        axis: 'x' | 'y' | 'z';
+      }[] = [],
       bots: { body: T.Group; arm: T.Group; phase: number; id: string }[] = [];
     const mat = (color: string, metal = 0.3, emissive?: string) => {
       const m = new T.MeshStandardMaterial({
@@ -132,7 +149,6 @@ export default function Campus(props: Props) {
       black = mat('#091b25'),
       mint = mat('#b3e795', 0.1, '#6eae75'),
       amber = mat('#e6ad71', 0.1, '#a56429'),
-      faultRed = mat('#ff826f', 0.1, '#bb3429'),
       white = mat('#e8f0e8', 0.05),
       shirt = mat(
         OUTFITS.find((x) => x.id === live.current.facility.outfit)?.color ??
@@ -215,6 +231,20 @@ export default function Campus(props: Props) {
       s.scale.set(width, width / 5.12, 1);
       return s;
     };
+    const relabel = (sprite: T.Sprite, text: string) => {
+      const context = (
+        sprite.material.map!.image as HTMLCanvasElement
+      ).getContext('2d')!;
+      context.clearRect(8, 8, 496, 84);
+      context.fillStyle = '#10232bdd';
+      context.fillRect(8, 8, 496, 84);
+      context.font = '500 32px sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = '#e6efe6';
+      context.fillText(text, 256, 51, 480);
+      sprite.material.map!.needsUpdate = true;
+    };
     const texCanvas = document.createElement('canvas');
     texCanvas.width = 128;
     texCanvas.height = 128;
@@ -258,19 +288,9 @@ export default function Campus(props: Props) {
       g.position.set(zone.x, 0, zone.z);
       scene.add(g);
       box(18, 0.14, 16, floorMat, g, 0, -0.02, 0);
-      const tiles = mesh(
-        new T.PlaneGeometry(18, 16),
-        (() => {
-          const tinted = roomFloor.clone();
-          tinted.color.set(zone.color).lerp(new T.Color('#d4e6ee'), 0.68);
-          materials.push(tinted);
-          return tinted;
-        })(),
-        g,
-        0,
-        0.052,
-        0,
-      );
+      const tinted = roomFloor.clone();
+      materials.push(tinted);
+      const tiles = mesh(new T.PlaneGeometry(18, 16), tinted, g, 0, 0.052, 0);
       tiles.rotation.x = -Math.PI / 2;
       tiles.castShadow = false;
       const accent = mat(zone.color, 0.1);
@@ -292,25 +312,89 @@ export default function Campus(props: Props) {
       title.position.set(zone.x, 3.6, zone.z - 7.4);
       scene.add(title);
       roomTitles.push(title);
-      // Passive machinery makes every wing readable at a glance.
-      for (let i = 0; i < 3; i++) {
+      const stencil = document.createElement('canvas');
+      stencil.width = 512;
+      stencil.height = 256;
+      const ink = stencil.getContext('2d')!;
+      ink.fillStyle = '#ffffff';
+      ink.textAlign = 'center';
+      ink.font = '700 90px sans-serif';
+      ink.fillText(zone.label.slice(0, 2), 256, 104);
+      ink.font = '700 38px sans-serif';
+      ink.fillText(
+        {
+          commons: 'HOME',
+          salvage: 'PARTS',
+          workshop: 'WORKSHOP',
+          thermal: 'COOLING',
+          compute: 'GPU',
+          network: 'NETWORK',
+          core: 'CORE',
+        }[zone.id],
+        256,
+        172,
+      );
+      ink.fillRect(142, 205, 228, 5);
+      const stampTexture = new T.CanvasTexture(stencil);
+      textures.push(stampTexture);
+      const stamp = new T.MeshBasicMaterial({
+        map: stampTexture,
+        transparent: true,
+        depthWrite: false,
+        opacity: 0.3,
+      });
+      materials.push(stamp);
+      const floorMark = mesh(
+        new T.PlaneGeometry(4.4, 2.2),
+        stamp,
+        g,
+        0,
+        0.058,
+        5.4,
+      );
+      floorMark.rotation.x = -Math.PI / 2;
+      floorMark.castShadow = false;
+      const landmark = new T.Group();
+      g.add(landmark);
+      rooms.set(zone.id, { floor: tinted, accent, landmark, stamp, title });
+      // Distinct silhouettes occupy the existing back-wall fixture footprints.
+      for (let i = 0; i < 3 && zone.id !== 'commons'; i++) {
         const x = -6 + i * 5.5;
+        const fixture = new T.Group();
+        fixture.position.set(x, 0, -5);
+        landmark.add(fixture);
         if (zone.id === 'thermal') {
           mesh(
             new T.CylinderGeometry(0.62, 0.62, 2.2, 16),
             silver,
-            g,
-            x,
+            fixture,
+            0,
             1.1,
-            -5,
+            0,
+          );
+          mesh(
+            new T.CylinderGeometry(0.64, 0.64, 0.22, 16),
+            accent,
+            fixture,
+            0,
+            1.9,
+            0,
           );
           pipe(
-            new T.Vector3(x, 2.1, -5),
-            new T.Vector3(x, 2.1, -7),
+            new T.Vector3(0, 2.1, 0),
+            new T.Vector3(0, 2.1, -1.5),
             0.13,
             accent,
-            g,
+            fixture,
           );
+          const rotor = new T.Group();
+          rotor.position.set(0, 1.2, 0.64);
+          fixture.add(rotor);
+          mesh(new T.TorusGeometry(0.29, 0.035, 6, 20), dark, rotor);
+          for (let blade = 0; blade < 4; blade++)
+            box(0.46, 0.07, 0.06, dark, rotor).rotation.z =
+              (blade * Math.PI) / 4;
+          ambientRotors.push({ rotor, zone: zone.id, axis: 'z' });
         } else if (zone.id === 'salvage') {
           for (let j = 0; j < 3; j++)
             box(
@@ -318,20 +402,100 @@ export default function Campus(props: Props) {
               0.45,
               0.85,
               j % 2 ? steel : dark,
-              g,
-              x + j * 0.1,
+              fixture,
+              j * 0.1,
               0.3 + j * 0.44,
-              -5 + j * 0.15,
+              j * 0.15,
             );
-        } else if (zone.id !== 'commons') {
-          box(1.4, 2.5, 1.1, dark, g, x, 1.25, -5);
-          for (let row = 0; row < 5; row++) {
-            box(1.18, 0.29, 0.1, steel, g, x, 0.4 + row * 0.42, -4.4);
-            box(0.06, 0.06, 0.04, accent, g, x + 0.43, 0.4 + row * 0.42, -4.32);
+          box(0.65, 0.06, 0.2, accent, fixture, 0.1, 1.44, 0.1);
+        } else if (zone.id === 'workshop') {
+          box(1.8, 0.18, 1.25, accent, fixture, 0, 0.92, 0);
+          for (const side of [-1, 1])
+            box(0.2, 0.85, 0.85, dark, fixture, side * 0.7, 0.42, 0);
+          pipe(
+            new T.Vector3(-0.65, 1, -0.3),
+            new T.Vector3(-0.65, 2.1, -0.3),
+            0.1,
+            silver,
+            fixture,
+          );
+          pipe(
+            new T.Vector3(-0.65, 2.1, -0.3),
+            new T.Vector3(0.25, 2.1, 0),
+            0.085,
+            accent,
+            fixture,
+          );
+          box(0.3, 0.34, 0.25, dark, fixture, 0.25, 1.9, 0);
+          box(0.65, 0.18, 0.6, steel, fixture, 0.2, 1.1, 0);
+        } else if (zone.id === 'compute') {
+          box(1.5, 0.35, 1.1, dark, fixture, 0, 0.2, 0);
+          for (let board = 0; board < 3; board++) {
+            box(1.35, 0.12, 1, steel, fixture, 0, 0.53 + board * 0.33, 0);
+            box(0.65, 0.14, 0.6, accent, fixture, 0, 0.66 + board * 0.33, 0);
           }
+          const chip = new T.Group();
+          chip.position.set(0, 1.9, 0);
+          chip.rotation.y = 0.35;
+          fixture.add(chip);
+          box(0.85, 0.85, 0.25, accent, chip);
+          box(0.52, 0.52, 0.035, dark, chip, 0, 0, 0.15);
+          for (const side of [-1, 1])
+            for (let pin = -1; pin <= 1; pin++) {
+              box(0.2, 0.055, 0.07, silver, chip, side * 0.52, pin * 0.22, 0);
+              box(0.055, 0.2, 0.07, silver, chip, pin * 0.22, side * 0.52, 0);
+            }
+        } else if (zone.id === 'network') {
+          box(1.75, 0.2, 1.15, dark, fixture, 0, 0.12, 0);
+          for (const side of [-1, 1]) {
+            box(0.33, 2.4, 0.62, steel, fixture, side * 0.67, 1.4, 0);
+            box(0.1, 1.8, 0.05, accent, fixture, side * 0.67, 1.5, 0.34);
+          }
+          pipe(
+            new T.Vector3(-0.67, 2.5, 0),
+            new T.Vector3(0.67, 2.5, 0),
+            0.1,
+            accent,
+            fixture,
+          );
+          for (let wire = 0; wire < 3; wire++)
+            pipe(
+              new T.Vector3(-0.5, 0.8 + wire * 0.38, 0),
+              new T.Vector3(0.5, 1.2 + wire * 0.38, 0),
+              0.035,
+              accent,
+              fixture,
+            );
+        } else if (zone.id === 'core') {
+          mesh(
+            new T.CylinderGeometry(0.72, 0.82, 0.5, 8),
+            dark,
+            fixture,
+            0,
+            0.3,
+            0,
+          );
+          mesh(
+            new T.CylinderGeometry(0.43, 0.54, 0.65, 8),
+            steel,
+            fixture,
+            0,
+            0.87,
+            0,
+          );
+          const rotor = new T.Group();
+          rotor.position.y = 1.85;
+          fixture.add(rotor);
+          mesh(new T.OctahedronGeometry(i === 1 ? 0.75 : 0.56), accent, rotor);
+          const halo = mesh(
+            new T.TorusGeometry(0.84, 0.035, 8, 24),
+            accent,
+            rotor,
+          );
+          halo.rotation.x = Math.PI / 2.8;
+          ambientRotors.push({ rotor, zone: zone.id, axis: 'y' });
         }
-        if (zone.id !== 'commons')
-          obstacles.push({ x: zone.x + x, z: zone.z - 5, w: 1, d: 1 });
+        obstacles.push({ x: zone.x + x, z: zone.z - 5, w: 1, d: 1 });
       }
     }
     const skin = mat('#a4bbc9', 0.02),
@@ -503,31 +667,20 @@ export default function Campus(props: Props) {
         });
       }
       if (obj.kind === 'build') {
-        box(1.5, 2.45, 1.25, dark, g, 0, 1.22, 0);
-        for (let row = 0; row < 6; row++) {
-          box(1.28, 0.29, 0.1, steel, g, 0, 0.27 + row * 0.35, 0.68);
-          const led = box(
-            0.09,
-            0.055,
-            0.04,
-            amber,
-            g,
-            0.48,
-            0.27 + row * 0.35,
-            0.76,
-          );
-          led.userData.led = row + 1;
-        }
-        const rotor = new T.Group();
-        rotor.position.set(0, 2.2, 0.77);
-        g.add(rotor);
-        mesh(new T.TorusGeometry(0.2, 0.025, 6, 18), silver, rotor);
-        for (let blade = 0; blade < 3; blade++) {
-          const b = box(0.28, 0.055, 0.035, silver, rotor);
-          b.rotation.z = (blade * Math.PI) / 3;
-        }
-        rotor.userData.rack = obj.id;
-        fans.push(rotor);
+        machines.set(
+          obj.id,
+          makeMachine({
+            parent: g,
+            mesh,
+            box,
+            dark,
+            steel,
+            silver,
+            accent,
+            powered: mint,
+            sleepy: amber,
+          }),
+        );
       }
       if (obj.kind === 'node') {
         const contents = new T.Group();
@@ -678,6 +831,7 @@ export default function Campus(props: Props) {
       scene.add(coin);
       return coin;
     });
+    const rewardOrigin = new T.Vector3();
     const workTool = new T.Group();
     avatar.body.add(workTool);
     workTool.position.set(0.63, 0.6, 0.25);
@@ -999,11 +1153,22 @@ export default function Campus(props: Props) {
           avatar.g.position.x - beforeX,
           avatar.g.position.z - beforeZ,
         ) * 3.4;
-      if (p.workEvent && p.workEvent.revision !== seenWork) {
+      // Purchases made in a panel reveal their world reaction on returning to
+      // play, rather than finishing unseen behind the panel.
+      if (!p.paused && p.workEvent && p.workEvent.revision !== seenWork) {
         seenWork = p.workEvent.revision;
         workStarted = time;
         workObject = p.workEvent.id;
         const obj = OBJECTS.find((o) => o.id === workObject);
+        const nearby =
+          obj &&
+          Math.hypot(obj.x - avatar.g.position.x, obj.z - avatar.g.position.z) <
+            6;
+        rewardOrigin.set(
+          nearby ? obj.x : avatar.g.position.x,
+          0,
+          nearby ? obj.z : avatar.g.position.z,
+        );
         if (
           obj &&
           Math.hypot(obj.x - avatar.g.position.x, obj.z - avatar.g.position.z) <
@@ -1014,24 +1179,53 @@ export default function Campus(props: Props) {
             obj.z - avatar.g.position.z,
           );
       }
-      const working = time - workStarted < 1100 && seenWork > 0;
+      const working = !p.paused && time - workStarted < 1100 && seenWork > 0;
+      const cheering =
+        working &&
+        !moving &&
+        !motion.matches &&
+        [
+          'compute-harvest',
+          'compute-collect',
+          'compute-upgrade',
+          'tycoon-daily',
+          'outage-fix',
+        ].includes(p.workEvent?.kind ?? '');
+      const cheer = cheering
+        ? Math.sin(((time - workStarted) / 1100) * Math.PI)
+        : 0;
       workTool.visible =
         working &&
         !moving &&
         ['gather', 'craft', 'collect', 'build', 'utility'].includes(
           p.workEvent?.kind ?? '',
         );
-      avatar.body.position.y = moving
-        ? Math.abs(Math.sin(gait)) * 0.09
-        : Math.sin(time * 0.0018) * 0.018;
-      for (const [i, arm] of (avatar.g.userData.arms as T.Object3D[]).entries())
+      avatar.animateFace(time, motion.matches || p.paused);
+      avatar.body.position.y =
+        motion.matches || p.paused
+          ? 0
+          : moving
+            ? Math.abs(Math.sin(gait)) * 0.09
+            : cheer * 0.13 + Math.sin(time * 0.0018) * 0.018;
+      avatar.body.rotation.x =
+        working && !moving && !motion.matches && p.workEvent?.kind === 'build'
+          ? Math.sin(((time - workStarted) / 1100) * Math.PI * 2) * 0.07
+          : 0;
+      avatar.body.rotation.z = cheer * Math.sin(time * 0.013) * 0.04;
+      for (const [i, arm] of (
+        avatar.g.userData.arms as T.Object3D[]
+      ).entries()) {
+        arm.rotation.z = (i ? 1 : -1) * cheer * 0.8;
         arm.rotation.x = moving
           ? Math.sin(gait + i * Math.PI) * 0.42
-          : workTool.visible && !motion.matches
-            ? -0.55 + Math.sin(time * 0.02) * 0.2
-            : motion.matches
-              ? 0
-              : Math.sin(time * 0.0018 + i) * 0.035;
+          : cheering
+            ? -cheer * 1.2
+            : workTool.visible && !motion.matches
+              ? -0.55 + Math.sin(time * 0.02) * 0.2
+              : motion.matches || p.paused
+                ? 0
+                : Math.sin(time * 0.0018 + i) * 0.035;
+      }
       for (const [i, foot] of (
         avatar.g.userData.feet as T.Object3D[]
       ).entries()) {
@@ -1040,7 +1234,15 @@ export default function Campus(props: Props) {
           0.12 +
           (moving ? Math.max(0, Math.sin(gait + i * Math.PI)) * 0.12 : 0);
       }
-      you.visible = targetScale < 9;
+      you.visible =
+        targetScale < 9 &&
+        p.people.some(
+          (person) =>
+            Math.hypot(
+              person.x - avatar.g.position.x,
+              person.z - avatar.g.position.z,
+            ) < 8,
+        );
       for (const title of roomTitles) title.visible = targetScale > 11;
       marker.visible = !!p.objectiveId && !p.paused;
       const objectiveObject = OBJECTS.find((o) => o.id === p.objectiveId);
@@ -1087,9 +1289,9 @@ export default function Campus(props: Props) {
         if (coin.visible && workAt) {
           const angle = (i * Math.PI * 2) / 7;
           coin.position.set(
-            workAt.x + Math.cos(angle) * age * 1.6,
+            rewardOrigin.x + Math.cos(angle) * age * 1.6,
             1.5 + age * 3.4,
-            workAt.z + Math.sin(angle) * age * 1.6,
+            rewardOrigin.z + Math.sin(angle) * age * 1.6,
           );
           coin.scale.setScalar(0.52 + Math.sin(age * Math.PI) * 0.15);
           coin.material.opacity = Math.min(1, (1 - age) * 3);
@@ -1100,8 +1302,9 @@ export default function Campus(props: Props) {
         if (g) {
           const age = (time - workStarted) / 850;
           const pop =
-            object.id === workObject &&
-            p.workEvent?.kind === 'build' &&
+            ((object.id === workObject && p.workEvent?.kind === 'build') ||
+              (p.workEvent?.kind === 'compute-upgrade' &&
+                (f.builds[object.id] ?? 0) > 0)) &&
             age >= 0 &&
             age < 1 &&
             !motion.matches
@@ -1123,10 +1326,13 @@ export default function Campus(props: Props) {
           spark.scale.setScalar(Math.max(0.1, 1 - age));
         }
       });
-      if (!motion.matches)
-        for (const fan of fans)
-          fan.rotation.z +=
-            dt * ((f.builds[fan.userData.rack] ?? 0) > 0 ? 5 : 0.5);
+      if (!motion.matches && !p.paused) {
+        for (const machine of machines.values())
+          machine.animate(dt, f.computeBoost);
+        for (const { rotor, zone, axis } of ambientRotors)
+          if (f.unlocked.includes(zone))
+            rotor.rotation[axis] += dt * (zone === 'core' ? 0.35 : 1.5);
+      }
       for (const bot of bots) {
         bot.body.position.y = motion.matches
           ? 0
@@ -1181,16 +1387,41 @@ export default function Campus(props: Props) {
               : obj.kind === 'gate'
                 ? !isOpen
                 : isOpen;
-          if (obj.kind === 'build')
-            g.traverse((child) => {
-              if (child.userData.led)
-                (child as T.Mesh).material =
-                  activeIncident(f)?.rack === obj.id
-                    ? faultRed
-                    : (f.builds[obj.id] ?? 0) > 0
-                      ? mint
-                      : steel;
-            });
+          if (obj.kind === 'build') {
+            const level = p.sharedCampus
+              ? Math.max(2, f.builds[obj.id] ?? 0)
+              : (f.builds[obj.id] ?? 0);
+            const badge = labels.get(obj.id)!;
+            badge.position.y = machines
+              .get(obj.id)!
+              .update(
+                level,
+                p.sharedCampus
+                  ? !(f.builds[obj.id] ?? 0)
+                  : activeIncident(f)?.rack === obj.id,
+              );
+            relabel(
+              badge,
+              p.sharedCampus
+                ? (EMERGENCY_STATIONS.find(
+                    (station) => station.object === obj.id,
+                  )?.name ?? obj.name)
+                : `${obj.name} · ${level ? `Lv ${level}` : 'Build here'}`,
+            );
+          }
+        }
+        for (const zone of ZONES) {
+          const room = rooms.get(zone.id);
+          if (!room) continue;
+          const open = f.unlocked.includes(zone.id);
+          room.floor.color.set(open ? zone.color : '#52616d');
+          if (open) room.floor.color.lerp(new T.Color('#d4e6ee'), 0.3);
+          room.accent.color.set(open ? zone.color : '#354651');
+          room.accent.emissive.set(open ? zone.color : '#000000');
+          room.accent.emissiveIntensity = open ? 0.23 : 0;
+          room.landmark.visible = open;
+          room.stamp.opacity = open ? 0.28 : 0.1;
+          room.title.material.opacity = open ? 1 : 0.48;
         }
         lastAppearance = appearance;
       }
@@ -1276,7 +1507,10 @@ export default function Campus(props: Props) {
           new T.Vector3(person.x, 0, person.z),
           Math.min(1, dt * 5),
         );
-        g.position.y = Math.sin(time * 0.002 + person.x) * 0.055;
+        g.position.y =
+          motion.matches || p.paused
+            ? 0
+            : Math.sin(time * 0.002 + person.x) * 0.055;
       }
       for (const [id, g] of peers)
         if (!p.people.some((p) => p.id === id && p.name === g.userData.name)) {

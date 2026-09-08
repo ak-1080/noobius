@@ -138,6 +138,7 @@ export function avatarBuilder({
       shoe.scale.set(0.83, 0.58, 1.24);
       feet.push(foot);
     }
+    const eyeGroups: T.Group[] = [];
     for (const eye of [
       { x: -0.225, y: 1.585, r: 0.245 },
       { x: 0.25, y: 1.535, r: 0.205 },
@@ -151,25 +152,22 @@ export function avatarBuilder({
         0.363,
       );
       bag.scale.set(1, 1.12, 0.36);
-      const whiteEye = sphere(eye.r, white, body, eye.x, eye.y, 0.407);
+      const eyeGroup = new T.Group();
+      eyeGroup.position.set(eye.x, eye.y, 0);
+      body.add(eyeGroup);
+      eyeGroups.push(eyeGroup);
+      const whiteEye = sphere(eye.r, white, eyeGroup, 0, 0, 0.407);
       whiteEye.scale.set(0.97, 1.11, 0.63);
       const pupil = sphere(
         eye.r * 0.32,
         padding,
-        body,
-        eye.x + 0.008,
-        eye.y - 0.025,
+        eyeGroup,
+        0.008,
+        -0.025,
         0.407 + eye.r * 0.615,
       );
       pupil.scale.z = 0.53;
-      sphere(
-        eye.r * 0.07,
-        white,
-        body,
-        eye.x - 0.014,
-        eye.y + 0.007,
-        0.415 + eye.r * 0.8,
-      );
+      sphere(eye.r * 0.07, white, eyeGroup, -0.014, 0.007, 0.415 + eye.r * 0.8);
     }
     const arc = (points: number[][], radius: number, m: T.Material) =>
       mesh(
@@ -252,7 +250,13 @@ export function avatarBuilder({
     mic.scale.y = 1.2;
     g.userData.arms = arms;
     g.userData.feet = feet;
-    return { g, body };
+    const animateFace = (time: number, reduced: boolean) => {
+      const phase = (time + 1300) % 5700;
+      const blink =
+        !reduced && phase < 180 ? Math.sin((phase / 180) * Math.PI) : 0;
+      for (const eye of eyeGroups) eye.scale.y = 1 - blink * 0.94;
+    };
+    return { g, body, animateFace };
   }
   function addAccessories(parent: T.Group) {
     const root = new T.Group();
