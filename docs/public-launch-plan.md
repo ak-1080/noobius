@@ -10,6 +10,8 @@ Multiplayer presence, visits, cooperative jobs and GET rate limits exist. The hi
 
 The final handoff also fixes fresh local setup to apply all four migrations. The exact setup command passed against an isolated temporary database; the campus tables, presence room column and presence indexes were verified without touching existing saves.
 
+The production Worker build then passed four integration tests against that isolated local D1: action receipts/retry suppression, two-player shared repairs/visits/reward races, concurrent free-starter purchases, and preservation of legacy saves across the earning-rate migration. These checks exercise real HTTP handlers and database writes; browser wallet and public-load acceptance remain open.
+
 The remaining launch decision is broader than publishing a URL:
 
 1. **Owner:** choose the initial audience, supported wallets/devices, launch budget, operator and enabled social features.
