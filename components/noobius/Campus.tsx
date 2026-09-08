@@ -825,7 +825,13 @@ export default function Campus(props: Props) {
     const down = (e: KeyboardEvent) => {
       if (
         live.current.paused ||
-        ['INPUT', 'TEXTAREA', 'BUTTON'].includes(
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        (e.target as HTMLElement)?.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(
           (e.target as HTMLElement)?.tagName,
         )
       )

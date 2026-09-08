@@ -83,7 +83,13 @@ export const GUIDE_TOPICS = [
   },
 ] as const;
 
-export function QuickGuide({ onFollow }: { onFollow: () => void }) {
+export function QuickGuide({
+  onFollow,
+  atHome = true,
+}: {
+  onFollow: () => void;
+  atHome?: boolean;
+}) {
   return (
     <div className="quick-guide">
       <div className="quick-guide-grid">
@@ -122,7 +128,8 @@ export function QuickGuide({ onFollow }: { onFollow: () => void }) {
         ))}
       </div>
       <button className="primary-action" onClick={onFollow}>
-        Show me my next step <ArrowRight size={19} />
+        {atHome ? 'Show me my next step' : 'Return to my data center'}{' '}
+        <ArrowRight size={19} />
       </button>
       <a
         className="text-action"

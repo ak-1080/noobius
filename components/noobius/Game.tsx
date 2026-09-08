@@ -271,15 +271,27 @@ export default function NoobiusGame() {
     };
   }, [playing, profile?.wallet, roomId]);
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || needsIdentity) return;
     const shortcut = (e: KeyboardEvent) => {
       if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        (e.target as HTMLElement)?.isContentEditable ||
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(
           (e.target as HTMLElement)?.tagName,
         ) ||
         activeJob
       )
         return;
+      if (e.key === 'Escape' && !panel) {
+        e.preventDefault();
+        setPanel('menu');
+        return;
+      }
+      if (panel && panel !== 'map' && panel !== 'inventory') return;
       if (e.key.toLowerCase() === 'm') {
         e.preventDefault();
         setPanel((p) => (p === 'map' ? null : 'map'));
@@ -291,7 +303,7 @@ export default function NoobiusGame() {
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, [playing, activeJob]);
+  }, [playing, activeJob, needsIdentity, panel]);
 
   useEffect(() => {
     if ((panel === 'badge' || panel === 'profile') && profile)
@@ -393,7 +405,7 @@ export default function NoobiusGame() {
         title:
           (facility.builds[action.id!] ?? 0)
             ? 'More power. Same noob.'
-            : 'You brought a rack online!',
+            : 'Your new machine is online!',
         detail: `More blinking lights. More Compute. Keep growing!`,
       });
     if (action.type === 'unlock')
@@ -406,7 +418,7 @@ export default function NoobiusGame() {
         title:
           facility.workdays === 2
             ? 'After-hours gold unlocked!'
-            : 'Daily card complete!',
+            : 'Daily goal complete!',
         detail: `${action.type === 'tycoon-daily' ? 35 : 25} Compute · +25 XP · Another day closer to gold.`,
       });
     if (
@@ -419,20 +431,24 @@ export default function NoobiusGame() {
           action.type === 'outage-fix' ? 'Back online!' : 'Compute collected!',
         detail:
           action.type === 'outage-fix'
-            ? '+40 compute · +20 XP'
+            ? '+40 Compute · +20 XP'
             : action.type === 'compute-collect'
-              ? `+${facility.workload?.reward ?? 0} compute. Keep building.`
-              : `+${storedCompute} compute from your racks.`,
+              ? `+${facility.workload?.reward ?? 0} Compute. Keep building.`
+              : `+${storedCompute} Compute from your machines.`,
       });
     if (action.type === 'compute-upgrade')
       setCelebration({
         title: 'Output upgraded!',
-        detail: 'Every rack now generates more compute.',
+        detail: 'Every machine now makes more Compute.',
       });
     return ok;
   };
   const executeStep = (step: NextStep) => {
     if (step.wait || busy) return;
+    if (room !== 'home') {
+      goWorld('home');
+      return;
+    }
     pendingStep.current = null;
     setGuideCommand({ id: '', revision: Date.now() });
     setPanel(null);
@@ -707,7 +723,7 @@ export default function NoobiusGame() {
           {room !== 'home' && (
             <button
               className="objective-hud"
-              onClick={() => show(inCampus ? 'crewjob' : 'world')}
+              onClick={() => (inCampus ? show('crewjob') : goWorld('home'))}
             >
               <span>{inCampus ? 'SHARED JOB' : 'VISITING'}</span>
               <strong>
@@ -766,7 +782,7 @@ export default function NoobiusGame() {
                     ? `Collect +${facility.workload.reward}`
                     : storedCompute > 0
                       ? `Collect +${storedCompute}`
-                      : 'Racks working'}
+                      : 'Machines working'}
                 </span>
                 <ArrowRight size={15} />
               </button>
@@ -941,7 +957,9 @@ export default function NoobiusGame() {
                         : 'Your progress is saved to your wallet.',
                     jobs: 'Fix a system, earn Compute, then improve your data center.',
                     wallet:
-                      'Connect your wallet to save your progress. No purchase or transaction required.',
+                      profile?.wallet === 'practice'
+                        ? 'Sign in to open your saved data center. This guest run won’t carry over.'
+                        : 'Sign in to save your data center. No purchase or transaction required.',
                     badge: 'What should we put on your badge?',
                     profile: 'Your place on the night shift.',
                     guide: 'Four little steps. One big data center.',
@@ -1179,7 +1197,7 @@ export default function NoobiusGame() {
               <>
                 <p className="muted-small">
                   Each repair pays 40 Compute, and sends 2 spare parts to your
-                  locker. Fix all three for a 25-credit bonus. Your built racks
+                  locker. Fix all three for a 25-Compute bonus. Your machines
                   stay online.
                 </p>
                 {shift?.completedAt && (
@@ -1381,7 +1399,9 @@ export default function NoobiusGame() {
                 )}
               </div>
             )}
-            {panel === 'guide' && <QuickGuide onFollow={followObjective} />}
+            {panel === 'guide' && (
+              <QuickGuide onFollow={followObjective} atHome={room === 'home'} />
+            )}
             {panel === 'token' && (
               <TokenExchange
                 balance={profile?.credits ?? 0}

@@ -44,8 +44,13 @@ All purchases and rewards retain server-side pricing, request IDs and optimistic
 - [x] Phone browser at 390 × 844: Build, bonus game and HUD spacing after popup/focus fix.
 - [ ] Remaining phone browser: guide readability and latest bonus-button positioning, after the Mac is unlocked.
 - [x] Production build.
-- [ ] Private deployment status and final browser review are recorded in the task handoff.
+- [x] Private deployment v18 succeeded.
+- [ ] Final browser review, including the follow-up controls fixes, awaits Mac unlock.
 
 ## Remaining launch work
 
 A real payout service, economic/legal review for a real token launch, multi-device wallet testing, larger load tests, operations/backup/moderation runbooks, and public-access decisions remain separate from this UI/gameplay pass. Existing shared movement uses periodic updates rather than realtime sockets. No claim of console or AAA production readiness is made by these checks.
+
+## Controls integration follow-up
+
+A read-only flow review found four mismatches between advertised behavior and handlers. Movement keys were ignored after a dialog returned focus to a dock button; Escape did not open the menu; home guidance could run inside a visited world; and guest sign-in wording implied guest progress would transfer. The follow-up allows gameplay keys from ordinary buttons while preserving editing and browser shortcuts, adds the world Escape menu action, returns home before following home guidance, and explains account loading at the wallet connection step. Actual keyboard/visit interaction checks remain pending browser access.

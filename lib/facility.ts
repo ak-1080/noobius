@@ -965,7 +965,7 @@ export function applyFacility(
     case 'compute-harvest': {
       if (f.storedCompute < 1)
         throw new FacilityError(
-          'Your racks are warming up. Compute arrives every 15 seconds.',
+          'Your machines are warming up. Compute arrives every 15 seconds.',
         );
       const reward = f.storedCompute;
       f.compute += reward;
@@ -979,13 +979,13 @@ export function applyFacility(
     case 'compute-upgrade': {
       if (!modules(f))
         throw new FacilityError(
-          'Build your first rack before upgrading output.',
+          'Build your first machine before upgrading its speed.',
         );
       if (f.computeBoost >= 5)
-        throw new FacilityError('Compute efficiency is fully upgraded.');
+        throw new FacilityError('Your machines are already at top speed.');
       const cost = BOOST_PRICES[f.computeBoost];
       if (f.compute < cost)
-        throw new FacilityError(`You need ${cost} compute for this upgrade.`);
+        throw new FacilityError(`You need ${cost} Compute for this upgrade.`);
       f.compute -= cost;
       f.computeBoost++;
       message = 'Faster machines! Every machine now makes more Compute.';
@@ -1161,9 +1161,10 @@ export function applyFacility(
         (o) => o.id === action.id && o.kind === 'build',
       );
       if (!plot || !f.unlocked.includes(plot.zone))
-        throw new FacilityError('That rack is in a locked department.');
+        throw new FacilityError('Open this room before building its machine.');
       const level = f.builds[plot.id] ?? 0;
-      if (level >= 3) throw new FacilityError('This rack is fully upgraded.');
+      if (level >= 3)
+        throw new FacilityError('This machine is fully upgraded.');
       spend({}, rackPrice(f, plot.id));
       f.builds[plot.id] = level + 1;
       f.skills.engineering += 15;
