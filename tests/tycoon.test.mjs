@@ -13,6 +13,48 @@ import {
 } from '../lib/facility.ts';
 import { tycoonObjective } from '../lib/tycoon.ts';
 
+test('collection coach recognizes below, exact, and above the purchase threshold', () => {
+  const f = newFacility(0);
+  f.builds['rack-a'] = 1;
+  f.seen.push('intro:welcome');
+  assert.match(tycoonObjective(f, 1, 45000).detail, /19 \/ 20/);
+  for (const balance of [2, 10]) {
+    const next = tycoonObjective(f, balance, 45000);
+    assert.match(next.detail, /Enough for faster machines/);
+    assert.equal(next.action.type, 'compute-harvest');
+    assert.doesNotMatch(next.detail, /\/ 20/);
+  }
+});
+
+test('fully upgraded data center offers an available bonus or the Locker, never a completed daily loop', () => {
+  const now = Date.UTC(2026, 8, 8, 12),
+    f = newFacility(now);
+  f.builds = Object.fromEntries(
+    'abcdefg'.split('').map((id) => ['rack-' + id, 3]),
+  );
+  f.unlocked = [
+    'commons',
+    'salvage',
+    'workshop',
+    'thermal',
+    'compute',
+    'network',
+    'core',
+  ];
+  f.computeBoost = 5;
+  f.seen.push('intro:welcome');
+  f.workdays = 3;
+  assert.equal(tycoonObjective(f, 0, now).panel, 'appearance');
+  f.daily.computeEarned = 100;
+  assert.equal(tycoonObjective(f, 0, now).panel, 'contracts');
+  f.lastWorkday = f.day;
+  const done = tycoonObjective(f, 0, now);
+  assert.equal(done.panel, 'appearance');
+  assert.match(done.detail, /tomorrow/);
+  const tomorrow = tycoonObjective(f, 0, now + 86400000);
+  assert.equal(tomorrow.action.type, 'compute-harvest');
+});
+
 const action = (f, type, balance, now, extras = {}) =>
   applyFacility(
     f,

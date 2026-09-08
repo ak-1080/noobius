@@ -313,9 +313,10 @@ function GuideDetails() {
           belong to that account.
         </p>
         <p>
-          Guest play is a tryout. Reloading clears guest progress, and it cannot
-          be moved into a wallet account. Connect before a long session if you
-          want to keep what you build.
+          Practice saves automatically in this browser. Come back and choose
+          Continue my game. Clearing browser data removes that save. Practice
+          progress stays separate from wallet accounts, tokens, and ranked
+          scores. Check the pause menu to see whether browser saving is working.
         </p>
       </section>
       <section id="currencies">

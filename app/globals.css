@@ -6303,6 +6303,12 @@ a {
 .modal-heading:focus {
   outline: none;
 }
+.menu-save-status {
+  margin: -4px 0 14px;
+  color: #a9c6b8;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
 .menu-more {
   margin-top: 18px;
   border-top: 1px solid #82a8b137;

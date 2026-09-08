@@ -9,6 +9,7 @@ import {
   rackCount,
   rackPrice,
   storedComputeNow,
+  dayKey,
   type Facility,
 } from './facility.ts';
 import type { Objective, NextStep } from './objectives.ts';
@@ -78,7 +79,6 @@ export function tycoonObjective(
           100,
         );
     }
-    const missing = Math.max(0, cost - balance);
     const seconds = Math.max(
       1,
       15 - (Math.floor((now - f.computeAt) / 1000) % 15),
@@ -87,7 +87,10 @@ export function tycoonObjective(
       ? wrap(
           {
             title: `Collect ${stored} Compute`,
-            detail: `After collecting: ${balance + stored} / ${cost} for ${next.toLowerCase()}.`,
+            detail:
+              balance + stored >= cost
+                ? `Enough for ${next.toLowerCase()}. Collect, then spend ${cost} Compute.`
+                : `After collecting: ${balance + stored} / ${cost} for ${next.toLowerCase()}.`,
             cta: 'Collect',
             target: first,
             action: { type: 'compute-harvest' },
@@ -206,12 +209,38 @@ export function tycoonObjective(
           100,
         );
   }
+  const today = dayKey(now);
+  const done = f.lastWorkday === today;
+  const earned = f.day === today ? (f.daily.computeEarned ?? 0) : 0;
+  if (!done && earned >= 100)
+    return wrap(
+      {
+        title: 'Your daily bonus is ready',
+        detail: 'All machines upgraded. Pick up 35 extra Compute for today.',
+        cta: 'Claim my bonus',
+        panel: 'contracts',
+      },
+      100,
+    );
+  if (!done && stored > 0)
+    return wrap(
+      {
+        title: 'Collect for today’s goal',
+        detail: `${Math.min(100, earned + stored)} / 100 after collecting. Your whole data center is fully upgraded.`,
+        cta: 'Collect',
+        target: first,
+        action: { type: 'compute-harvest' },
+      },
+      Math.min(100, earned + stored),
+    );
   return wrap(
     {
       title: 'Your empire is humming',
-      detail: `${rate} Compute/min. Dress up, finish today’s goal, or visit the crew.`,
-      cta: 'Today’s goal',
-      panel: 'contracts',
+      detail: done
+        ? `${rate} Compute/min. Every machine is maxed. Next daily goal tomorrow.`
+        : `${rate} Compute/min. Every machine is maxed. Try a new look while your machines earn.`,
+      cta: 'Customize Noobius',
+      panel: 'appearance',
     },
     100,
   );

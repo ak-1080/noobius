@@ -358,6 +358,7 @@ export default function NoobiusGame() {
     setPanel(p);
   };
   const play = async () => {
+    game.setError('');
     if (profile?.wallet === 'practice') {
       if (!game.resume()) game.startPractice();
       return;
@@ -444,6 +445,18 @@ export default function NoobiusGame() {
       setCelebration({
         title: 'Output upgraded!',
         detail: 'Every machine now makes more Compute.',
+      });
+    if (
+      (action.type === 'compute-upgrade' &&
+        facility.computeBoost === 4 &&
+        modules(facility) === 21) ||
+      (action.type === 'build' &&
+        modules(facility) === 20 &&
+        facility.computeBoost === 5)
+    )
+      setCelebration({
+        title: 'Data center complete!',
+        detail: 'Every machine. Every upgrade. One very proud noob.',
       });
     return ok;
   };
@@ -663,9 +676,12 @@ export default function NoobiusGame() {
           >
             {busy
               ? 'Clocking in…'
-              : profile && shift && !shift.completedAt
-                ? 'Resume shift'
-                : 'Play now'}
+              : profile?.wallet === 'practice' &&
+                  profile.facility?.seen.includes('intro:identity')
+                ? 'Continue my game'
+                : profile && shift && !shift.completedAt
+                  ? 'Resume shift'
+                  : 'Play now'}
             <ArrowRight size={20} />
           </Button>
         </main>
@@ -959,12 +975,14 @@ export default function NoobiusGame() {
                     crewjob: 'Three stations. One cluster. Work together.',
                     menu:
                       mode === 'practice'
-                        ? 'Practice shift · Progress lasts until reload.'
+                        ? game.guestSaveState === 'saved'
+                          ? 'Practice game · Saved on this browser.'
+                          : 'Practice game · Browser saving is unavailable.'
                         : 'Your progress is saved to your wallet.',
                     jobs: 'Fix a system, earn Compute, then improve your data center.',
                     wallet:
                       profile?.wallet === 'practice'
-                        ? 'Sign in to open your saved data center. This guest run won’t carry over.'
+                        ? 'Sign in to open your wallet’s data center. Your device-only practice game stays separate.'
                         : 'Sign in to save your data center. No purchase or transaction required.',
                     badge: 'What should we put on your badge?',
                     profile: 'Your place on the night shift.',
@@ -1122,6 +1140,15 @@ export default function NoobiusGame() {
                     </span>
                   </div>
                 </div>
+                {profile?.wallet === 'practice' && (
+                  <p className="menu-save-status" role="status">
+                    {game.guestSaveState === 'saved'
+                      ? 'Saved on this browser'
+                      : game.guestSaveState === 'checking'
+                        ? 'Checking your save…'
+                        : 'Browser saving unavailable. Keep this tab open to keep playing.'}
+                  </p>
+                )}
                 <Button
                   className="primary-action"
                   onClick={() => setPanel(null)}
@@ -1581,7 +1608,7 @@ export default function NoobiusGame() {
                 </div>
                 <p className="muted-small">
                   {mode === 'practice'
-                    ? 'Practice shift. Connect your wallet for saved progress and ranked scores.'
+                    ? 'Practice game. Device saves stay separate from wallet games and ranked scores.'
                     : 'Progress saved. Your best completed shift appears on the crew board.'}
                 </p>
                 <Button

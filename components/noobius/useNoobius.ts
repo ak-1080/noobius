@@ -8,6 +8,11 @@ import {
 } from '@/lib/facility';
 import { signInWallet } from '@/lib/wallet';
 import {
+  GUEST_SAVE_KEY,
+  GuestSaveStore,
+  persistGuestSave,
+} from '@/lib/guest-save';
+import {
   activateJob,
   answerJob,
   guestProfile,
@@ -88,6 +93,12 @@ export async function api<T = GameData>(
 }
 export function useNoobius() {
   const [notice, setNotice] = useState('');
+  const [guestSaveState, setGuestSaveState] = useState<
+    'saved' | 'unavailable' | 'checking'
+  >('checking');
+  const guestStore = useRef<GuestSaveStore | null>(null);
+  if (!guestStore.current)
+    guestStore.current = new GuestSaveStore(() => window.localStorage);
   const [profile, setProfile] = useState<Profile | null>(null),
     [shift, setShift] = useState<Shift | null>(null),
     [mode, setMode] = useState<'lobby' | 'practice' | 'wallet'>('lobby'),
@@ -174,9 +185,30 @@ export function useNoobius() {
   }, [apply]);
   useEffect(() => {
     let alive = true;
+    const epoch = generation.current,
+      revision = appliedRevision.current;
     api('profile')
       .then((data) => {
-        if (alive && data.profile) apply(data);
+        if (
+          !alive ||
+          epoch !== generation.current ||
+          revision !== appliedRevision.current
+        )
+          return;
+        if (data.profile) apply(data, epoch);
+        else {
+          const local = guestStore.current!.read();
+          setGuestSaveState(
+            local.issue === 'unavailable' || local.issue === 'newer'
+              ? 'unavailable'
+              : 'saved',
+          );
+          if (local.snapshot) apply(local.snapshot, epoch);
+          else if (local.issue === 'invalid')
+            setNotice(
+              'The local save could not be read. You can start a new practice game.',
+            );
+        }
       })
       .catch((e) => {
         if (alive) setError(e.message);
@@ -224,6 +256,70 @@ export function useNoobius() {
       window.removeEventListener('eip6963:announceProvider', announce);
       listeners.current?.();
     };
+  }, [apply]);
+  useEffect(() => {
+    if (initializing || profile?.wallet !== 'practice') return;
+    let alive = true;
+    const epoch = generation.current,
+      revision = appliedRevision.current;
+    const isCurrent = () =>
+      alive &&
+      epoch === generation.current &&
+      revision === appliedRevision.current &&
+      state.current.profile === profile &&
+      state.current.shift === shift;
+    setGuestSaveState('checking');
+    void persistGuestSave(
+      guestStore.current!,
+      profile,
+      shift,
+      isCurrent,
+      navigator.locks,
+    ).then((result) => {
+      if (!isCurrent()) return;
+      if (result.kind === 'conflict') {
+        generation.current++;
+        apply(
+          result.snapshot ?? { profile: null, shift: null },
+          generation.current,
+        );
+        setMode('lobby');
+        setError(
+          'Your game changed in another tab. The latest save is ready—choose Continue to pick up there.',
+        );
+      } else if (result.kind !== 'ignored') {
+        setGuestSaveState(result.kind === 'saved' ? 'saved' : 'unavailable');
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [profile, shift, initializing, apply]);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (
+        (event.key !== GUEST_SAVE_KEY && event.key !== null) ||
+        state.current.profile?.wallet !== 'practice' ||
+        inFlight.current
+      )
+        return;
+      const local = guestStore.current!.read();
+      if (local.issue) {
+        setGuestSaveState('unavailable');
+        return;
+      }
+      generation.current++;
+      apply(
+        local.snapshot ?? { profile: null, shift: null },
+        generation.current,
+      );
+      setMode('lobby');
+      setError(
+        'Your game changed in another tab. The latest save is ready—choose Continue to pick up there.',
+      );
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
   }, [apply]);
   const run = useCallback(
     async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -382,12 +478,25 @@ export function useNoobius() {
     listeners.current?.();
     providerRef.current = null;
     setError('');
+    const local =
+      state.current.profile?.wallet === 'practice'
+        ? null
+        : guestStore.current!.read();
     const p =
       state.current.profile?.wallet === 'practice'
         ? state.current.profile
-        : guestProfile();
-    setProfile(p);
-    setShift(newShift(p.equipment));
+        : (local?.snapshot?.profile ?? guestProfile());
+    const savedShift = local?.snapshot?.shift;
+    apply(
+      {
+        profile: p,
+        shift:
+          savedShift && !savedShift.completedAt
+            ? savedShift
+            : newShift(p.equipment),
+      },
+      generation.current,
+    );
     setMode('practice');
   };
   const start = () =>
@@ -611,6 +720,7 @@ export function useNoobius() {
       return true;
     });
   return {
+    guestSaveState,
     notice,
     setNotice,
     facilityAction,

@@ -10,6 +10,7 @@ import {
   productionUnits,
   modules,
   rackPrice,
+  dayKey,
   type Facility,
   type FacilityAction,
 } from '@/lib/facility';
@@ -177,8 +178,9 @@ export function TycoonGoals({
   onAction: (a: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
   onFollow: () => void;
 }) {
-  const earned = f.daily.computeEarned ?? 0,
-    done = f.lastWorkday === f.day;
+  const today = dayKey(Date.now());
+  const earned = f.day === today ? (f.daily.computeEarned ?? 0) : 0,
+    done = f.lastWorkday === today;
   return (
     <div className="tycoon-goals">
       <img
@@ -187,8 +189,12 @@ export function TycoonGoals({
         alt="Compute coin"
       />
       <span className="story-eyebrow">TODAY’S LITTLE WIN</span>
-      <h2>Collect 100 Compute.</h2>
-      <p>Your machines make it. You pick it up.</p>
+      <h2>{done ? 'Today’s goal is done.' : 'Collect 100 Compute.'}</h2>
+      <p>
+        {done
+          ? 'Your next daily goal arrives tomorrow.'
+          : 'Your machines make it. You pick it up.'}
+      </p>
       <div
         className="tycoon-goal-progress"
         role="progressbar"
@@ -223,8 +229,9 @@ export function TycoonGoals({
         ))}
       </div>
       <p>
-        Complete the goal on 3 different days to unlock the gold outfit. Your
-        days don’t need to be in a row.
+        {f.workdays >= 3
+          ? 'Gold outfit unlocked! Find it in your Locker. Your daily Compute bonus keeps coming.'
+          : 'Complete the goal on 3 different days to unlock the gold outfit. Your days don’t need to be in a row.'}
       </p>
       <button className="text-action" onClick={onFollow}>
         Back to my next step <ArrowRight size={17} />

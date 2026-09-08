@@ -66,3 +66,21 @@ The exchange preview fits its main controls and confirmation at 390 × 844. It r
 Character setup mounts only its own avatar preview, then mounts the campus on entry. Campus replays an already-present guide command on initialization, throttles covered/paused rendering, releases shadow resources on teardown, and stops animation when WebGL is lost. The setup-to-Margo handoff was tested in the browser. WebGL-loss fallback was source-reviewed but not induced during browser QA.
 
 The final local browser error log was empty for the reviewed guide, onboarding, menu, wallet-return, and exchange paths. These checks establish this pass’s behavior; they are not a substitute for cross-device acceptance or a public launch test.
+
+## Guest return-play follow-up
+
+Practice games now save a versioned profile and optional minigame shift on the same browser and origin. Reloading offers “Continue my game” after character setup. Names, outfits/accessories, machines, speed upgrades, balances, daily stamps, and production timestamps are preserved. Clearing browser data removes the device save. Guest saves never load into wallet accounts, rankings, or the token economy.
+
+An existing authenticated session takes priority on startup. Starting practice after logout reads the separate device save. Save validation rejects malformed facility state while retaining a valid facility when only its minigame is invalid or expired. Newer save formats are preserved without overwriting them. Unavailable browser storage leaves the game playable in memory and the menu reports that saving is unavailable.
+
+Writes use Web Locks where supported plus revision conflict checks. Queued writes check the current account/state before writing and before applying their result. Other tabs load the latest snapshot and return to the title screen with a Continue prompt. Browsers without Web Locks use weaker revision-only conflict detection; simultaneous writes there are not guaranteed atomic.
+
+The coach now says when collecting will afford the next purchase. Fully upgraded facilities point toward an available daily bonus, more collection for today's goal, or the Locker after the goal is complete. The last machine/speed purchase triggers a completion celebration. Daily goal text recognizes a claimed reward and an already-unlocked gold outfit.
+
+- [x] 48 unit tests, including save/reload, next-day stamps, capped offline output, double-collection rejection, account exclusion, corrupt/newer saves, storage failure, stale-tab conflicts, queued-write invalidation, and endgame objective states.
+- [x] Read-only audit exercised 197 round trips from actual game actions, including accessories, full machine progression, outfits, repairs, inventory, and minigame results.
+- [x] Browser: create SaveNoob with blue shirt/cap → build starter → collect 36 → buy the 20-Compute upgrade → reload → Continue. Balance remained 16, output remained 36/min, and name/outfit/cap persisted.
+- [x] Browser: second tab changed the name to SaveNoobTwo. The original tab detected the newer save, returned to title, and Continue loaded that name with the same 16 Compute.
+- [x] Phone at 390 × 844: save status and pause-menu controls remain readable and usable. Browser error log empty for these paths.
+- [ ] Endgame objectives and next-day goal state passed logic tests. Visual acceptance of the last-upgrade celebration and the endgame screens remains outstanding.
+- [ ] Same-page wallet login/logout with a real browser wallet still needs device testing; account isolation and stale-save guards have unit/source evidence.
