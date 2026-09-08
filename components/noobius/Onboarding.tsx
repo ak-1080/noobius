@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { ArrowRight, Check, Headphones, HardHat, Cpu } from 'lucide-react';
+import { ArrowRight, Check, Headphones, HardHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OUTFITS, type Facility } from '@/lib/facility';
 import AvatarPreview from './AvatarPreview';
-import MissionVisual from './MissionVisual';
+import HowToSlides from './HowToSlides';
 
 export default function Onboarding({
   name,
@@ -63,7 +63,7 @@ export default function Onboarding({
     <section className="onboarding-screen" aria-label="Create your Noobius">
       <div className="onboarding-card">
         <ol className="onboarding-steps" aria-label="Setup progress">
-          {['Name', 'Look', 'Play'].map((label, i) => (
+          {['Name', 'Look', 'How to play'].map((label, i) => (
             <li
               key={label}
               aria-current={step === i ? 'step' : undefined}
@@ -74,122 +74,122 @@ export default function Onboarding({
             </li>
           ))}
         </ol>
-        <div className="onboarding-content">
-          <div className="onboarding-character">
-            <AvatarPreview color={current.color} accessory={accessory} />
-            <strong>{draft.trim() || 'Your Noobius'}</strong>
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void next();
-            }}
-            className="onboarding-form"
-          >
-            <span className="onboarding-kicker">
-              {step === 0
-                ? 'MAKE IT YOURS'
-                : step === 1
-                  ? 'LOOKING GOOD'
-                  : 'YOUR FIRST MISSION'}
-            </span>
-            <h1>
-              {step === 0
-                ? 'What’s your name?'
-                : step === 1
-                  ? 'Pick your look.'
-                  : 'Power up one rack.'}
-            </h1>
-            {step === 0 && (
-              <>
-                <label htmlFor="starter-name">Username</label>
-                <input
-                  id="starter-name"
-                  autoFocus
-                  autoComplete="off"
-                  maxLength={20}
-                  value={draft}
-                  placeholder="e.g. GPU_Goblin"
-                  onChange={(e) => setDraft(e.target.value)}
-                  disabled={locked}
-                />
-              </>
-            )}
-            {step === 1 && (
-              <>
-                <label>Shirt</label>
-                <div className="starter-swatches">
-                  {OUTFITS.filter(
-                    (o) => o.price === 0 && o.id !== 'afterhours',
-                  ).map((o) => (
-                    <button
-                      type="button"
-                      key={o.id}
-                      aria-label={o.name}
-                      aria-pressed={outfit === o.id}
-                      disabled={locked}
-                      onClick={() => setOutfit(o.id)}
-                      style={{ background: o.color }}
-                    >
-                      {outfit === o.id && <Check size={22} />}
-                    </button>
-                  ))}
-                </div>
-                <label>Headwear</label>
-                <div className="starter-headwear">
-                  {[
-                    { id: 'none', name: 'Headset', Icon: Headphones },
-                    { id: 'cap', name: 'Cap', Icon: HardHat },
-                  ].map((o) => (
-                    <button
-                      type="button"
-                      key={o.id}
-                      aria-pressed={accessory === o.id}
-                      onClick={() => setAccessory(o.id)}
-                      disabled={locked}
-                    >
-                      <o.Icon size={28} />
-                      {o.name}
-                      {accessory === o.id && <Check size={16} />}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-            {step === 2 && (
-              <>
-                <MissionVisual />
-                <p className="mission-payoff">
-                  <Cpu size={20} />
-                  Your rack earns Compute.
-                </p>
-              </>
-            )}
-            {error && (
-              <p role="alert" className="onboarding-error">
-                {error}
-              </p>
-            )}
-            <Button
-              type="submit"
-              className="primary-action"
-              disabled={locked || (step === 0 && !draft.trim())}
+        {step === 2 ? (
+          <HowToSlides
+            busy={locked}
+            error={error}
+            onBack={() => setStep(1)}
+            onStart={() => void next()}
+          />
+        ) : (
+          <div className="onboarding-content">
+            <div className="onboarding-character">
+              <AvatarPreview color={current.color} accessory={accessory} />
+              <strong>{draft.trim() || 'Your Noobius'}</strong>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void next();
+              }}
+              className="onboarding-form"
             >
-              {locked ? 'Saving…' : step === 2 ? 'Let’s play' : 'Continue'}
-              <ArrowRight size={20} />
-            </Button>
-            {step > 0 && (
-              <button
-                type="button"
-                className="text-action"
-                disabled={locked}
-                onClick={() => setStep(step - 1)}
+              <span className="onboarding-kicker">
+                {step === 0
+                  ? 'MAKE IT YOURS'
+                  : step === 1
+                    ? 'LOOKING GOOD'
+                    : 'YOUR FIRST MISSION'}
+              </span>
+              <h1>
+                {step === 0
+                  ? 'What’s your name?'
+                  : step === 1
+                    ? 'Pick your look.'
+                    : 'Power up one rack.'}
+              </h1>
+              {step === 0 && (
+                <>
+                  <label htmlFor="starter-name">Username</label>
+                  <input
+                    id="starter-name"
+                    autoFocus
+                    autoComplete="off"
+                    maxLength={20}
+                    value={draft}
+                    placeholder="e.g. GPU_Goblin"
+                    onChange={(e) => setDraft(e.target.value)}
+                    disabled={locked}
+                  />
+                </>
+              )}
+              {step === 1 && (
+                <>
+                  <label>Shirt</label>
+                  <div className="starter-swatches">
+                    {OUTFITS.filter(
+                      (o) => o.price === 0 && o.id !== 'afterhours',
+                    ).map((o) => (
+                      <button
+                        type="button"
+                        key={o.id}
+                        aria-label={o.name}
+                        aria-pressed={outfit === o.id}
+                        disabled={locked}
+                        onClick={() => setOutfit(o.id)}
+                        style={{ background: o.color }}
+                      >
+                        {outfit === o.id && <Check size={22} />}
+                      </button>
+                    ))}
+                  </div>
+                  <label>Headwear</label>
+                  <div className="starter-headwear">
+                    {[
+                      { id: 'none', name: 'Headset', Icon: Headphones },
+                      { id: 'cap', name: 'Cap', Icon: HardHat },
+                    ].map((o) => (
+                      <button
+                        type="button"
+                        key={o.id}
+                        aria-pressed={accessory === o.id}
+                        onClick={() => setAccessory(o.id)}
+                        disabled={locked}
+                      >
+                        <o.Icon size={28} />
+                        {o.name}
+                        {accessory === o.id && <Check size={16} />}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {error && (
+                <p role="alert" className="onboarding-error">
+                  {error}
+                </p>
+              )}
+              <Button
+                type="submit"
+                className="primary-action"
+                disabled={locked || (step === 0 && !draft.trim())}
               >
-                Back
-              </button>
-            )}
-          </form>
-        </div>
+                {locked ? 'Saving…' : step === 2 ? 'Let’s play' : 'Continue'}
+                <ArrowRight size={20} />
+              </Button>
+              {step > 0 && (
+                <button
+                  type="button"
+                  className="text-action"
+                  disabled={locked}
+                  onClick={() => setStep(step - 1)}
+                >
+                  Back
+                </button>
+              )}
+            </form>
+          </div>
+        )}
       </div>
     </section>
   );

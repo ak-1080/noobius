@@ -5049,3 +5049,179 @@ a {
     font-size: 16px;
   }
 }
+
+.howto-slides {
+  max-width: 880px;
+  margin: 0 auto;
+}
+.howto-slide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 45px;
+  animation: game-panel-in 0.22s ease-out;
+}
+.howto-picture {
+  position: relative;
+  min-width: 0;
+}
+.howto-picture > img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 28px;
+}
+.howto-caption h1 {
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  margin: 14px 0 20px;
+}
+.howto-caption p {
+  font-size: 20px;
+  color: #bed3df;
+  line-height: 1.5;
+  margin: 0;
+}
+.howto-count {
+  font-size: 14px;
+  color: #bdea93;
+  letter-spacing: 0.08em;
+}
+.howto-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 35px;
+}
+.howto-navigation .primary-action {
+  min-width: 180px;
+  min-height: 52px;
+  font-size: 16px;
+}
+.howto-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 8px;
+}
+.howto-dots {
+  display: flex;
+  gap: 4px;
+}
+.howto-dots button {
+  height: 36px;
+  width: 30px;
+  position: relative;
+}
+.howto-dots button:after {
+  content: '';
+  display: block;
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #638298;
+  top: 13px;
+  left: 10px;
+}
+.howto-dots button[aria-current='step']:after {
+  background: #c0ee91;
+  transform: scale(1.4);
+}
+.howto-next-example {
+  position: absolute;
+  bottom: 18px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #103d42f5;
+  border: 1px solid #bded91;
+  border-radius: 16px;
+  padding: 15px;
+  color: #c1ee96;
+  box-shadow: 0 8px 30px #07171e66;
+}
+.howto-next-example span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.howto-next-example small {
+  font-size: 13px;
+}
+.howto-next-example strong {
+  font-size: 18px;
+  color: #fff;
+}
+@media (max-width: 640px) {
+  .howto-slides {
+    margin-top: 25px;
+  }
+  .howto-slide {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .howto-picture {
+    width: min(290px, 100%);
+  }
+  .howto-caption {
+    width: 100%;
+    max-width: 420px;
+  }
+  .howto-caption h1 {
+    font-size: 30px;
+    margin: 10px 0 12px;
+  }
+  .howto-caption p {
+    font-size: 17px;
+  }
+  .howto-navigation {
+    gap: 6px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+  }
+  .howto-navigation .primary-action {
+    min-width: 150px;
+  }
+  .howto-dots {
+    gap: 0;
+  }
+  .howto-dots button {
+    width: 24px;
+  }
+  .howto-dots button:after {
+    left: 7px;
+  }
+  .howto-next-example {
+    padding: 11px;
+    bottom: 12px;
+    left: 10px;
+    right: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .howto-slide {
+    animation: none;
+  }
+}
+.howto-navigation .primary-action {
+  width: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.howto-navigation {
+  min-width: 0;
+}
+.howto-dots {
+  margin-left: auto;
+}
