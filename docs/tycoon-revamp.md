@@ -40,12 +40,14 @@ All purchases and rewards retain server-side pricing, request IDs and optimistic
 - [x] Two-player visits and cooperative job tests.
 - [x] Name and combined appearance survive a fresh wallet login.
 - [x] Desktop browser: customize, welcome, first machine, collect, speed upgrade, second machine, open Cooling room, bonus-game retry/success and daily reward.
-- [ ] Remaining desktop browser: picture-guide routes/navigation, exchange preview, wheel zoom and final post-patch check. The Mac locked before these could run.
+- [x] Desktop browser: picture-guide routes and topic navigation; Docs price table; wheel zoom, keyboard rotation after closing Build, and Escape opening/closing the menu.
 - [x] Phone browser at 390 × 844: Build, bonus game and HUD spacing after popup/focus fix.
-- [ ] Remaining phone browser: guide readability and latest bonus-button positioning, after the Mac is unlocked.
+- [x] Phone browser at 390 × 844: picture-guide text and first-upgrade screenshot, Docs price table, collapsed/expanded menu, and exchange amount validation/Max/confirmation.
+- [ ] Latest optional bonus-button positioning still needs a fresh post-follow-up check.
 - [x] Production build.
 - [x] Private deployment v18 succeeded.
-- [ ] Final browser review, including the follow-up controls fixes, awaits Mac unlock.
+- [x] Follow-up browser review: character name/look → four slides → automatic Margo welcome → first free machine. Guest title screen → Connect → Back to game resumes the existing machine without resetting progress.
+- [ ] Connected-wallet browser check of visiting another world and returning home from guidance. Local API tests cover account/visit isolation, but the current in-app browser has no wallet provider.
 
 ## Remaining launch work
 
@@ -53,4 +55,14 @@ A real payout service, economic/legal review for a real token launch, multi-devi
 
 ## Controls integration follow-up
 
-A read-only flow review found four mismatches between advertised behavior and handlers. Movement keys were ignored after a dialog returned focus to a dock button; Escape did not open the menu; home guidance could run inside a visited world; and guest sign-in wording implied guest progress would transfer. The follow-up allows gameplay keys from ordinary buttons while preserving editing and browser shortcuts, adds the world Escape menu action, returns home before following home guidance, and explains account loading at the wallet connection step. Actual keyboard/visit interaction checks remain pending browser access.
+A read-only flow review found four mismatches between advertised behavior and handlers. Movement keys were ignored after a dialog returned focus to a dock button; Escape did not open the menu; home guidance could run inside a visited world; and guest sign-in wording implied guest progress would transfer. The follow-up allows gameplay keys from ordinary buttons while preserving editing and browser shortcuts, adds the world Escape menu action, returns home before following home guidance, and explains account loading at the wallet connection step. Keyboard/menu behavior is now browser-verified; connected visit behavior still needs a browser wallet.
+
+## Menu, guide, and rendering follow-up
+
+The pause menu puts Build, Goals, How to play, and Exchange first. Workshop, materials, skills, and other optional activities sit inside “More activities.” The first-upgrade guide image now shows the actual 20-Compute purchase described by the text. Dark scrollbars fit the guide on desktop and phone.
+
+The exchange preview fits its main controls and confirmation at 390 × 844. It rejects fractional, nonpositive, and over-balance amounts; invalid input has a plain-language explanation. Browser checks covered a zero balance, an over-balance amount, Max recovery, and a valid preview. The displayed balance did not change. No token-transfer backend was added.
+
+Character setup mounts only its own avatar preview, then mounts the campus on entry. Campus replays an already-present guide command on initialization, throttles covered/paused rendering, releases shadow resources on teardown, and stops animation when WebGL is lost. The setup-to-Margo handoff was tested in the browser. WebGL-loss fallback was source-reviewed but not induced during browser QA.
+
+The final local browser error log was empty for the reviewed guide, onboarding, menu, wallet-return, and exchange paths. These checks establish this pass’s behavior; they are not a substitute for cross-device acceptance or a public launch test.

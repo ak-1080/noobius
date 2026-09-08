@@ -782,6 +782,8 @@ export default function Campus(props: Props) {
       }
     };
     travel.current(live.current.facility.zone);
+    if (live.current.guideCommand?.id)
+      guide.current(live.current.guideCommand.id);
     const click = (e: PointerEvent) => {
       if (live.current.paused) return;
       live.current.onCancelGuide();
@@ -908,6 +910,9 @@ export default function Campus(props: Props) {
     resize();
     const contextLost = (e: Event) => {
       e.preventDefault();
+      disposed = true;
+      cancelAnimationFrame(raf);
+      keys.clear();
       setFailed(true);
       live.current.onUnavailable();
     };
@@ -916,6 +921,11 @@ export default function Campus(props: Props) {
       if (disposed) return;
       if (document.hidden) {
         last = time;
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      if (live.current.paused && time - last < 100) {
+        keys.clear();
         raf = requestAnimationFrame(frame);
         return;
       }
@@ -1324,6 +1334,7 @@ export default function Campus(props: Props) {
       geometry.forEach((g) => g.dispose());
       materials.forEach((m) => m.dispose());
       textures.forEach((t) => t.dispose());
+      sun.shadow.dispose();
       renderer.dispose();
       canvas.remove();
     };

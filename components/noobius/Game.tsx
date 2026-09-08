@@ -38,7 +38,6 @@ import {
   Menu,
   Map,
   Backpack,
-  BriefcaseBusiness,
   MessageCircle,
   Minus,
   Plus,
@@ -52,6 +51,11 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -671,25 +675,27 @@ export default function NoobiusGame() {
           aria-label="The Noobius night shift"
           inert={needsIdentity}
         >
-          <Campus
-            key={`${profile?.wallet}:${room}`}
-            facility={viewFacility}
-            playerName={profile?.name}
-            sharedCampus={inCampus}
-            paused={needsIdentity || !!panel || !!activeJob || busy}
-            people={people}
-            onInteract={interact}
-            onPosition={(x, z) => setPosition({ x, z })}
-            zoomCommand={zoomCommand}
-            travelCommand={travelCommand}
-            guideCommand={guideCommand}
-            objectiveId={room === 'home' ? objective.target : undefined}
-            workEvent={workEvent}
-            onUnavailable={() => setWorldUnavailable(true)}
-            onCancelGuide={() => {
-              pendingStep.current = null;
-            }}
-          />
+          {!needsIdentity && (
+            <Campus
+              key={`${profile?.wallet}:${room}`}
+              facility={viewFacility}
+              playerName={profile?.name}
+              sharedCampus={inCampus}
+              paused={needsIdentity || !!panel || !!activeJob || busy}
+              people={people}
+              onInteract={interact}
+              onPosition={(x, z) => setPosition({ x, z })}
+              zoomCommand={zoomCommand}
+              travelCommand={travelCommand}
+              guideCommand={guideCommand}
+              objectiveId={room === 'home' ? objective.target : undefined}
+              workEvent={workEvent}
+              onUnavailable={() => setWorldUnavailable(true)}
+              onCancelGuide={() => {
+                pendingStep.current = null;
+              }}
+            />
+          )}
           <button
             className="game-menu-button"
             aria-label="Open game menu"
@@ -909,7 +915,11 @@ export default function NoobiusGame() {
             initialFocus={panelHeading}
             className={`noobius-modal ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
           >
-            <DialogTitle ref={panelHeading} tabIndex={-1}>
+            <DialogTitle
+              className="modal-heading"
+              ref={panelHeading}
+              tabIndex={-1}
+            >
               {
                 (
                   {
@@ -937,11 +947,7 @@ export default function NoobiusGame() {
                 )[panel ?? '']
               }
             </DialogTitle>
-            <DialogDescription
-              className={
-                panel === 'wallet' || panel === 'token' ? '' : 'sr-only'
-              }
-            >
+            <DialogDescription className={panel === 'wallet' ? '' : 'sr-only'}>
               {
                 (
                   {
@@ -1124,42 +1130,52 @@ export default function NoobiusGame() {
                 </Button>
                 <div className="pause-options">
                   <button onClick={() => show('facility')}>
-                    <Cpu size={18} /> Build
-                  </button>
-                  <button onClick={() => show('market')}>
-                    <Coins size={18} /> Shop
-                  </button>
-                  <button onClick={() => show('token')}>
-                    <Coins size={18} /> Exchange
-                  </button>
-                  <button onClick={() => show('crafting')}>
-                    <Hammer size={18} /> Workshop
-                  </button>
-                  <button onClick={() => show('inventory')}>
-                    <Backpack size={18} /> Parts & storage
-                  </button>
-                  <button onClick={() => show('skills')}>
-                    <Sparkles size={18} /> Skills
-                  </button>
-                  <button onClick={() => show('social')}>
-                    <MessageCircle size={18} />
-                    Crew chat
-                  </button>
-                  <button onClick={() => show('jobs')}>
-                    <Wrench size={18} /> Repairs
+                    <Hammer size={18} /> Build
                   </button>
                   <button onClick={() => show('contracts')}>
-                    <BriefcaseBusiness size={18} /> Jobs
-                  </button>
-                  <button onClick={() => show('locker')}>
-                    <Wrench size={18} /> Equipment
+                    <Trophy size={18} /> Goals
                   </button>
                   <button onClick={() => show('guide')}>
                     <BookOpen size={18} /> How to play
                   </button>
-                  <button onClick={() => show('crew')}>
-                    <Trophy size={18} /> Crew board
+                  <button onClick={() => show('token')}>
+                    <Coins size={18} /> Exchange
                   </button>
+                </div>
+                <Collapsible className="menu-more">
+                  <CollapsibleTrigger className="menu-more-trigger">
+                    More activities <ChevronRight size={18} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pause-options">
+                      <button onClick={() => show('market')}>
+                        <Coins size={18} /> Shop
+                      </button>
+                      <button onClick={() => show('crafting')}>
+                        <Hammer size={18} /> Workshop
+                      </button>
+                      <button onClick={() => show('inventory')}>
+                        <Backpack size={18} /> Parts & storage
+                      </button>
+                      <button onClick={() => show('skills')}>
+                        <Sparkles size={18} /> Skills
+                      </button>
+                      <button onClick={() => show('social')}>
+                        <MessageCircle size={18} /> Crew chat
+                      </button>
+                      <button onClick={() => show('jobs')}>
+                        <Wrench size={18} /> Repairs
+                      </button>
+                      <button onClick={() => show('locker')}>
+                        <Wrench size={18} /> Equipment
+                      </button>
+                      <button onClick={() => show('crew')}>
+                        <Trophy size={18} /> Crew board
+                      </button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+                <div className="pause-options menu-settings">
                   <button
                     onClick={() =>
                       show(
@@ -1313,10 +1329,20 @@ export default function NoobiusGame() {
                 </div>
                 <button
                   className="practice-button modal-practice"
-                  onClick={practice}
+                  onClick={
+                    profile?.wallet === 'practice'
+                      ? () => {
+                          setPanel(null);
+                          if (mode === 'lobby') void play();
+                        }
+                      : practice
+                  }
                   disabled={busy || game.initializing}
                 >
-                  <Gamepad2 size={16} /> Play a practice shift instead
+                  <Gamepad2 size={16} />{' '}
+                  {profile?.wallet === 'practice'
+                    ? 'Back to game'
+                    : 'Play a practice shift instead'}
                 </button>
               </div>
             )}

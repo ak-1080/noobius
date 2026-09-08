@@ -21,10 +21,9 @@ export default function TokenExchange({
   return (
     <div className="token-exchange">
       <div className="exchange-heading">
-        <h2>Compute → $NOOBIUS</h2>
+        <h2>Request $NOOBIUS</h2>
         <span>Preview</span>
       </div>
-      <p>Turn your game earnings into a token request.</p>
       <div className="exchange-from">
         <label htmlFor="exchange-amount">You use</label>
         <div>
@@ -35,6 +34,9 @@ export default function TokenExchange({
             inputMode="numeric"
             min={1}
             max={balance}
+            step={1}
+            aria-invalid={amount !== '' && !valid}
+            aria-describedby="exchange-balance exchange-error"
             placeholder="0"
             value={amount}
             onChange={(e) => {
@@ -44,7 +46,7 @@ export default function TokenExchange({
           />
           <strong>Compute</strong>
         </div>
-        <small>
+        <small id="exchange-balance">
           Balance: {balance.toLocaleString()}{' '}
           <button
             onClick={() => {
@@ -55,6 +57,13 @@ export default function TokenExchange({
             Max
           </button>
         </small>
+        <p id="exchange-error" className="exchange-error" role="status">
+          {amount !== '' && !valid
+            ? balance > 0
+              ? `Choose a whole amount from 1 to ${balance.toLocaleString()} Compute.`
+              : 'Collect some Compute in your data center first.'
+            : ''}
+        </p>
       </div>
       <ArrowDown className="exchange-arrow" size={24} />
       <div className="exchange-to">
@@ -67,7 +76,7 @@ export default function TokenExchange({
         <span>
           {connected
             ? wallet.slice(0, 6) + '…' + wallet.slice(-4)
-            : 'Choose a wallet for your tokens'}
+            : 'Choose your wallet'}
         </span>
         {!connected && <button onClick={onConnect}>Connect</button>}
       </div>
@@ -83,7 +92,7 @@ export default function TokenExchange({
           <Check size={23} />
           <div>
             <strong>{value.toLocaleString()} Compute selected</strong>
-            <p>This previews your request. Nothing has been spent or sent.</p>
+            <p>Preview only. Nothing spent or sent.</p>
           </div>
         </div>
       )}

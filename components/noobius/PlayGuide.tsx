@@ -29,8 +29,8 @@ export const GUIDE_TOPICS = [
     id: 'upgrade',
     title: 'Make more, faster',
     text: 'Open Build. Buy another machine or choose Faster machines. The numbers show what you earn now and what you’ll earn after buying.',
-    image: '/assets/guide/build.png',
-    alt: 'Build after the first speed upgrade, showing 36 Compute per minute',
+    image: '/assets/guide/first-upgrade.png',
+    alt: 'First speed upgrade: 20 Compute increases income from 24 to 36 per minute',
     tip: 'Your first speed upgrade costs 20 Compute. It raises starter income to 36 per minute.',
   },
   {

@@ -6291,3 +6291,82 @@ a {
     scroll-behavior: auto;
   }
 }
+
+.play-guide-page,
+.play-guide-layout aside,
+.guide-table-wrap {
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: #51717a #0b202a;
+}
+
+.modal-heading:focus {
+  outline: none;
+}
+.menu-more {
+  margin-top: 18px;
+  border-top: 1px solid #82a8b137;
+  border-bottom: 1px solid #82a8b137;
+}
+.menu-more-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 17px 2px;
+  color: #bdd3d5;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.menu-more-trigger[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.menu-more .pause-options {
+  margin: 0 0 18px;
+}
+.menu-settings > button:last-child {
+  grid-column: 1 / -1;
+}
+.exchange-error {
+  color: #f1b998;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 10px 0 0;
+}
+.exchange-error:empty {
+  display: none;
+}
+@media (max-width: 600px) {
+  .exchange-heading {
+    margin-bottom: 20px;
+  }
+  .exchange-heading h2 {
+    font-size: 1.2rem;
+  }
+  .exchange-from,
+  .exchange-to {
+    padding: 16px;
+  }
+  .exchange-from label,
+  .exchange-to > span {
+    margin-bottom: 8px;
+  }
+  .exchange-from small {
+    margin-top: 10px;
+  }
+  .exchange-from input {
+    font-size: 1.65rem;
+  }
+  .exchange-to strong {
+    font-size: 1.5rem;
+  }
+  .exchange-wallet {
+    margin: 16px 0;
+  }
+  .exchange-review {
+    padding: 14px;
+    margin-top: 14px;
+  }
+}
