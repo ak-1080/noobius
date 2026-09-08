@@ -21,6 +21,9 @@ export type ZoneId =
 export type SkillId = 'salvaging' | 'engineering' | 'operations';
 export type Bag = Partial<Record<ItemId, number>>;
 export type Facility = {
+  economyVersion?: number;
+  accessory?: string;
+  visiting?: boolean;
   version: number;
   zone: ZoneId;
   inventory: Bag;
@@ -687,6 +690,8 @@ export const DAILY_TASKS = [
 ];
 export function newFacility(now = Date.now()): Facility {
   return {
+    economyVersion: 2,
+    accessory: 'none',
     version: 0,
     zone: 'commons',
     inventory: {},
@@ -858,6 +863,7 @@ export function applyFacility(
   now = Date.now(),
 ): { facility: Facility; credits: number; xp: number; message: string } {
   const f = normalizeFacility(structuredClone(previous), now);
+  f.compute = credits;
   if (f.requests.includes(action.requestId))
     return { facility: f, credits: 0, xp: 0, message: 'Already recorded.' };
   if (!/^[a-zA-Z0-9-]{8,80}$/.test(action.requestId))
@@ -884,7 +890,7 @@ export function applyFacility(
   const spend = (cost: Bag, cr = 0) => {
     if (!canPay(f.inventory, cost))
       throw new FacilityError('You need more parts in your backpack.');
-    if (credits + delta < cr) throw new FacilityError('You need more credits.');
+    if (credits + delta < cr) throw new FacilityError('You need more Compute.');
     for (const [id, n] of Object.entries(cost)) add(id as ItemId, -n!);
     delta -= cr;
   };
@@ -1012,13 +1018,20 @@ export function applyFacility(
       break;
     }
     case 'compute-exchange': {
-      if (f.compute < 100)
-        throw new FacilityError('Earn 100 compute to try the demo exchange.');
-      f.compute -= 100;
-      f.demoNoobius += 10;
-      count('computeExchanged', 100);
-      message =
-        'Demo exchange: 100 compute → 10 demo $NOOBIUS. No tokens were sent.';
+      throw new FacilityError(
+        'Token trading is not open. Compute buys equipment and player-listed items.',
+      );
+    }
+    case 'accessory': {
+      const accessory = ACCESSORIES.find((a) => a.id === action.id);
+      if (!accessory)
+        throw new FacilityError('Choose an accessory from your locker.');
+      if (!f.owned.includes(accessory.id)) {
+        spend({}, accessory.price);
+        f.owned.push(accessory.id);
+      }
+      f.accessory = accessory.id;
+      message = 'Look saved. Your crew will see the new you.';
       break;
     }
     case 'travel': {
@@ -1152,7 +1165,7 @@ export function applyFacility(
       f.claims.push(c.id);
       delta += c.credits;
       xp = c.xp;
-      message = `+${c.credits} credits · +${c.xp} XP. Margo is briefly impressed.`;
+      message = `+${c.credits} Compute · +${c.xp} XP. Margo is briefly impressed.`;
       break;
     }
     case 'daily': {
@@ -1166,7 +1179,7 @@ export function applyFacility(
       f.dailyClaims.push(c.id);
       delta += c.cr;
       xp = 15;
-      message = `Daily job complete · +${c.cr} credits · +15 XP`;
+      message = `Daily job complete · +${c.cr} Compute · +15 XP`;
       break;
     }
     case 'daily-bonus': {
@@ -1186,7 +1199,7 @@ export function applyFacility(
       message =
         f.workdays === 3
           ? 'After-hours gold unlocked! Try it on at Patch’s.'
-          : `Day ${f.workdays} stamped! +25 credits. No streak to lose.`;
+          : `Day ${f.workdays} stamped! +25 Compute. No streak to lose.`;
       break;
     }
     case 'order': {
@@ -1201,7 +1214,7 @@ export function applyFacility(
       count('orders');
       f.skills.operations += 10;
       f.cooldowns['order-' + order.id] = now + 30000;
-      message = 'Delivery accepted. Credits received.';
+      message = 'Delivery accepted. Compute received.';
       break;
     }
     case 'bank': {
@@ -1282,6 +1295,8 @@ export function applyFacility(
     default:
       throw new FacilityError('Unknown facility action.');
   }
+  delta += f.compute - credits;
+  f.compute = credits + delta;
   f.requests = [...f.requests.slice(-99), action.requestId];
   f.version++;
   return { facility: f, credits: delta, xp, message };
@@ -1303,3 +1318,10 @@ export function repairLoot(
   f.version++;
   return f;
 }
+
+export const ACCESSORIES = [
+  { id: 'none', name: 'Just the headset', price: 0 },
+  { id: 'cap', name: 'Night-shift cap', price: 0 },
+  { id: 'pack', name: 'Repair backpack', price: 60 },
+  { id: 'beacon', name: 'Emergency beacon', price: 120 },
+] as const;

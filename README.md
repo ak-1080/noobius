@@ -1,3 +1,7 @@
+# Current multiplayer alpha
+
+See [the shared-campus release notes](docs/multiplayer-alpha.md) for current behavior and remaining public-release gates. Compute is now the single spendable currency; the older iteration notes below describe the preceding build.
+
 # Noobius — The Night Shift
 
 An original browser data-center game with a minimal cinematic title and fullscreen 3D campus. Seven connected departments support salvage, a backpack and locker, five crafting recipes, seven persistent racks with three levels each, power/cooling expansion, nine story projects, three daily jobs, five repeatable deliveries, three skills, and five outfits. Completing daily cards on three days earns the gold outfit; stamps never expire. The original three maintenance puzzles remain a repeatable subsystem that earns credits and supplies.

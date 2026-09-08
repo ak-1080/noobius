@@ -127,11 +127,11 @@ test('wallet authentication, isolation, persistence, concurrent rewards and purc
     s = retry.data.shift;
   }
   let current = await a.request('profile');
-  assert.equal(current.data.profile.credits, 100);
+  assert.equal(current.data.profile.credits, 145);
   assert.equal(current.data.profile.xp, 100);
   assert.equal(current.data.profile.shifts, 1);
   assert.equal(current.data.profile.facility.stats.repairs, 3);
-  assert.equal(current.data.profile.facility.compute, 45);
+  assert.equal(current.data.profile.facility.compute, 145);
   assert.deepEqual(current.data.profile.facility.bank, {
     coolant: 2,
     silicon: 2,
@@ -152,7 +152,7 @@ test('wallet authentication, isolation, persistence, concurrent rewards and purc
   ]);
   assert.equal(buys.filter((r) => r.status === 200).length, 1);
   current = await a.request('profile');
-  assert.equal(current.data.profile.credits, 0);
+  assert.equal(current.data.profile.credits, 45);
   assert.equal(current.data.profile.equipment.scanner, true);
   assert.equal(current.data.profile.equipment.visor, false);
   const next = await a.request('start', a.body());

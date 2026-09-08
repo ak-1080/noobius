@@ -91,7 +91,7 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   ],
   rewards: [
     'Rewards & the next stage.',
-    'Earn credits now. Real-value rewards have not launched.',
+    'Earn Compute now. Real-value rewards have not launched.',
   ],
 };
 type Props = {
@@ -391,7 +391,7 @@ export default function FacilityPanels({
           }
           onClick={() => action({ type: 'storage' })}
         >
-          Expand backpack +40 · 1 kit + {80 + f.storage * 60} credits
+          Expand backpack +40 · 1 kit + {80 + f.storage * 60} Compute
         </button>
       </div>
     );
@@ -515,7 +515,7 @@ export default function FacilityPanels({
           <Wrench size={20} />
           <span>
             <strong>Quick repair jobs</strong>
-            <small>Fix a system · +25 credits + spare parts</small>
+            <small>Fix a system · +40 Compute + spare parts</small>
           </span>
           <ArrowRight size={17} />
         </button>
@@ -561,7 +561,7 @@ export default function FacilityPanels({
                     <div className="quest-bottom">
                       <small>
                         {Math.min(value, c.target)}/{c.target} · +{c.credits}{' '}
-                        credits / {c.xp} XP
+                        Compute / {c.xp} XP
                       </small>
                       <button
                         disabled={busy || done || locked}
@@ -604,7 +604,7 @@ export default function FacilityPanels({
                 <strong>{c.name}</strong>
                 <small>
                   {Math.min(daily[c.stat] ?? 0, c.target)}/{c.target} · {c.cr}{' '}
-                  credits + 15 XP
+                  Compute + 15 XP
                 </small>
               </div>
               <Button
@@ -662,7 +662,7 @@ export default function FacilityPanels({
             >
               {f.lastWorkday === dayKey(now)
                 ? 'Today is stamped ✓'
-                : 'Stamp my card · +25 credits'}
+                : 'Stamp my card · +25 Compute'}
             </Button>
             <small>
               {f.workdays} completed day{f.workdays === 1 ? '' : 's'} · Game
@@ -672,7 +672,7 @@ export default function FacilityPanels({
         </TabsContent>
         <TabsContent value="orders">
           <p className="muted-small">
-            Help the crew with spare parts. Deliveries pay credits and can be
+            Help the crew with spare parts. Deliveries pay Compute and can be
             repeated.
           </p>
           {ORDERS.map((o) => (
@@ -688,7 +688,7 @@ export default function FacilityPanels({
                 </button>
               )}
               <div className="recipe-bottom">
-                <small>+{o.reward} credits · +10 XP</small>
+                <small>+{o.reward} Compute · +10 XP</small>
                 <Button
                   disabled={
                     busy ||
@@ -743,7 +743,7 @@ export default function FacilityPanels({
         </div>
         <p className="muted-small">
           {firstRack
-            ? 'Your kit + 4 copper + 15 credits bring this rack online. It stays built between shifts. Racks generate compute. Credits and rack levels unlock new departments.'
+            ? 'Your kit + 4 copper + 15 Compute bring this rack online. It stays built between shifts. Racks generate compute. Compute and rack levels unlock new departments.'
             : 'Each rack has 3 upgrade levels. A level uses 2 power and 1 cooling. Need more room? Add a power cell or cooling pump below.'}
         </p>
         {!firstRack && (
@@ -766,7 +766,7 @@ export default function FacilityPanels({
                   onClick={() => action({ type: 'utility', id: type })}
                 >
                   1 {type === 'power' ? 'cell' : 'pump'} + {40 + f[type] * 20}{' '}
-                  credits
+                  Compute
                 </Button>
               </div>
             ))}
@@ -893,7 +893,7 @@ export default function FacilityPanels({
         </TabsContent>
         <TabsContent value="players">
           <p className="muted-small">
-            Player-to-player trades use game credits. Listings hold the seller’s
+            Player-to-player trades use game Compute. Listings hold the seller’s
             items until sold or cancelled. No tokens or money change hands.
           </p>
           {profile.wallet === 'practice' && (
@@ -909,7 +909,7 @@ export default function FacilityPanels({
                     {l.quantity} × {ITEMS[l.item as ItemId]?.name ?? l.item}
                   </strong>
                   <small>
-                    Listed by {l.name} · {l.price} credits total
+                    Listed by {l.name} · {l.price} Compute total
                   </small>
                 </div>
                 <Button
@@ -965,7 +965,7 @@ export default function FacilityPanels({
               />
             </label>
             <label>
-              Total asking price in credits
+              Total asking price in Compute
               <input
                 type="number"
                 min={1}
@@ -995,7 +995,7 @@ export default function FacilityPanels({
             </Button>
             <p className="muted-small">
               Up to 10 open listings. Cancelled items return to your locker.
-              Sales transfer existing credits between players.
+              Sales transfer existing Compute between players.
             </p>
           </div>
         </TabsContent>
@@ -1167,7 +1167,7 @@ export default function FacilityPanels({
       </span>
       <div className="facility-summary">
         <span>
-          <strong>{profile.credits}</strong> credits
+          <strong>{profile.credits}</strong> Compute
         </span>
         <span>
           <strong>{f.claims.length}</strong> story contracts
@@ -1177,12 +1177,12 @@ export default function FacilityPanels({
         </span>
       </div>
       <p>
-        Repairs, contracts, and deliveries earn credits. Use them to build your
+        Repairs, contracts, and deliveries earn Compute. Use them to build your
         facility, buy useful parts, and trade with other players.
       </p>
       <p>
         Noobius is intended to grow into P2E. The payout asset, funding pool,
-        eligibility, and redemption rules are still undecided. Today’s credits
+        eligibility, and redemption rules are still undecided. Today’s Compute
         and capacity are not tokens, real compute, stock exposure, or a claim on
         future rewards.
       </p>

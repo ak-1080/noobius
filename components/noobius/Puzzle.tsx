@@ -110,7 +110,7 @@ export default function Puzzle({
         </p>
         {solved && (
           <div className="earned-reward">
-            +25 credits <span>+20 XP</span>
+            +40 Compute <span>+20 XP</span>
           </div>
         )}
         <Button className="primary-action" onClick={onClose}>

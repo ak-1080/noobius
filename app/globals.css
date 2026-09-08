@@ -3567,3 +3567,141 @@ a {
     transition: none;
   }
 }
+
+/* Personal facilities and the shared campus use the same compact game controls. */
+.tycoon-panel {
+  display: grid;
+  gap: 16px;
+  padding-top: 18px;
+}
+.tycoon-panel h3 {
+  font-size: 18px;
+  margin: 8px 0 0;
+}
+.tycoon-panel p {
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+  color: #b3c8cc;
+}
+.tycoon-note {
+  font-size: 14px !important;
+  color: #9db5bb !important;
+}
+.tycoon-balance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c1ef8a !important;
+}
+.tycoon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.tycoon-grid > button {
+  border: 1px solid #38515a;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  background: #132b34;
+  min-height: 94px;
+}
+.tycoon-grid > button:hover:not(:disabled) {
+  border-color: #b6e888;
+  background: #203b3b;
+}
+.tycoon-grid > button:disabled {
+  opacity: 0.65;
+}
+.tycoon-grid small {
+  font-size: 14px;
+  color: #bdd4c1;
+}
+.shirt-swatch {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #17323c;
+}
+.locker-identity {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.locker-identity img {
+  width: 110px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 20px;
+}
+.locker-identity form {
+  display: grid;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+}
+.locker-identity input {
+  border: 1px solid #3d5c65;
+  border-radius: 9px;
+  padding: 11px;
+  background: #0b2028;
+  width: 100%;
+  font-size: 16px;
+}
+.world-destination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  padding: 18px;
+  background: #152d36;
+  border: 1px solid #38505b;
+  border-radius: 14px;
+}
+.world-destination span {
+  flex: 1;
+  display: grid;
+  gap: 5px;
+}
+.world-destination small {
+  font-size: 14px;
+  color: #b0c4c7;
+}
+.world-destination:disabled {
+  opacity: 0.5;
+}
+.crew-job-banner {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  border-radius: 14px;
+  background: #29433c;
+  padding: 18px;
+  color: #d7f6b0;
+}
+.crew-station {
+  border: 1px solid #37515b;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.crew-station strong {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.crew-station > div {
+  display: flex;
+  gap: 10px;
+}
+.tycoon-panel button:focus-visible {
+  outline: 2px solid #c1ef8a;
+  outline-offset: 3px;
+}

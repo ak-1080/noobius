@@ -230,24 +230,6 @@ export function ComputeDesk({
             : `Upgrade · ${80 * (f.computeBoost + 1)} compute`}
         </Button>
       </section>
-      <details className="compute-card compute-exchange">
-        <summary>
-          Compute → $NOOBIUS <span>DEMO</span>
-        </summary>
-        <p>
-          Try the exchange flow: 100 compute → 10 demo $NOOBIUS. This preview
-          spends game compute and credits a demo balance. No real tokens,
-          withdrawals, or future payout rights.
-        </p>
-        <strong>{f.demoNoobius} demo $NOOBIUS</strong>
-        <Button
-          className="primary-action"
-          disabled={busy || f.compute < 100}
-          onClick={() => void onAction({ type: 'compute-exchange' })}
-        >
-          Exchange 100 compute · demo
-        </Button>
-      </details>
     </div>
   );
 }

@@ -1,4 +1,12 @@
 'use client';
+import { LockerPanel, WorldPanel, CrewJobPanel } from './TycoonPanels';
+import {
+  publicCampus,
+  ownRoom,
+  EMERGENCY_STATIONS,
+  type SharedWorld,
+  type WorldVisit,
+} from '@/lib/multiplayer';
 import ContractAddress from './ContractAddress';
 import { BriefingCard, ComputeDesk, OutageRepair } from './ExperiencePanels';
 import { nextBriefing, shiftObjective } from '@/lib/experience';
@@ -66,6 +74,9 @@ import {
 const ICONS = { cooling: Fan, boot: Cpu, network: Cable };
 type Panel =
   | ExpansionPanel
+  | 'world'
+  | 'appearance'
+  | 'crewjob'
   | 'menu'
   | 'jobs'
   | 'wallet'
@@ -120,7 +131,67 @@ export default function NoobiusGame() {
     } | null>(null);
   const currentPosition = useRef(position);
   currentPosition.current = position;
-  const facility = profile?.facility ?? newFacility();
+  const facility = {
+    ...(profile?.facility ?? newFacility()),
+    compute: profile?.credits ?? 0,
+  };
+  const [room, setRoom] = useState('home');
+  const [visit, setVisit] = useState<WorldVisit | null>(null);
+  const [shared, setShared] = useState<SharedWorld | null>(null);
+  const [connection, setConnection] = useState('Connecting');
+  const inCampus = room.startsWith('campus-');
+  const roomId =
+    room === 'home' ? ownRoom(profile?.wallet ?? 'practice') : room;
+  const campusFacility = publicCampus();
+  for (const w of shared?.work ?? [])
+    if (w.completedAt && w.station !== 'network')
+      campusFacility.builds[w.station === 'power' ? 'rack-a' : 'rack-b'] = 3;
+  const viewFacility = visit
+    ? {
+        ...visit.facility,
+        outfit: facility.outfit,
+        accessory: facility.accessory,
+      }
+    : inCampus
+      ? {
+          ...campusFacility,
+          outfit: facility.outfit,
+          accessory: facility.accessory,
+        }
+      : facility;
+  useEffect(() => {
+    setRoom('home');
+    setVisit(null);
+    setPeople([]);
+  }, [profile?.wallet]);
+  const goWorld = (next: string) => {
+    setRoom(next);
+    setVisit(null);
+    setPeople([]);
+    setShared(null);
+    setPosition({ x: 0, z: 17 });
+    setPanel(null);
+    setGuideCommand(null);
+    pendingStep.current = null;
+  };
+  const visitFacility = async (owner: string) => {
+    try {
+      const d = await api<WorldVisit>(
+        'visit?owner=' + encodeURIComponent(owner),
+      );
+      setVisit(d);
+      setRoom('home-' + owner);
+      setPeople([]);
+      setPosition({ x: 0, z: 17 });
+      setPanel(null);
+      setGuideCommand(null);
+      pendingStep.current = null;
+    } catch (e) {
+      game.setError(
+        e instanceof Error ? e.message : 'Could not enter this facility.',
+      );
+    }
+  };
   const [panel, setPanel] = useState<Panel>(null),
     [activeJob, setActiveJob] = useState<JobType | null>(null),
     [name, setName] = useState(''),
@@ -161,31 +232,52 @@ export default function NoobiusGame() {
     return () => clearTimeout(t);
   }, [game.notice]);
   useEffect(() => {
-    if (!playing) return;
-    let alive = true;
+    if (!playing || !profile || profile.wallet === 'practice') {
+      setConnection('Solo practice');
+      return;
+    }
+    let alive = true,
+      pending = false;
     const refresh = async () => {
+      if (pending || document.hidden) return;
+      pending = true;
       try {
-        if (profile?.wallet && profile.wallet !== 'practice')
-          await api('presence', {
-            ...currentPosition.current,
-            expectedWallet: profile.wallet,
-          });
-        const d = await api<{ people: CrewPerson[] }>('campus');
-        if (alive)
+        await api('presence', {
+          ...currentPosition.current,
+          room: roomId,
+          expectedWallet: profile.wallet,
+        });
+        const d = await api<{ people: CrewPerson[]; world: SharedWorld }>(
+          'campus?room=' + encodeURIComponent(roomId),
+        );
+        if (alive) {
           setPeople(
-            d.people.filter((p) => p.id !== profile?.wallet.slice(2, 18)),
+            d.people.filter((p) => p.id !== profile.wallet.slice(2, 18)),
           );
-      } catch {
-        /* Presence never replaces or blocks saved progress. */
+          setShared(d.world);
+          setConnection('Connected');
+        }
+      } catch (e) {
+        if (alive) {
+          setConnection('Reconnecting…');
+          setPeople([]);
+          if (e instanceof Error && e.message.includes('room is full')) {
+            setRoom('home');
+            setVisit(null);
+            game.setError(e.message);
+          }
+        }
+      } finally {
+        pending = false;
       }
     };
     void refresh();
-    const t = setInterval(refresh, 5000);
+    const timer = setInterval(refresh, 1500);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
-  }, [playing, profile?.wallet]);
+  }, [playing, profile?.wallet, roomId]);
   useEffect(() => {
     if (!playing) return;
     const shortcut = (e: KeyboardEvent) => {
@@ -225,6 +317,7 @@ export default function NoobiusGame() {
   useEffect(() => {
     if (
       playing &&
+      room === 'home' &&
       briefing &&
       briefing.id !== 'welcome' &&
       !panel &&
@@ -334,7 +427,7 @@ export default function NoobiusGame() {
           facility.workdays === 2
             ? 'After-hours gold unlocked!'
             : 'Daily card complete!',
-        detail: '+25 credits · +25 XP · Your stamp is permanent.',
+        detail: '+25 Compute · +25 XP · Your stamp is permanent.',
       });
     if (
       action.type === 'compute-collect' ||
@@ -389,6 +482,22 @@ export default function NoobiusGame() {
     else if (step.panel) show(step.panel as Panel);
   };
   const interact = (object: WorldObject) => {
+    if (visit) {
+      game.setNotice(
+        `${visit.name}’s facility. Equipment can only be changed by its owner.`,
+      );
+      return;
+    }
+    if (inCampus) {
+      show(
+        EMERGENCY_STATIONS.some((s) => s.object === object.id)
+          ? 'crewjob'
+          : object.id === 'bank'
+            ? 'appearance'
+            : 'world',
+      );
+      return;
+    }
     setSelectedObject(object);
     if (pendingStep.current?.target === object.id) {
       const step = pendingStep.current;
@@ -565,8 +674,10 @@ export default function NoobiusGame() {
       ) : (
         <main className="play-world" aria-label="The Noobius night shift">
           <Campus
-            key={profile?.wallet}
-            facility={facility}
+            key={`${profile?.wallet}:${room}`}
+            facility={viewFacility}
+            playerName={profile?.name}
+            sharedCampus={inCampus}
             paused={!!panel || !!activeJob || busy}
             people={people}
             onInteract={interact}
@@ -574,7 +685,7 @@ export default function NoobiusGame() {
             zoomCommand={zoomCommand}
             travelCommand={travelCommand}
             guideCommand={guideCommand}
-            objectiveId={objective.target}
+            objectiveId={room === 'home' ? objective.target : undefined}
             workEvent={workEvent}
             onUnavailable={() => setWorldUnavailable(true)}
             onCancelGuide={() => {
@@ -589,27 +700,51 @@ export default function NoobiusGame() {
             <Menu size={21} />
           </button>
           <div className="campus-location">
-            <strong>{currentZone.name}</strong>
+            <strong>
+              {visit
+                ? `${visit.name}’s data center`
+                : inCampus
+                  ? `Shared campus ${room.slice(-1)}`
+                  : 'Your data center'}
+            </strong>
             <span>
               {mode === 'practice'
                 ? 'Practice · temporary progress'
-                : 'Wallet progress saved'}
+                : `${connection} · ${people.length + 1} here`}
             </span>
           </div>
           <div
             className="shift-hud"
-            aria-label={`${facility.compute} compute. ${profile?.credits ?? 0} credits.`}
+            aria-label={`${profile?.credits ?? 0} Compute`}
           >
             <span>
               <Cpu size={15} />
-              {facility.compute} compute
-            </span>
-            <span>
-              <Coins size={14} />
-              {profile?.credits ?? 0} credits
+              {profile?.credits ?? 0} Compute
             </span>
           </div>
-          {
+          {room !== 'home' && (
+            <button
+              className="objective-hud"
+              onClick={() => show(inCampus ? 'crewjob' : 'world')}
+            >
+              <span>{inCampus ? 'SHARED JOB' : 'VISITING'}</span>
+              <strong>
+                {inCampus
+                  ? 'Bring the cluster back online'
+                  : `${visit?.name}’s facility`}
+              </strong>
+              <small>
+                {inCampus
+                  ? 'Restore three stations with your crew.'
+                  : 'Look around. Your own equipment is safe at home.'}
+              </small>
+              <span className="objective-action">
+                {inCampus ? 'Join the repair' : 'Return home'}{' '}
+                <ArrowRight size={15} />
+              </span>
+            </button>
+          )}
+          {room === 'home' && (
             <button
               className="objective-hud"
               onClick={followObjective}
@@ -627,8 +762,8 @@ export default function NoobiusGame() {
                 <i style={{ width: `${objective.progress}%` }} />
               </i>
             </button>
-          }
-          {!earlyShift && (
+          )}
+          {room === 'home' && !earlyShift && (
             <button
               className="daily-hud"
               onClick={() => {
@@ -643,7 +778,7 @@ export default function NoobiusGame() {
               </span>
             </button>
           )}
-          {modules(facility) > 0 && (
+          {room === 'home' && modules(facility) > 0 && (
             <button
               className={`compute-hud ${incident ? 'has-outage' : ''}`}
               onClick={() => show(incident ? 'outage' : 'compute')}
@@ -670,17 +805,26 @@ export default function NoobiusGame() {
           )}
           <div className="campus-hotbar" aria-label="Campus tools">
             {[
-              { id: 'map', name: 'Map', Icon: Map },
+              { id: 'world', name: 'Travel', Icon: Map },
               { id: 'inventory', name: 'Backpack', Icon: Backpack },
-              { id: 'contracts', name: 'Jobs', Icon: BriefcaseBusiness },
-              { id: 'compute', name: 'Compute', Icon: Cpu },
+              {
+                id: inCampus ? 'crewjob' : 'contracts',
+                name: 'Jobs',
+                Icon: BriefcaseBusiness,
+              },
+              { id: 'appearance', name: 'Locker', Icon: Headphones },
               { id: 'social', name: 'Crew', Icon: MessageCircle },
-            ].map(({ id, name, Icon }) => (
-              <button key={id} onClick={() => show(id as Panel)}>
-                <Icon size={19} />
-                <span>{name}</span>
-              </button>
-            ))}
+            ]
+              .filter(
+                ({ id }) =>
+                  !visit || ['world', 'appearance', 'social'].includes(id),
+              )
+              .map(({ id, name, Icon }) => (
+                <button key={id} onClick={() => show(id as Panel)}>
+                  <Icon size={19} />
+                  <span>{name}</span>
+                </button>
+              ))}
           </div>
           <div className="campus-zoom">
             <button
@@ -745,6 +889,9 @@ export default function NoobiusGame() {
                   ...Object.fromEntries(
                     Object.entries(PANEL_COPY).map(([k, v]) => [k, v[0]]),
                   ),
+                  world: 'Your world.',
+                  appearance: 'Your locker.',
+                  crewjob: 'Crew emergency.',
                   menu: 'On the night shift.',
                   jobs: 'Your repair jobs.',
                   wallet: 'Clock in.',
@@ -772,11 +919,14 @@ export default function NoobiusGame() {
                   ...Object.fromEntries(
                     Object.entries(PANEL_COPY).map(([k, v]) => [k, v[1]]),
                   ),
+                  world: 'Grow your own facility. Meet the crew next door.',
+                  appearance: 'Same noob. Your style.',
+                  crewjob: 'Three stations. One cluster. Work together.',
                   menu:
                     mode === 'practice'
                       ? 'Practice shift · Progress lasts until reload.'
                       : 'Your progress is saved to your wallet.',
-                  jobs: 'Fix a system, earn credits, then put those credits into your campus.',
+                  jobs: 'Fix a system, earn Compute, then improve your data center.',
                   wallet:
                     'Connect your wallet to save your progress. No purchase or transaction required.',
                   badge: 'What should we put on your badge?',
@@ -798,6 +948,51 @@ export default function NoobiusGame() {
               )[panel ?? '']
             }
           </DialogDescription>
+          {panel === 'world' && (
+            <WorldPanel
+              room={room}
+              practice={mode === 'practice'}
+              onGo={goWorld}
+              onVisit={(id) => void visitFacility(id)}
+            />
+          )}
+          {panel === 'appearance' && (
+            <LockerPanel
+              facility={facility}
+              name={profile?.name ?? 'Noobius'}
+              balance={profile?.credits ?? 0}
+              busy={busy}
+              onName={game.rename}
+              onWear={(type, id) => void game.facilityAction({ type, id })}
+            />
+          )}
+          {panel === 'crewjob' && (
+            <CrewJobPanel
+              world={shared}
+              now={now}
+              busy={busy}
+              onWalk={(id) => {
+                setPanel(null);
+                setGuideCommand({ id, revision: Date.now() });
+              }}
+              onWork={(station, finish) => {
+                if (shared)
+                  void game.marketAction('crew-work', {
+                    room,
+                    event: shared.event,
+                    station,
+                    finish,
+                  });
+              }}
+              onClaim={() => {
+                if (shared)
+                  void game.marketAction('crew-claim', {
+                    room,
+                    event: shared.event,
+                  });
+              }}
+            />
+          )}
           {panel === 'briefing' && briefing && (
             <BriefingCard
               briefing={briefing}
@@ -885,7 +1080,7 @@ export default function NoobiusGame() {
                   <strong>{profile?.name}</strong>
                   <span>
                     {titleFor(profile?.xp ?? 0)} · {profile?.credits ?? 0}{' '}
-                    credits
+                    Compute
                   </span>
                 </div>
               </div>
@@ -956,9 +1151,9 @@ export default function NoobiusGame() {
           {panel === 'jobs' && shift && (
             <>
               <p className="muted-small">
-                Each repair pays 25 credits, 15 compute, and sends 2 spare parts
-                to your locker. Fix all three for a 25-credit bonus. Your built
-                racks stay online.
+                Each repair pays 40 Compute, and sends 2 spare parts to your
+                locker. Fix all three for a 25-credit bonus. Your built racks
+                stay online.
               </p>
               {shift?.completedAt && (
                 <Button
@@ -1105,7 +1300,7 @@ export default function NoobiusGame() {
               />
               <div className="profile-numbers">
                 <span>
-                  <strong>{profile.credits}</strong>credits
+                  <strong>{profile.credits}</strong>Compute
                 </span>
                 <span>
                   <strong>{profile.xp}</strong>XP
@@ -1162,7 +1357,7 @@ export default function NoobiusGame() {
             <Tabs defaultValue="play">
               <TabsList className="guide-tabs">
                 <TabsTrigger value="play">How to play</TabsTrigger>
-                <TabsTrigger value="credits">Credits & ranks</TabsTrigger>
+                <TabsTrigger value="credits">Compute & ranks</TabsTrigger>
               </TabsList>
               <TabsContent value="play">
                 <div className="guide-copy">
@@ -1178,7 +1373,7 @@ export default function NoobiusGame() {
                     </li>
                     <li>
                       <strong>Earn and expand.</strong> Open Jobs for quick
-                      repairs. Each fix pays 25 credits and spare parts. Use
+                      repairs. Each fix pays 40 Compute and spare parts. Use
                       them to build more rack levels and open new departments.
                     </li>
                     <li>
@@ -1200,13 +1395,13 @@ export default function NoobiusGame() {
               <TabsContent value="credits">
                 <div className="guide-copy">
                   <p>
-                    Each repair earns{' '}
-                    <strong>25 credits + 15 compute + 20 XP</strong>. Repair all
-                    three for an extra <strong>25 credits + 40 XP</strong>: 100
-                    credits and 100 XP per full shift.
+                    Each repair earns <strong>40 Compute + 20 XP</strong>.
+                    Repair all three for an extra{' '}
+                    <strong>25 Compute + 40 XP</strong>: 145 Compute and 100 XP
+                    per full shift.
                   </p>
                   <p>
-                    Spend credits on parts, rack modules, department access,
+                    Spend Compute on parts, rack modules, department access,
                     tools, and outfits. Locker equipment takes effect on your
                     next maintenance shift.
                   </p>
@@ -1214,7 +1409,8 @@ export default function NoobiusGame() {
                     Built racks generate stored compute every 15 seconds. Open
                     Compute to collect it, run bonus batches, or reinvest in
                     efficiency. If a rack goes red, follow Patch’s repair steps
-                    for bonus compute. The token exchange is a demo.
+                    for bonus compute. Use Travel to join crew emergencies or
+                    visit a facility.
                   </p>
                   <div className="rank-list">
                     {[0, 100, 300, 600].map((xp) => (
@@ -1232,7 +1428,7 @@ export default function NoobiusGame() {
                   <p>
                     Practice progress lasts until you reload. It does not
                     transfer into a wallet account or the leaderboard. Game
-                    credits buy in-game goods, including other players’ listed
+                    Compute buys in-game goods, including other players’ listed
                     parts. They have no cash value and cannot be redeemed for
                     tokens or stocks.
                   </p>
@@ -1252,13 +1448,13 @@ export default function NoobiusGame() {
             <div className="token-panel">
               <span className="not-launched">NOT LAUNCHED</span>
               <p>
-                Noobius is being built toward P2E, with a separate reward pool
-                planned for a later release. $NOOBIUS is planned as the
+                Noobius is being built toward P2E, with a player marketplace
+                intended for a later release. $NOOBIUS is planned as the
                 community token around the character and game.
               </p>
               <p>
                 There is no official contract address, token sale, or redemption
-                program in this release. Game credits buy equipment inside the
+                program in this release. Game Compute buys equipment inside the
                 game; they are not $NOOBIUS and do not represent NBIS shares.
               </p>
               <div className="token-note">
@@ -1334,7 +1530,7 @@ export default function NoobiusGame() {
             <div className="locker">
               <div className="locker-balance">
                 <Coins size={19} />
-                <strong>{profile?.credits ?? 0}</strong> credits
+                <strong>{profile?.credits ?? 0}</strong> Compute
               </div>
               {UPGRADES.map((u) => {
                 const owned = !!profile?.equipment[u.id];
@@ -1366,7 +1562,7 @@ export default function NoobiusGame() {
                           </>
                         ) : (
                           <>
-                            {u.price} credits <ChevronRight size={15} />
+                            {u.price} Compute <ChevronRight size={15} />
                           </>
                         )}
                       </Button>
@@ -1375,7 +1571,7 @@ export default function NoobiusGame() {
                 );
               })}
               <p className="muted-small">
-                Equipment takes effect on your next shift. Credits are earned
+                Equipment takes effect on your next shift. Compute is earned
                 in-game and have no cash value.
               </p>
             </div>
@@ -1391,7 +1587,7 @@ export default function NoobiusGame() {
               </div>
               <div className="report-rewards">
                 <span>
-                  <strong>+{shift.credits}</strong>credits
+                  <strong>+{shift.credits + repaired * 15}</strong>Compute
                 </span>
                 <span>
                   <strong>+{shift.xp}</strong>XP

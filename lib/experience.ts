@@ -33,7 +33,7 @@ export const BRIEFINGS = [
     role: 'Parts collector',
     title: 'That junk is your first upgrade.',
     text: 'Scrap and copper go in your backpack. Make them into a kit at the workbench. Collect your job reward whenever Margo has one ready.',
-    tip: 'Parts build things. Credits buy things. Built racks generate compute.',
+    tip: 'Parts build equipment. Compute pays for upgrades. Your racks produce more Compute.',
     cta: 'Keep building',
   },
   {
@@ -41,7 +41,7 @@ export const BRIEFINGS = [
     who: 'Patch',
     role: 'Campus mechanic',
     title: 'One kit. One step closer.',
-    text: 'Your repair kit is ready. Add copper and a few credits, and you can bring your first rack online.',
+    text: 'Your repair kit is ready. Add copper and a few Compute, and you can bring your first rack online.',
     tip: 'Missing something? Follow the job card. It finds the parts, locker items, or repair income you need.',
     cta: 'Build my first rack',
   },
@@ -59,8 +59,8 @@ export const BRIEFINGS = [
     who: 'Margo',
     role: 'Compute earned',
     title: 'That’s your first compute payout.',
-    text: 'Reinvest compute in efficiency, expand your campus with parts and credits, or try the demo token exchange.',
-    tip: 'The exchange is a preview: 100 compute becomes 10 demo $NOOBIUS. It does not send real tokens.',
+    text: 'Reinvest compute in efficiency, expand your facility with parts and Compute, and trade with other players.',
+    tip: 'Open Travel to meet other players. Open Locker to name your Noobius and choose a look.',
     cta: 'Keep the campus growing',
   },
   {

@@ -71,14 +71,22 @@ export const rateLimits = sqliteTable('rate_limits', {
   resetsAt: integer('resets_at').notNull(),
 });
 
-export const presence = sqliteTable('crew_presence', {
-  wallet: text('wallet')
-    .primaryKey()
-    .references(() => players.wallet),
-  x: integer('x').notNull(),
-  z: integer('z').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-});
+export const presence = sqliteTable(
+  'crew_presence',
+  {
+    room: text('room').notNull().default('campus-1'),
+    wallet: text('wallet')
+      .primaryKey()
+      .references(() => players.wallet),
+    x: integer('x').notNull(),
+    z: integer('z').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_presence_room_time').on(t.room, t.updatedAt),
+    index('idx_presence_time').on(t.updatedAt),
+  ],
+);
 export const messages = sqliteTable(
   'crew_messages',
   {
@@ -107,3 +115,22 @@ export const listings = sqliteTable(
   },
   (t) => [index('idx_listings_status_time').on(t.status, t.createdAt)],
 );
+
+export const campusWork = sqliteTable(
+  'campus_work',
+  {
+    id: text('id').primaryKey(),
+    room: text('room').notNull(),
+    event: integer('event').notNull(),
+    station: text('station').notNull(),
+    wallet: text('wallet').notNull(),
+    startedAt: integer('started_at').notNull(),
+    completedAt: integer('completed_at'),
+  },
+  (t) => [index('idx_campus_work_room_event').on(t.room, t.event)],
+);
+export const campusRewards = sqliteTable('campus_rewards', {
+  id: text('id').primaryKey(),
+  wallet: text('wallet').notNull(),
+  createdAt: integer('created_at').notNull(),
+});

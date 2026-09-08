@@ -461,7 +461,14 @@ export function useNoobius() {
           p
             ? {
                 ...p,
-                credits: p.credits + next.shift.credits - s.credits,
+                credits:
+                  p.credits +
+                  next.shift.credits -
+                  s.credits +
+                  (correct &&
+                  s.jobs.find((j) => j.id === job)?.status !== 'repaired'
+                    ? 15
+                    : 0),
                 xp: p.xp + next.shift.xp - s.xp,
                 shifts:
                   p.shifts + (!s.completedAt && next.shift.completedAt ? 1 : 0),
@@ -532,6 +539,14 @@ export function useNoobius() {
     });
   const rename = async (name: string) =>
     run(async () => {
+      if (!/^[A-Za-z0-9 _-]{2,20}$/.test(name.trim()))
+        throw new Error(
+          'Use 2–20 letters, numbers, spaces, dashes, or underscores.',
+        );
+      if (state.current.profile?.wallet === 'practice') {
+        setProfile((p) => (p ? { ...p, name: name.trim() } : p));
+        return true;
+      }
       apply(
         await api('name', {
           name,
@@ -586,7 +601,7 @@ export function useNoobius() {
       });
       apply(data);
       pending.current = null;
-      setNotice('Trade recorded.');
+      setNotice(data.message ?? 'Saved.');
       return true;
     });
   return {

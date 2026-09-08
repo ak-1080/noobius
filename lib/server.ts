@@ -1,3 +1,4 @@
+import { EMERGENCY_STATIONS, eventAt, validRoom } from './multiplayer';
 import { env } from 'cloudflare:workers';
 import { getAddress, isAddress, verifyMessage } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
@@ -117,6 +118,12 @@ async function rate(
       db().prepare('DELETE FROM rate_limits WHERE resets_at < ?').bind(now),
       db().prepare('DELETE FROM challenges WHERE expires_at < ?').bind(now),
       db().prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
+      db()
+        .prepare('DELETE FROM campus_work WHERE event < ?')
+        .bind(eventAt(now) - 144),
+      db()
+        .prepare('DELETE FROM campus_rewards WHERE created_at < ?')
+        .bind(now - 86400000),
     ]);
 }
 type PlayerRow = {
@@ -150,6 +157,23 @@ async function player(wallet: string): Promise<Profile> {
       .bind(wallet)
       .first<PlayerRow>())!;
   }
+  const saved = JSON.parse(p.facility_state!);
+  if (saved.economyVersion !== 2) {
+    const migrated = { ...saved, economyVersion: 2, compute: 0 };
+    await db()
+      .prepare(
+        'UPDATE players SET credits=credits+?,facility_state=?,facility_version=facility_version+1 WHERE wallet=? AND facility_version=? AND facility_state=?',
+      )
+      .bind(
+        Math.max(0, Number(saved.compute) || 0),
+        JSON.stringify(migrated),
+        wallet,
+        p.facility_version,
+        p.facility_state,
+      )
+      .run();
+    return player(wallet);
+  }
   return {
     wallet: p.wallet,
     name: p.name,
@@ -161,6 +185,7 @@ async function player(wallet: string): Promise<Profile> {
     facility: normalizeFacility({
       ...JSON.parse(p.facility_state!),
       version: p.facility_version,
+      compute: p.credits,
     }),
   };
 }
@@ -203,7 +228,15 @@ async function responseFor(wallet: string, shift?: Shift | null) {
 }
 async function saveRun(wallet: string, previous: Shift, next: Shift) {
   const mutation = token(),
-    deltaCredits = next.credits - previous.credits,
+    deltaCredits =
+      next.credits -
+      previous.credits +
+      15 *
+        next.jobs.filter(
+          (j) =>
+            j.status === 'repaired' &&
+            previous.jobs.find((p) => p.id === j.id)?.status !== 'repaired',
+        ).length,
     deltaXp = next.xp - previous.xp,
     finished = !previous.completedAt && !!next.completedAt;
   const repaired = next.jobs.filter(
@@ -253,7 +286,14 @@ async function saveRun(wallet: string, previous: Shift, next: Shift) {
 }
 export async function handleGame(request: Request, action: string) {
   if (request.method === 'GET') {
-    await rate(request, 'reads', 1200);
+    await rate(
+      request,
+      'reads',
+      1200,
+      action === 'campus'
+        ? ((await identity(request)) ?? undefined)
+        : undefined,
+    );
     if (action === 'leaderboard') {
       const rows = await db()
         .prepare(
@@ -263,22 +303,95 @@ export async function handleGame(request: Request, action: string) {
       return result({ entries: rows.results });
     }
     if (action === 'campus') {
+      const wallet = await identity(request);
+      const room = new URL(request.url).searchParams.get('room') ?? 'campus-1';
+      if (!validRoom(room))
+        throw new ApiError(400, 'Choose a campus or a facility.');
       const people = await db()
         .prepare(
-          'SELECT substr(p.wallet,3,16) AS id,p.name,c.x,c.z,p.facility_state FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.updated_at>? LIMIT 30',
+          'SELECT substr(p.wallet,3,16) AS id,p.name,c.x,c.z,p.facility_state FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.room=? AND c.updated_at>? LIMIT 30',
         )
-        .bind(Date.now() - 20000)
+        .bind(room, Date.now() - 10000)
         .all<any>();
+      const now = Date.now(),
+        event = eventAt(now);
+      const work = await db()
+        .prepare(
+          'SELECT w.*,p.name FROM campus_work w JOIN players p ON p.wallet=w.wallet WHERE w.room=? AND w.event=?',
+        )
+        .bind(room, event)
+        .all<any>();
+      const reward = wallet
+        ? await db()
+            .prepare('SELECT id FROM campus_rewards WHERE id=?')
+            .bind(`${room}:${event}:${wallet}`)
+            .first()
+        : null;
       return result({
         people: people.results.map((p) => ({
           id: p.id,
           name: p.name,
           x: p.x,
           z: p.z,
-          outfit: p.facility_state
-            ? JSON.parse(p.facility_state).outfit
-            : 'classic',
+          outfit: JSON.parse(p.facility_state || '{}').outfit ?? 'classic',
+          accessory: JSON.parse(p.facility_state || '{}').accessory ?? 'none',
         })),
+        world: {
+          room,
+          event,
+          endsAt: (event + 1) * 600000,
+          serverNow: now,
+          claimed: !!reward,
+          work: work.results.map((w) => ({
+            station: w.station,
+            name: w.name,
+            mine: w.wallet === wallet,
+            startedAt: w.started_at,
+            completedAt: w.completed_at,
+          })),
+        },
+      });
+    }
+    if (action === 'directory') {
+      const rows = await db()
+        .prepare(
+          'SELECT substr(p.wallet,3,16) AS id,p.name, p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE c.updated_at>? ORDER BY c.updated_at DESC LIMIT 30',
+        )
+        .bind(Date.now() - 120000)
+        .all<any>();
+      return result({
+        facilities: rows.results.map((p) => ({
+          id: p.id,
+          name: p.name,
+          racks: Object.values(
+            JSON.parse(p.facility_state || '{}').builds || {},
+          ).reduce((a: any, b: any) => a + b, 0),
+        })),
+      });
+    }
+    if (action === 'visit') {
+      const owner = new URL(request.url).searchParams.get('owner');
+      if (!owner || !/^[a-fA-F0-9]{16}$/.test(owner))
+        throw new ApiError(400, 'Choose a facility from the directory.');
+      const row = await db()
+        .prepare(
+          'SELECT name,facility_state FROM players WHERE substr(wallet,3,16)=?',
+        )
+        .bind(owner)
+        .first<any>();
+      if (!row) throw new ApiError(404, 'That facility is unavailable.');
+      const f = normalizeFacility(JSON.parse(row.facility_state || '{}'));
+      return result({
+        owner,
+        name: row.name,
+        facility: {
+          ...newFacility(),
+          builds: f.builds,
+          unlocked: f.unlocked,
+          power: f.power,
+          cooling: f.cooling,
+          visiting: true,
+        },
       });
     }
     if (action === 'messages') {
@@ -310,8 +423,16 @@ export async function handleGame(request: Request, action: string) {
   const body = await bodyOf(request);
   await rate(
     request,
-    action === 'nonce' || action === 'verify' ? 'auth' : 'game',
-    action === 'nonce' || action === 'verify' ? 20 : 600,
+    action === 'nonce' || action === 'verify'
+      ? 'auth'
+      : action === 'presence'
+        ? 'presence-ingress'
+        : 'game',
+    action === 'nonce' || action === 'verify'
+      ? 20
+      : action === 'presence'
+        ? 10000
+        : 600,
   );
   if (action === 'nonce') {
     if (
@@ -463,7 +584,7 @@ export async function handleGame(request: Request, action: string) {
   await rate(
     request,
     action === 'presence' ? 'presence' : 'actions',
-    action === 'presence' ? 30 : 120,
+    action === 'presence' ? 150 : 120,
     wallet,
   );
 
@@ -498,6 +619,8 @@ export async function handleGame(request: Request, action: string) {
     return result({ ...(await responseFor(wallet)), message: updated.message });
   }
   if (action === 'presence') {
+    const room = body.room ?? 'campus-1';
+    if (!validRoom(room)) throw new ApiError(400, 'Choose a valid room.');
     const x = Number(body.x),
       z = Number(body.z);
     if (
@@ -508,18 +631,120 @@ export async function handleGame(request: Request, action: string) {
       z < -43
     )
       throw new ApiError(400, 'Invalid campus position.');
-    await db()
+    const joined = await db()
       .prepare(
-        'INSERT INTO crew_presence (wallet,x,z,updated_at) VALUES (?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET x=excluded.x,z=excluded.z,updated_at=excluded.updated_at',
+        'INSERT INTO crew_presence (wallet,x,z,updated_at,room) SELECT ?,?,?,?,? WHERE (SELECT COUNT(*) FROM crew_presence WHERE room=? AND updated_at>? AND wallet<>?)<30 ON CONFLICT(wallet) DO UPDATE SET x=excluded.x,z=excluded.z,updated_at=excluded.updated_at,room=excluded.room',
       )
       .bind(
         wallet,
         Math.round(x * 10) / 10,
         Math.round(z * 10) / 10,
         Date.now(),
+        room,
+        room,
+        Date.now() - 10000,
+        wallet,
       )
       .run();
+    if (!joined.meta.changes)
+      throw new ApiError(409, 'This room is full. Choose another campus.');
     return result({ ok: true });
+  }
+  if (action === 'crew-work' || action === 'crew-claim') {
+    const room = body.room;
+    if (typeof room !== 'string' || !/^campus-[1-3]$/.test(room))
+      throw new ApiError(400, 'Join a shared campus first.');
+    const now = Date.now(),
+      event = eventAt(now);
+    if (body.event !== event)
+      throw new ApiError(
+        409,
+        'A new emergency has started. Reopen the job board.',
+      );
+    const presence = await db()
+      .prepare(
+        'SELECT * FROM crew_presence WHERE wallet=? AND room=? AND updated_at>?',
+      )
+      .bind(wallet, room, now - 10000)
+      .first<any>();
+    if (!presence)
+      throw new ApiError(400, 'Enter this campus before joining its job.');
+    if (action === 'crew-work') {
+      const station = EMERGENCY_STATIONS.find((s) => s.id === body.station);
+      if (
+        !station ||
+        Math.hypot(presence.x - station.x, presence.z - station.z) > 5
+      )
+        throw new ApiError(400, 'Walk to the highlighted station first.');
+      const id = `${room}:${event}:${station.id}`;
+      if (body.finish !== true) {
+        const r = await db()
+          .prepare(
+            'INSERT INTO campus_work (id,room,event,station,wallet,started_at) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET wallet=excluded.wallet,started_at=excluded.started_at WHERE campus_work.completed_at IS NULL AND campus_work.started_at<?',
+          )
+          .bind(id, room, event, station.id, wallet, now, now - 30000)
+          .run();
+        if (!r.meta.changes)
+          throw new ApiError(
+            409,
+            'A crewmate is working here, or this station is already repaired.',
+          );
+      } else {
+        const r = await db().batch([
+          db()
+            .prepare(
+              'UPDATE campus_work SET completed_at=? WHERE id=? AND wallet=? AND completed_at IS NULL AND started_at<=? AND started_at>=?',
+            )
+            .bind(now, id, wallet, now - 6000, now - 30000),
+          db()
+            .prepare(
+              'UPDATE players SET credits=credits+20,xp=xp+10 WHERE wallet=? AND changes()=1',
+            )
+            .bind(wallet),
+        ]);
+        if (!r[0].meta.changes)
+          throw new ApiError(
+            409,
+            'Wait for the repair timer, or restart an expired repair.',
+          );
+      }
+    } else {
+      const r = await db().batch([
+        db()
+          .prepare(
+            'INSERT OR IGNORE INTO campus_rewards (id,wallet,created_at) SELECT ?,?,? WHERE (SELECT COUNT(*) FROM campus_work WHERE room=? AND event=? AND completed_at IS NOT NULL)=3 AND EXISTS(SELECT 1 FROM campus_work WHERE room=? AND event=? AND wallet=? AND completed_at IS NOT NULL)',
+          )
+          .bind(
+            `${room}:${event}:${wallet}`,
+            wallet,
+            now,
+            room,
+            event,
+            room,
+            event,
+            wallet,
+          ),
+        db()
+          .prepare(
+            'UPDATE players SET credits=credits+30,xp=xp+20 WHERE wallet=? AND changes()=1',
+          )
+          .bind(wallet),
+      ]);
+      if (!r[0].meta.changes)
+        throw new ApiError(
+          409,
+          'Complete a station and finish the group job to collect your bonus once.',
+        );
+    }
+    return result({
+      ...(await responseFor(wallet)),
+      message:
+        action === 'crew-claim'
+          ? 'Cluster restored! +30 Compute'
+          : body.finish
+            ? 'Station repaired! +20 Compute'
+            : 'Repair started. Hold position for six seconds.',
+    });
   }
   if (action === 'message') {
     if (typeof body.message !== 'string')

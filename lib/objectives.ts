@@ -49,7 +49,7 @@ export function resolveObjective(
   const story = STORY.find((c) => !f.claims.includes(c.id));
   const repair = (): NextStep => ({
     title: 'Fix a broken system',
-    detail: 'Pick a quick repair. Each fix earns 25 credits and spare parts.',
+    detail: 'Pick a quick repair. Each fix earns 40 Compute and spare parts.',
     cta: 'Start a repair',
     target: 'repair',
     repair: true,
@@ -58,7 +58,7 @@ export function resolveObjective(
     credits < need
       ? {
           ...repair(),
-          detail: `You need ${need - credits} more credits. Repairs pay 25 each.`,
+          detail: `You need ${need - credits} more Compute. Repairs pay 25 each.`,
         }
       : null;
   const bench = (): NextStep => ({
@@ -216,7 +216,7 @@ export function resolveObjective(
         title: level
           ? `Upgrade ${rack.name.split(' · ')[0]}`
           : 'Bring a rack online',
-        detail: `${rack.name.split(' · ')[0]} · ${cost.credits} credits. The green lights stay on.`,
+        detail: `${rack.name.split(' · ')[0]} · ${cost.credits} Compute. The green lights stay on.`,
         cta: level ? 'Install upgrade' : 'Start this rack',
         target: rack.id,
         action: { type: 'build', id: rack.id },
@@ -231,7 +231,7 @@ export function resolveObjective(
     return (
       cash(z.cost) ?? {
         title: `Open ${z.name}`,
-        detail: `${z.cost} credits unlock a new place to explore.`,
+        detail: `${z.cost} Compute unlock a new place to explore.`,
         cta: 'Open department',
         target: 'gate-' + id,
         action: { type: 'unlock', id },
@@ -246,7 +246,7 @@ export function resolveObjective(
     ? Math.min(100, (storyValue(f, story.stat) / story.target) * 100)
     : 100;
   let reward = story
-    ? `Project reward: ${story.credits} credits + ${story.xp} XP`
+    ? `Project reward: ${story.credits} Compute + ${story.xp} XP`
     : 'Keep building. Daily jobs refresh at midnight UTC.';
   if (request) {
     step = request.build
@@ -308,7 +308,7 @@ export function resolveObjective(
         100,
         ((f.daily[daily.stat] ?? 0) / daily.target) * 100,
       );
-      reward = `${daily.cr} credits + 15 XP`;
+      reward = `${daily.cr} Compute + 15 XP`;
       step =
         (f.daily[daily.stat] ?? 0) >= daily.target
           ? {

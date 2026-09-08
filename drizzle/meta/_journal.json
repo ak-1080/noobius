@@ -15,6 +15,20 @@
       "when": 1788808150446,
       "tag": "0001_calm_mister_fear",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788826956383,
+      "tag": "0002_fancy_master_mold",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788827551332,
+      "tag": "0003_confused_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

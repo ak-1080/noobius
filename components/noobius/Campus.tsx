@@ -10,6 +10,7 @@ import {
   type Facility,
   type WorldObject,
 } from '@/lib/facility';
+import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
 export type CrewPerson = {
   id: string;
@@ -17,8 +18,11 @@ export type CrewPerson = {
   x: number;
   z: number;
   outfit: string;
+  accessory?: string;
 };
 type Props = {
+  playerName?: string;
+  sharedCampus?: boolean;
   facility: Facility;
   paused: boolean;
   people: CrewPerson[];
@@ -247,6 +251,7 @@ export default function Campus(props: Props) {
     for (const x of [-22, 0, 22])
       box(3.6, 0.07, 39, steel, scene, x, -0.04, -6);
     for (const zone of ZONES) {
+      if (live.current.sharedCampus && zone.id !== 'commons') continue;
       const g = new T.Group();
       g.position.set(zone.x, 0, zone.z);
       scene.add(g);
@@ -272,7 +277,11 @@ export default function Campus(props: Props) {
         box(0.12, 2.2, 0.16, silver, g, x, 1, -7.7);
         box(2, 0.08, 0.08, accent, g, x, 2, -7.55);
       }
-      const title = label(zone.label, zone.color, 6.3);
+      const title = label(
+        live.current.sharedCampus ? 'CREW CAMPUS' : zone.label,
+        zone.color,
+        6.3,
+      );
       title.position.set(zone.x, 3.6, zone.z - 7.4);
       scene.add(title);
       // Passive machinery makes every wing readable at a glance.
@@ -523,8 +532,31 @@ export default function Campus(props: Props) {
       g.userData.feet = feet;
       return { g, body };
     }
-    // NPCs and remote players are deliberately robots. Only the player's
-    // character uses the original Noobius silhouette and headset.
+    function addAccessories(parent: T.Group) {
+      const root = new T.Group();
+      parent.add(root);
+      const cap = new T.Group();
+      root.add(cap);
+      const top = sphere(0.4, steel, cap, 0, 2.04, 0);
+      top.scale.set(1, 0.4, 1);
+      box(0.52, 0.045, 0.3, steel, cap, 0, 2.02, 0.31);
+      const pack = new T.Group();
+      root.add(pack);
+      box(0.62, 0.68, 0.28, amber, pack, 0, 0.86, -0.49);
+      box(0.4, 0.3, 0.08, dark, pack, 0, 0.76, -0.66);
+      const beacon = new T.Group();
+      root.add(beacon);
+      box(0.2, 0.1, 0.2, black, beacon, 0, 2.21, 0);
+      sphere(0.1, amber, beacon, 0, 2.32, 0);
+      const apply = (id: string) => {
+        cap.visible = id === 'cap';
+        pack.visible = id === 'pack';
+        beacon.visible = id === 'beacon';
+      };
+      apply('none');
+      return apply;
+    }
+    // Coworker NPCs stay robots; other players have their own named Noobius.
     function makeRobot(kind: string, color: T.Material) {
       const root = new T.Group(),
         body = new T.Group(),
@@ -750,7 +782,12 @@ export default function Campus(props: Props) {
           box(0.08, 1.7, 0.06, accent, g, x, 0.9, 0);
       }
       const badge = label(
-        obj.kind === 'node' ? '↓ ' + obj.name : obj.name,
+        live.current.sharedCampus
+          ? (EMERGENCY_STATIONS.find((s) => s.object === obj.id)?.name ??
+              obj.name)
+          : obj.kind === 'node'
+            ? '↓ ' + obj.name
+            : obj.name,
         ZONES.find((z) => z.id === obj.zone)!.color,
         obj.kind === 'gate' ? 4.6 : 3.5,
       );
@@ -775,7 +812,12 @@ export default function Campus(props: Props) {
     scene.add(avatar.g);
     avatar.g.position.set(0, 0, 17);
     avatar.g.rotation.y = 0.67;
-    const you = label('YOU · NOOBIUS', '#bdec99', 2.6);
+    const you = label(
+      'YOU · ' + (live.current.playerName ?? 'NOOBIUS'),
+      '#bdec99',
+      2.6,
+    );
+    const wear = addAccessories(avatar.body);
     you.position.set(0, 2.6, 0);
     avatar.g.add(you);
     const playerRing = mesh(
@@ -845,6 +887,8 @@ export default function Campus(props: Props) {
     box(0.12, 0.28, 0.4, mint, fabricator);
     const peers = new Map<string, T.Group>();
     const clear = (x: number, z: number) => {
+      if (live.current.sharedCampus && (Math.abs(x) > 8 || z < 4 || z > 20))
+        return false;
       if (Math.abs(x) > 32 || z > 21 || z < -40) return false;
       const zone = ZONES.find(
         (d) => Math.abs(x - d.x) < 9 && Math.abs(z - d.z) < 8,
@@ -1235,17 +1279,41 @@ export default function Campus(props: Props) {
         f.builds,
         f.unlocked,
         f.outfit,
+        f.accessory,
+        p.playerName,
         f.cooldowns,
         activeIncident(f)?.rack,
       ]);
       if (appearance !== lastAppearance) {
+        const nameCanvas = you.material.map!.image as HTMLCanvasElement;
+        const nameContext = nameCanvas.getContext('2d')!;
+        nameContext.clearRect(8, 8, 496, 84);
+        nameContext.fillStyle = '#10232bdd';
+        nameContext.fillRect(8, 8, 496, 84);
+        nameContext.font = '500 32px sans-serif';
+        nameContext.textAlign = 'center';
+        nameContext.textBaseline = 'middle';
+        nameContext.fillStyle = '#e6efe6';
+        nameContext.fillText(
+          'YOU · ' + (p.playerName ?? 'NOOBIUS'),
+          256,
+          51,
+          480,
+        );
+        you.material.map!.needsUpdate = true;
+        wear(f.accessory ?? 'none');
         shirt.color.set(
           OUTFITS.find((x) => x.id === f.outfit)?.color ?? '#d1d8c8',
         );
         for (const obj of OBJECTS) {
           const g = objects.get(obj.id)!,
             isOpen = f.unlocked.includes(obj.zone);
-          g.visible = obj.kind === 'gate' ? !isOpen : isOpen;
+          g.visible =
+            live.current.sharedCampus && obj.zone !== 'commons'
+              ? false
+              : obj.kind === 'gate'
+                ? !isOpen
+                : isOpen;
           if (obj.kind === 'build')
             g.traverse((child) => {
               if (child.userData.led)
@@ -1266,13 +1334,14 @@ export default function Campus(props: Props) {
             ? 0.35
             : 1;
         l.visible =
-          obj.id === p.objectiveId ||
-          (Math.hypot(
-            obj.x - avatar.g.position.x,
-            obj.z - avatar.g.position.z,
-          ) < 5 &&
-            targetScale < 15) ||
-          (obj.kind === 'npc' && targetScale < 11);
+          objects.get(obj.id)!.visible &&
+          (obj.id === p.objectiveId ||
+            (Math.hypot(
+              obj.x - avatar.g.position.x,
+              obj.z - avatar.g.position.z,
+            ) < 5 &&
+              targetScale < 15) ||
+            (obj.kind === 'npc' && targetScale < 11));
         const contents = objects.get(obj.id)!.userData.contents as
           | T.Group
           | undefined;
@@ -1287,19 +1356,20 @@ export default function Campus(props: Props) {
           const startG = geometry.length,
             startM = materials.length,
             startT = textures.length;
-          const peer = makeRobot(
-            'crew',
-            mat(
-              OUTFITS.find((o) => o.id === person.outfit)?.color ?? '#608ba0',
-              0.05,
-            ),
+          const peerColor = mat(
+            OUTFITS.find((o) => o.id === person.outfit)?.color ?? '#d1d8c8',
+            0.05,
           );
-          g = peer.root;
+          const peer = makeAvatar(peerColor);
+          g = peer.g;
+          g.userData.shirt = peerColor;
+          g.userData.wear = addAccessories(peer.body);
           g.position.set(person.x, 0, person.z);
           const name = label(person.name, '#9bdde0', 2.5);
           name.position.y = 2.3;
           g.add(name);
           scene.add(g);
+          g.userData.name = person.name;
           peers.set(person.id, g);
           g.userData.resources = {
             geometry: geometry.slice(startG),
@@ -1307,6 +1377,29 @@ export default function Campus(props: Props) {
             textures: textures.slice(startT),
           };
         }
+        (g.userData.shirt as T.MeshStandardMaterial).color.set(
+          OUTFITS.find((o) => o.id === person.outfit)?.color ?? '#d1d8c8',
+        );
+        g.userData.wear(person.accessory ?? 'none');
+        const distance = Math.hypot(
+          person.x - g.position.x,
+          person.z - g.position.z,
+        );
+        if (distance > 0.08)
+          g.rotation.y = Math.atan2(
+            person.x - g.position.x,
+            person.z - g.position.z,
+          );
+        (g.userData.arms as T.Object3D[]).forEach(
+          (arm, i) =>
+            (arm.rotation.x =
+              distance > 0.08 ? Math.sin(time * 0.009 + i * Math.PI) * 0.3 : 0),
+        );
+        (g.userData.feet as T.Object3D[]).forEach(
+          (foot, i) =>
+            (foot.rotation.x =
+              distance > 0.08 ? Math.sin(time * 0.009 + i * Math.PI) * 0.2 : 0),
+        );
         g.position.lerp(
           new T.Vector3(person.x, 0, person.z),
           Math.min(1, dt * 5),
@@ -1314,7 +1407,7 @@ export default function Campus(props: Props) {
         g.position.y = Math.sin(time * 0.002 + person.x) * 0.055;
       }
       for (const [id, g] of peers)
-        if (!p.people.some((p) => p.id === id)) {
+        if (!p.people.some((p) => p.id === id && p.name === g.userData.name)) {
           scene.remove(g);
           const resources = g.userData.resources;
           for (const [key, registry] of [

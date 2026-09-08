@@ -99,7 +99,7 @@ test('locked wings, cooldowns, utility limits, and malformed quantities cannot b
   );
   assert.throws(
     () => act(f, 'buy', { item: 'scrap', quantity: 1 }, 0),
-    /credits/,
+    /Compute/,
   );
 });
 test('bank transfers conserve items, storage caps only the backpack, repairs survive a full bank', () => {
@@ -299,7 +299,7 @@ test('compute jobs require racks and time, snapshot output, and pay once', () =>
   assert.equal(f.stats.computeJobs, 1);
   assert.equal(f.incident.at, 60000);
   assert.equal(
-    act(f, 'compute-collect', { requestId: id }, 0, 16000).facility.compute,
+    act(f, 'compute-collect', { requestId: id }, 35, 16000).facility.compute,
     35,
   );
   assert.throws(() => act(f, 'compute-collect', {}, 0, 16000), /running/);
@@ -348,26 +348,35 @@ test('outages preserve waiting batches and require a timed ordered repair, with 
       ),
     /no longer/,
   );
-  f = act(f, 'compute-collect', {}, 0, 20000).facility;
+  f = act(f, 'compute-collect', {}, 40, 20000).facility;
   assert.equal(f.compute, 75);
 });
-test('compute upgrades and demo exchange conserve balances and retries cannot duplicate demo tokens', () => {
+test('Compute is the spendable balance; accessories and upgrades debit once and token exchange is closed', () => {
   let f = newFacility(0);
   f.builds = { 'rack-a': 1 };
-  assert.throws(() => act(f, 'compute-exchange', {}, 0, 0), /100 compute/);
-  f.compute = 180;
-  f = act(f, 'compute-upgrade', {}, 0, 0).facility;
-  assert.equal(f.compute, 100);
-  assert.equal(f.computeBoost, 1);
   const id = crypto.randomUUID();
-  f = act(f, 'compute-exchange', { requestId: id }, 0, 0).facility;
-  assert.equal(f.compute, 0);
-  assert.equal(f.demoNoobius, 10);
+  const n = act(f, 'compute-upgrade', { requestId: id }, 180, 0);
+  assert.equal(n.credits, -80);
+  assert.equal(n.facility.compute, 100);
   assert.equal(
-    act(f, 'compute-exchange', { requestId: id }, 0, 0).facility.demoNoobius,
-    10,
+    act(n.facility, 'compute-upgrade', { requestId: id }, 100, 0).credits,
+    0,
   );
-  assert.throws(() => act(f, 'compute-exchange', {}, 0, 0), /100 compute/);
+  const worn = act(n.facility, 'accessory', { id: 'pack' }, 100, 0);
+  assert.equal(worn.credits, -60);
+  assert.equal(worn.facility.accessory, 'pack');
+  assert.equal(
+    act(worn.facility, 'accessory', { id: 'pack' }, 40, 0).credits,
+    0,
+  );
+  assert.throws(
+    () => act(worn.facility, 'accessory', { id: 'beacon' }, 40, 0),
+    /Compute/,
+  );
+  assert.throws(
+    () => act(worn.facility, 'compute-exchange', {}, 1000, 0),
+    /not open/,
+  );
 });
 test('first shift introduces Margo, then production and outages without removing the project guide', async () => {
   const { shiftObjective, nextBriefing } = await import('../lib/experience.ts');
