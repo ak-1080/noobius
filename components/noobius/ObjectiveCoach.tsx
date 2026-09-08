@@ -1,4 +1,11 @@
-import { ArrowRight, Hammer, Navigation, Sparkles, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Gift,
+  Hammer,
+  Navigation,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import type { NextStep, Objective } from '@/lib/objectives';
 import ComputeIcon from './ComputeIcon';
 
@@ -23,11 +30,13 @@ export default function ObjectiveCoach({
     ? Navigation
     : collecting
       ? ComputeIcon
-      : step.action?.type === 'build' || step.panel === 'facility'
-        ? Hammer
-        : step.action?.type === 'compute-upgrade'
-          ? Sparkles
-          : Navigation;
+      : step.panel === 'contracts'
+        ? Gift
+        : step.action?.type === 'build' || step.panel === 'facility'
+          ? Hammer
+          : step.action?.type === 'compute-upgrade'
+            ? Sparkles
+            : Navigation;
   const action = busy ? 'Working…' : following ? 'Stop walking' : step.cta;
 
   return (

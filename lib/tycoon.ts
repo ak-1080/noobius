@@ -136,6 +136,19 @@ export function tycoonObjective(
           },
           100,
         );
+  const today = dayKey(now);
+  const done = f.lastWorkday === today;
+  const earned = f.day === today ? (f.daily.computeEarned ?? 0) : 0;
+  if (!done && earned >= 100)
+    return wrap(
+      {
+        title: 'You earned a daily bonus!',
+        detail: 'You collected 100 Compute today. Pick up 35 extra.',
+        cta: 'Claim 35 Compute',
+        panel: 'contracts',
+      },
+      100,
+    );
   const available = OBJECTS.filter(
     (o) =>
       o.kind === 'build' &&
@@ -208,19 +221,6 @@ export function tycoonObjective(
           100,
         );
   }
-  const today = dayKey(now);
-  const done = f.lastWorkday === today;
-  const earned = f.day === today ? (f.daily.computeEarned ?? 0) : 0;
-  if (!done && earned >= 100)
-    return wrap(
-      {
-        title: 'Your daily bonus is ready',
-        detail: 'All machines upgraded. Pick up 35 extra Compute for today.',
-        cta: 'Claim my bonus',
-        panel: 'contracts',
-      },
-      100,
-    );
   if (!done && stored > 0)
     return wrap(
       {

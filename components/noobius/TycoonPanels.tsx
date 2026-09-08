@@ -28,6 +28,7 @@ import ComputeIcon from './ComputeIcon';
 
 export function LockerPanel({
   facility,
+  initialOutfit,
   name,
   balance,
   busy,
@@ -35,6 +36,7 @@ export function LockerPanel({
   onWear,
 }: {
   facility: Facility;
+  initialOutfit?: string;
   name: string;
   balance: number;
   busy: boolean;
@@ -42,7 +44,11 @@ export function LockerPanel({
   onWear: (type: string, id: string) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState(name),
-    [outfit, setOutfit] = useState(facility.outfit),
+    [outfit, setOutfit] = useState(
+      OUTFITS.some((o) => o.id === initialOutfit)
+        ? initialOutfit!
+        : facility.outfit,
+    ),
     [accessory, setAccessory] = useState(facility.accessory ?? 'none'),
     [tab, setTab] = useState<'shirts' | 'accessories'>('shirts'),
     [saving, setSaving] = useState(false),
@@ -188,7 +194,7 @@ export function LockerPanel({
             {saving
               ? 'Saving…'
               : earned
-                ? 'Earn through daily jobs'
+                ? 'Earn with 3 daily goals'
                 : cost > balance
                   ? `Need ${cost - balance} more Compute`
                   : cost

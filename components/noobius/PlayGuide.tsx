@@ -42,6 +42,14 @@ export const GUIDE_TOPICS = [
     tip: 'Cooling costs 100 Compute to open. Its machine costs another 180. Unlocking the room gives you space; building the machine makes it earn.',
   },
   {
+    id: 'growth',
+    title: 'Watch your data center grow',
+    text: 'Open Goals, then “Your progress.” Each milestone checks itself off as you build. See your next big goal and the steps you’ve already finished.',
+    image: '/assets/guide/growth-goals.png',
+    alt: 'Goals showing completed milestones, room and machine counts, and the next growth milestone',
+    tip: 'Your big finish: every room open, every machine at level 3, and top speed.',
+  },
+  {
     id: 'bonuses',
     title: 'Play for a little extra',
     text: 'Open Build and choose “A little extra” for a bonus boost. Or tap the gold Bonus button when it appears. Light up three buttons to wake a sleepy server.',
@@ -52,10 +60,10 @@ export const GUIDE_TOPICS = [
   {
     id: 'daily',
     title: 'A little win every day',
-    text: 'Open Goals and collect 100 Compute that day. Claim 35 more as a bonus. Finish on three different days to unlock the gold outfit.',
-    image: '/assets/compute-currency.png',
-    alt: 'Compute collected toward your daily goal',
-    tip: 'No streak to lose. Take a day off whenever you like.',
+    text: 'Collect 100 Compute that day. In Goals, open “Daily bonus” and claim 35 more. Finish on three different days to unlock the gold outfit.',
+    image: '/assets/guide/daily-goal.png',
+    alt: 'Completed daily goal beside progress toward the three-day gold outfit reward',
+    tip: 'Preview the gold outfit right from Goals. No streak to lose. Take a day off whenever you like.',
   },
   {
     id: 'locker',

@@ -10,7 +10,6 @@ import {
   productionUnits,
   modules,
   rackPrice,
-  dayKey,
   type Facility,
   type FacilityAction,
 } from '@/lib/facility';
@@ -178,79 +177,6 @@ export default function TycoonBuildPanel({
           <ArrowRight size={18} />
         </button>
       )}
-    </div>
-  );
-}
-
-export function TycoonGoals({
-  facility: f,
-  busy,
-  onAction,
-  onFollow,
-}: {
-  facility: Facility;
-  busy: boolean;
-  onAction: (a: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
-  onFollow: () => void;
-}) {
-  const today = dayKey(Date.now());
-  const earned = f.day === today ? (f.daily.computeEarned ?? 0) : 0,
-    done = f.lastWorkday === today;
-  return (
-    <div className="tycoon-goals">
-      <img
-        className="tycoon-goal-art"
-        src="/assets/compute-currency.png"
-        alt="Compute coin"
-      />
-      <span className="story-eyebrow">TODAY’S LITTLE WIN</span>
-      <h2>{done ? 'Today’s goal is done.' : 'Collect 100 Compute.'}</h2>
-      <p>
-        {done
-          ? 'Your next daily goal arrives tomorrow.'
-          : 'Your machines make it. You pick it up.'}
-      </p>
-      <div
-        className="tycoon-goal-progress"
-        role="progressbar"
-        aria-label="Compute collected today"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.min(100, earned)}
-      >
-        <i style={{ width: `${Math.min(100, earned)}%` }} />
-      </div>
-      <strong>{Math.min(100, earned)} / 100</strong>
-      <Button
-        className="primary-action"
-        disabled={busy || done || earned < 100}
-        onClick={() => void onAction({ type: 'tycoon-daily' })}
-      >
-        {done ? (
-          <>
-            <Check size={18} /> Reward collected
-          </>
-        ) : (
-          <>
-            <ComputeIcon size={28} /> Collect your 35 bonus
-          </>
-        )}
-      </Button>
-      <div className="tycoon-stamps">
-        {[1, 2, 3].map((i) => (
-          <span key={i} className={f.workdays >= i ? 'done' : ''}>
-            {f.workdays >= i ? <Check size={18} /> : i}
-          </span>
-        ))}
-      </div>
-      <p>
-        {f.workdays >= 3
-          ? 'Gold outfit unlocked! Find it in your Locker. Your daily Compute bonus keeps coming.'
-          : 'Complete the goal on 3 different days to unlock the gold outfit. Your days don’t need to be in a row.'}
-      </p>
-      <button className="text-action" onClick={onFollow}>
-        Back to my next step <ArrowRight size={17} />
-      </button>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
-import TycoonBuildPanel, { TycoonGoals } from './TycoonBuildPanel';
+import TycoonBuildPanel from './TycoonBuildPanel';
+import GoalsPanel from './GoalsPanel';
 import RoomProgressPanel from './RoomProgressPanel';
 import ItemIcon from './ItemIcon';
 import { useEffect, useState } from 'react';
@@ -78,6 +79,7 @@ type Props = {
   onPanel: (p: ExpansionPanel, selected?: WorldObject) => void;
   onTravel: () => void;
   onExtra: () => void;
+  onLocker: (previewGold?: boolean) => void;
   objective: Objective;
   onFollow: () => void;
   onRepair: () => void;
@@ -110,6 +112,7 @@ export default function FacilityPanels({
   onPanel,
   onTravel,
   onExtra,
+  onLocker,
   objective,
   onFollow,
   onRepair,
@@ -394,11 +397,14 @@ export default function FacilityPanels({
     );
   if (panel === 'contracts')
     return (
-      <TycoonGoals
+      <GoalsPanel
         facility={f}
+        now={now}
         busy={busy}
         onAction={onAction}
-        onFollow={onFollow}
+        onBuild={() => onPanel('facility')}
+        onGold={() => onLocker(true)}
+        onLocker={() => onLocker()}
       />
     );
   if (panel === 'facility')

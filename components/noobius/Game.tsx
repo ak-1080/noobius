@@ -214,6 +214,7 @@ export default function NoobiusGame() {
     }
   };
   const [panel, setPanel] = useState<Panel>(null),
+    [lockerPreview, setLockerPreview] = useState<string | undefined>(),
     [activeJob, setActiveJob] = useState<JobType | null>(null),
     [name, setName] = useState(''),
     [crew, setCrew] = useState<CrewEntry[]>([]),
@@ -397,6 +398,7 @@ export default function NoobiusGame() {
     }
     if ((p === 'badge' || p === 'profile') && profile) setName(profile.name);
     if (p === 'facility' || p === 'map') setSelectedObject(selected ?? null);
+    if (p === 'appearance') setLockerPreview(undefined);
     setPanel(p);
   };
   const play = async () => {
@@ -935,7 +937,7 @@ export default function NoobiusGame() {
           <DialogContent
             key={panel ?? 'closed'}
             initialFocus={panelHeading}
-            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel === 'map' ? 'room-modal' : ''} ${panel === 'wallet' ? 'wallet-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel === 'map' ? 'room-modal' : ''} ${panel === 'wallet' ? 'wallet-modal' : ''} ${panel === 'contracts' ? 'goals-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
           >
             <DialogTitle
               className="modal-heading"
@@ -1086,6 +1088,7 @@ export default function NoobiusGame() {
               )}
               {panel === 'appearance' && (
                 <LockerPanel
+                  initialOutfit={lockerPreview}
                   facility={facility}
                   name={profile?.name ?? 'Noobius'}
                   balance={profile?.credits ?? 0}
@@ -1175,6 +1178,10 @@ export default function NoobiusGame() {
                   onFollow={followObjective}
                   onRepair={() => show('jobs')}
                   onExtra={() => show('compute')}
+                  onLocker={(previewGold) => {
+                    show('appearance');
+                    if (previewGold) setLockerPreview('afterhours');
+                  }}
                   onHelp={(request) =>
                     executeStep(
                       resolveObjective(facility, profile.credits, now, request),

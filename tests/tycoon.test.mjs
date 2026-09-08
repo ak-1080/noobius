@@ -12,6 +12,7 @@ import {
   BOOST_PRICES,
 } from '../lib/facility.ts';
 import { tycoonObjective } from '../lib/tycoon.ts';
+import { growthProgress } from '../lib/growth.ts';
 
 test('collection coach recognizes below, exact, and above the purchase threshold', () => {
   const f = newFacility(0);
@@ -83,6 +84,11 @@ test('zero-balance player can build, earn, upgrade, expand, and finish the whole
       assert.ok(balance >= 0);
       seen.add(step.action.type);
       if (step.action.type === 'build') builds++;
+    } else if (step.panel === 'contracts') {
+      const n = action(f, 'tycoon-daily', balance, now);
+      f = n.facility;
+      balance += n.credits;
+      seen.add('tycoon-daily');
     } else if (f.computeBoost === 5 && modules(f) === 21) break;
     now += 15000;
   }
@@ -94,9 +100,65 @@ test('zero-balance player can build, earn, upgrade, expand, and finish the whole
     'build',
     'compute-harvest',
     'compute-upgrade',
+    'tycoon-daily',
     'unlock',
   ]);
   assert.deepEqual(f.inventory, {});
+  assert.equal(growthProgress(f).complete, true);
+});
+
+test('first-session daily reward is offered after learning speed, and claiming resumes growth', () => {
+  const now = Date.UTC(2026, 8, 8, 12),
+    f = newFacility(now);
+  f.seen.push('intro:welcome');
+  f.builds['rack-a'] = 1;
+  f.daily.computeEarned = 100;
+  assert.equal(tycoonObjective(f, 100, now).action.type, 'compute-upgrade');
+  f.computeBoost = 1;
+  assert.equal(tycoonObjective(f, 100, now).panel, 'contracts');
+  assert.equal(tycoonObjective(f, 100, now).action, undefined);
+  const claimed = action(f, 'tycoon-daily', 100, now);
+  assert.equal(claimed.credits, 35);
+  assert.equal(
+    tycoonObjective(claimed.facility, 135, now).action.type,
+    'build',
+  );
+  assert.notEqual(tycoonObjective(f, 100, now + 86400000).panel, 'contracts');
+});
+
+test('growth trail reads established saves without claiming rewards or requiring room order', () => {
+  const f = newFacility(0),
+    before = structuredClone(f);
+  assert.equal(growthProgress(f).completed, 0);
+  assert.equal(growthProgress(f).current, 'first');
+  assert.deepEqual(f, before);
+  f.builds = { 'rack-a': 2, 'rack-b': 1 };
+  f.computeBoost = 1;
+  f.unlocked.push('network');
+  const mid = growthProgress(f);
+  assert.equal(mid.completed, 4);
+  assert.equal(mid.current, 'rooms');
+  assert.equal(mid.complete, false);
+  assert.equal(mid.levels, 3);
+  const done = newFacility(0);
+  done.unlocked = [
+    'commons',
+    'salvage',
+    'workshop',
+    'thermal',
+    'compute',
+    'network',
+    'core',
+  ];
+  done.builds = Object.fromEntries(
+    'abcdefg'.split('').map((id) => ['rack-' + id, 3]),
+  );
+  done.computeBoost = 4;
+  assert.equal(growthProgress(done).complete, false);
+  done.computeBoost = 5;
+  assert.equal(growthProgress(done).completed, 6);
+  assert.equal(growthProgress(done).current, null);
+  assert.equal(growthProgress(done).complete, true);
 });
 test('starter is free only once; no parts or power gate, and purchases cannot overspend or replay', () => {
   let f = newFacility(0);

@@ -167,3 +167,19 @@ The Connect a Wallet panel follows the supplied reference: dark neutral surface,
 - [x] Wallet desktop browser acceptance: all six logos and rows rendered; missing MetaMask, retry discovery, return to list, and WalletConnect availability details worked. Error log was empty.
 - [ ] The wallet phone viewport override did not take effect in this browser session (rendered viewport stayed 1280 × 720); phone visual acceptance remains outstanding. Temporary override reset.
 - [ ] Real extension/mobile-wallet acceptance remains outstanding. No injected wallet was available in the test browser; signing/cancellation/account-switch behavior passed the existing provider-based tests. Existing session-provider restoration still uses the remembered display name; stable restoration metadata is a follow-up.
+
+## Growth milestones and a visible daily win
+
+Goals now has Your progress and Daily bonus views. Six milestones cover the first machine, first speed upgrade, two earning machines, the first paid room, every room, and all machine/speed upgrades. Completed milestones stay available in a compact expandable list. The current view shows real room/machine counts and income; the final state keeps a completion card. Progress reads existing saves without adding claims, rewards, or schema fields.
+
+After the first speed upgrade, the coach surfaces a ready daily bonus before the next purchase. Opening Goals does not claim it. An explicit claim pays the existing 35 Compute and returns the coach to normal growth. Goals can collect machine earnings toward today's target. The gold outfit has a reward card, daily stamps, and a direct Locker preview; previewing never equips or grants an unowned outfit. Ordinary Locker entry restores the saved selection.
+
+The picture guide includes fresh, visually inspected screenshots of growth and daily rewards. Its text names the two Goals views and explains the completion target.
+
+- [x] TypeScript and 60 tests, including an entire zero-balance progression route with explicit daily claiming, first-session bonus priority, UTC rollover, and completion derived from all defined rooms/machines/speed levels.
+- [x] Desktop: coach opened the ready Daily bonus view. Claim paid exactly 35 (465 → 500), stamped 1 of 3 days, disabled further claiming, and changed guidance back to the 180-Compute Chiller.
+- [x] Gold preview selected After-hours gold with saving disabled. Closing and reopening Locker selected the saved Original issue outfit; balance stayed 500.
+- [x] Growth showed 4 of 6 milestones, 2 of 7 machines, 4 of 7 rooms, and 240/min. Completed steps expanded; Keep building opened Build without spending.
+- [x] Responsive layout acceptance used a temporary same-origin 390 × 844 iframe because the browser viewport override was ineffective. DOM measurements confirmed width 390, height 844 and no horizontal document overflow. Goals tabs, gold-preview action, all six wallet rows and missing-wallet instructions were inspected. The test harness was removed before building/publishing.
+- [ ] Actual phone hardware, real wallet extensions, and WalletConnect QR sessions still require acceptance/configuration. The 390-pixel layout check is not a real-device sign-in test.
+- [ ] The final completion card has logic/source review evidence; visual acceptance on a fully progressed browser save remains outstanding.
