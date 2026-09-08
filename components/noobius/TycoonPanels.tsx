@@ -24,6 +24,7 @@ import {
 } from '@/lib/multiplayer';
 import { api } from './useNoobius';
 import { Button } from '@/components/ui/button';
+import AvatarPreview from './AvatarPreview';
 
 export function LockerPanel({
   facility,
@@ -38,106 +39,166 @@ export function LockerPanel({
   balance: number;
   busy: boolean;
   onName: (name: string) => Promise<unknown>;
-  onWear: (type: string, id: string) => void;
+  onWear: (type: string, id: string) => Promise<unknown>;
 }) {
-  const [draft, setDraft] = useState(name);
-  const accessoryIcons = {
+  const [draft, setDraft] = useState(name),
+    [outfit, setOutfit] = useState(facility.outfit),
+    [accessory, setAccessory] = useState(facility.accessory ?? 'none'),
+    [tab, setTab] = useState<'shirts' | 'accessories'>('shirts'),
+    [saving, setSaving] = useState(false),
+    [message, setMessage] = useState('');
+  const shirt = OUTFITS.find((o) => o.id === outfit)!,
+    item = ACCESSORIES.find((o) => o.id === accessory)!;
+  const cost =
+    (facility.owned.includes(outfit) ? 0 : shirt.price) +
+    (facility.owned.includes(accessory) ? 0 : item.price);
+  const earned = outfit === 'afterhours' && !facility.owned.includes(outfit);
+  const changed =
+    name !== draft.trim() ||
+    outfit !== facility.outfit ||
+    accessory !== (facility.accessory ?? 'none');
+  const icons = {
     none: Headphones,
     cap: HardHat,
     pack: Backpack,
     beacon: Radio,
   };
+  async function save() {
+    if (busy || saving) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      if (draft.trim() !== name && !(await onName(draft))) return;
+      if (outfit !== facility.outfit && !(await onWear('outfit', outfit)))
+        return;
+      if (
+        accessory !== (facility.accessory ?? 'none') &&
+        !(await onWear('accessory', accessory))
+      )
+        return;
+      setMessage('Look saved.');
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
-    <div className="tycoon-panel">
-      <div className="locker-identity">
-        <img
-          src="/assets/noobius.jpeg"
-          alt="Noobius"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
+    <div className="visual-locker">
+      <div className="locker-stage">
+        <AvatarPreview color={shirt.color} accessory={accessory} />
+        <small>Drag to turn</small>
+        <label htmlFor="crew-name">Username</label>
+        <input
+          id="crew-name"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={20}
+          disabled={busy || saving}
         />
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void onName(draft);
-          }}
-        >
-          <label htmlFor="crew-name">Name</label>
-          <input
-            id="crew-name"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            minLength={2}
-            maxLength={20}
-            required
-          />
-          <Button type="submit" disabled={busy || draft === name}>
-            Save
+      </div>
+      <div className="locker-choices">
+        <div className="locker-tabs">
+          <button
+            onClick={() => setTab('shirts')}
+            aria-pressed={tab === 'shirts'}
+          >
+            <Shirt size={20} />
+            Outfits
+          </button>
+          <button
+            onClick={() => setTab('accessories')}
+            aria-pressed={tab === 'accessories'}
+          >
+            <Headphones size={20} />
+            Accessories
+          </button>
+        </div>
+        <div className="locker-item-grid">
+          {tab === 'shirts'
+            ? OUTFITS.map((o) => (
+                <button
+                  key={o.id}
+                  aria-pressed={outfit === o.id}
+                  onClick={() => {
+                    setOutfit(o.id);
+                    setMessage('');
+                  }}
+                  disabled={busy || saving}
+                >
+                  <span
+                    className="shirt-swatch"
+                    style={{ background: o.color }}
+                  >
+                    <Shirt size={35} />
+                  </span>
+                  <strong>{o.name}</strong>
+                  <small>
+                    {facility.owned.includes(o.id)
+                      ? 'Owned'
+                      : o.id === 'afterhours'
+                        ? 'Daily reward'
+                        : o.price
+                          ? `${o.price} Compute`
+                          : 'Free'}
+                  </small>
+                  {outfit === o.id && (
+                    <Check className="locker-selected" size={18} />
+                  )}
+                </button>
+              ))
+            : ACCESSORIES.map((o) => {
+                const Icon = icons[o.id];
+                return (
+                  <button
+                    key={o.id}
+                    aria-pressed={accessory === o.id}
+                    onClick={() => {
+                      setAccessory(o.id);
+                      setMessage('');
+                    }}
+                    disabled={busy || saving}
+                  >
+                    <span className="accessory-symbol">
+                      <Icon size={35} />
+                    </span>
+                    <strong>{o.name}</strong>
+                    <small>
+                      {facility.owned.includes(o.id)
+                        ? 'Owned'
+                        : o.price
+                          ? `${o.price} Compute`
+                          : 'Free'}
+                    </small>
+                    {accessory === o.id && (
+                      <Check className="locker-selected" size={18} />
+                    )}
+                  </button>
+                );
+              })}
+        </div>
+        <div className="locker-save">
+          <span>
+            <Cpu size={18} />
+            {balance} Compute
+          </span>
+          <Button
+            className="primary-action"
+            disabled={busy || saving || !changed || earned || cost > balance}
+            onClick={() => void save()}
+          >
+            {saving
+              ? 'Saving…'
+              : earned
+                ? 'Earn through daily jobs'
+                : cost > balance
+                  ? `Need ${cost - balance} more Compute`
+                  : cost
+                    ? `Save look · ${cost} Compute`
+                    : 'Save look'}
+            <Check size={18} />
           </Button>
-        </form>
+          {message && <p role="status">{message}</p>}
+        </div>
       </div>
-      <p className="tycoon-balance">
-        <Cpu size={18} />
-        {balance} Compute
-      </p>
-      <h3>Shirts</h3>
-      <div className="tycoon-grid">
-        {OUTFITS.map((o) => {
-          const owned = facility.owned.includes(o.id),
-            equipped = facility.outfit === o.id;
-          return (
-            <button
-              key={o.id}
-              disabled={
-                busy ||
-                equipped ||
-                (!owned && balance < o.price) ||
-                (!owned && o.id === 'afterhours')
-              }
-              onClick={() => onWear('outfit', o.id)}
-            >
-              <span className="shirt-swatch" style={{ background: o.color }}>
-                <Shirt size={27} />
-              </span>
-              <strong>{o.name}</strong>
-              <small>
-                {equipped
-                  ? 'Wearing'
-                  : owned
-                    ? 'Equip'
-                    : o.id === 'afterhours'
-                      ? 'Earn through daily jobs'
-                      : `${o.price} Compute`}
-              </small>
-            </button>
-          );
-        })}
-      </div>
-      <h3>Accessories</h3>
-      <div className="tycoon-grid">
-        {ACCESSORIES.map((o) => {
-          const AccessoryIcon = accessoryIcons[o.id];
-          const equipped = (facility.accessory ?? 'none') === o.id,
-            owned = facility.owned.includes(o.id) || o.price === 0;
-          return (
-            <button
-              key={o.id}
-              disabled={busy || equipped || (!owned && balance < o.price)}
-              onClick={() => onWear('accessory', o.id)}
-            >
-              <span className="accessory-symbol">
-                <AccessoryIcon size={25} />
-              </span>
-              <strong>{o.name}</strong>
-              <small>
-                {equipped ? 'Wearing' : owned ? 'Equip' : `${o.price} Compute`}
-              </small>
-            </button>
-          );
-        })}
-      </div>
-      <p className="tycoon-note">Cosmetic upgrades only.</p>
     </div>
   );
 }

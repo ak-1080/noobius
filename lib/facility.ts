@@ -665,6 +665,8 @@ export const ORDERS = [
   },
 ];
 export const OUTFITS = [
+  { id: 'starter-blue', name: 'Cloud blue', price: 0, color: '#6baecb' },
+  { id: 'starter-coral', name: 'Coral crew', price: 0, color: '#dc8e7c' },
   { id: 'classic', name: 'Original issue', price: 0, color: '#d1d8c8' },
   { id: 'hazmat', name: 'Hazard pay', price: 180, color: '#f1ae52' },
   { id: 'night', name: 'Night supervisor', price: 250, color: '#485d83' },
@@ -796,6 +798,7 @@ export function storedComputeNow(f: Facility, now = Date.now()) {
   );
 }
 export const INTRO_IDS = [
+  'identity',
   'arrival',
   'welcome',
   'salvage',
@@ -806,6 +809,7 @@ export const INTRO_IDS = [
 ] as const;
 export function introReady(f: Facility, id: string): boolean {
   return (
+    id === 'identity' ||
     id === 'arrival' ||
     id === 'welcome' ||
     (id === 'salvage' && (f.stats.gathered ?? 0) > 0) ||

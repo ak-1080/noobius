@@ -9,6 +9,7 @@ import {
 } from '@/lib/multiplayer';
 import ContractAddress from './ContractAddress';
 import { BriefingCard, ComputeDesk, OutageRepair } from './ExperiencePanels';
+import Onboarding from './Onboarding';
 import { nextBriefing, shiftObjective } from '@/lib/experience';
 import { activeIncident, OUTAGE_NAMES, storedComputeNow } from '@/lib/facility';
 import { useEffect, useRef, useState } from 'react';
@@ -200,6 +201,7 @@ export default function NoobiusGame() {
   const audio = useRef<AudioContext | null>(null),
     gain = useRef<GainNode | null>(null);
   const playing = mode !== 'lobby' && !!shift;
+  const needsIdentity = playing && !facility.seen.includes('intro:identity');
   const repaired =
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
   const currentJob = shift?.jobs.find((j) => j.id === activeJob);
@@ -299,6 +301,7 @@ export default function NoobiusGame() {
   useEffect(() => {
     if (
       playing &&
+      !needsIdentity &&
       room === 'home' &&
       briefing &&
       briefing.id !== 'welcome' &&
@@ -307,7 +310,7 @@ export default function NoobiusGame() {
       !busy
     )
       setPanel('briefing');
-  }, [playing, briefing?.id, panel, activeJob, busy]);
+  }, [playing, needsIdentity, briefing?.id, panel, activeJob, busy]);
   useEffect(() => {
     return () => {
       void audio.current?.close();
@@ -653,13 +656,17 @@ export default function NoobiusGame() {
           <ContractAddress onToken={() => show('token')} />
         </main>
       ) : (
-        <main className="play-world" aria-label="The Noobius night shift">
+        <main
+          className="play-world"
+          aria-label="The Noobius night shift"
+          inert={needsIdentity}
+        >
           <Campus
             key={`${profile?.wallet}:${room}`}
             facility={viewFacility}
             playerName={profile?.name}
             sharedCampus={inCampus}
-            paused={!!panel || !!activeJob || busy}
+            paused={needsIdentity || !!panel || !!activeJob || busy}
             people={people}
             onInteract={interact}
             onPosition={(x, z) => setPosition({ x, z })}
@@ -841,6 +848,23 @@ export default function NoobiusGame() {
           <span>EARLY ACCESS · THE NIGHT SHIFT</span>
         </div>
       )}
+      {needsIdentity && (
+        <Onboarding
+          key={profile?.wallet}
+          name={profile?.name ?? ''}
+          facility={facility}
+          busy={busy}
+          onName={game.rename}
+          onWear={(type, id) => game.facilityAction({ type, id })}
+          onComplete={async () => {
+            if (!(await act({ type: 'intro', id: 'arrival' }))) return false;
+            if (!(await act({ type: 'intro', id: 'identity' }))) return false;
+            setPanel(null);
+            setGuideCommand({ id: 'margo', revision: Date.now() });
+            return true;
+          }}
+        />
+      )}
       {(error || soundError) && (
         <div className="error-notice" role="alert">
           <span>{error || soundError}</span>
@@ -856,7 +880,7 @@ export default function NoobiusGame() {
         </div>
       )}
       <Dialog
-        open={!!panel}
+        open={!!panel && !needsIdentity}
         onOpenChange={(open) => {
           if (!open) {
             if (panel === 'briefing' && briefing) void continueBriefing(false);
@@ -865,7 +889,7 @@ export default function NoobiusGame() {
         }}
       >
         <DialogContent
-          className={`noobius-modal ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+          className={`noobius-modal ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
         >
           <DialogTitle>
             {
@@ -951,7 +975,7 @@ export default function NoobiusGame() {
               balance={profile?.credits ?? 0}
               busy={busy}
               onName={game.rename}
-              onWear={(type, id) => void game.facilityAction({ type, id })}
+              onWear={(type, id) => game.facilityAction({ type, id })}
             />
           )}
           {panel === 'crewjob' && (

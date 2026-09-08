@@ -399,3 +399,31 @@ test('first shift introduces Margo, then production and outages without removing
   assert.equal(normalizeFacility(old, 40000).compute, 0);
   assert.equal(normalizeFacility(old, 40000).version, 17);
 });
+
+test('starter appearance saves without spending Compute or unlocking earned cosmetics', () => {
+  let f = newFacility(100000);
+  for (const [type, id] of [
+    ['outfit', 'starter-coral'],
+    ['accessory', 'cap'],
+    ['intro', 'arrival'],
+    ['intro', 'identity'],
+  ]) {
+    const next = act(f, type, { id }, 0);
+    assert.equal(next.credits, 0);
+    f = next.facility;
+  }
+  assert.equal(f.outfit, 'starter-coral');
+  assert.equal(f.accessory, 'cap');
+  assert.ok(f.seen.includes('intro:identity'));
+  const restored = normalizeFacility(JSON.parse(JSON.stringify(f)), 100000);
+  assert.equal(restored.outfit, 'starter-coral');
+  assert.equal(restored.accessory, 'cap');
+  assert.throws(
+    () => act(restored, 'outfit', { id: 'afterhours' }, 0),
+    FacilityError,
+  );
+  assert.throws(
+    () => act(restored, 'accessory', { id: 'pack' }, 0),
+    FacilityError,
+  );
+});

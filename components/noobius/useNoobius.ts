@@ -544,7 +544,10 @@ export function useNoobius() {
           'Use 2–20 letters, numbers, spaces, dashes, or underscores.',
         );
       if (state.current.profile?.wallet === 'practice') {
-        setProfile((p) => (p ? { ...p, name: name.trim() } : p));
+        apply({
+          profile: { ...state.current.profile, name: name.trim() },
+          shift: state.current.shift,
+        });
         return true;
       }
       apply(
@@ -565,11 +568,14 @@ export function useNoobius() {
       const a = { ...action, requestId: pending.current.id } as FacilityAction;
       if (p.wallet === 'practice') {
         const next = applyFacility(p.facility ?? newFacility(), a, p.credits);
-        setProfile({
-          ...p,
-          facility: next.facility,
-          credits: p.credits + next.credits,
-          xp: p.xp + next.xp,
+        apply({
+          profile: {
+            ...p,
+            facility: next.facility,
+            credits: p.credits + next.credits,
+            xp: p.xp + next.xp,
+          },
+          shift: state.current.shift,
         });
         setNotice(next.message);
       } else {

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ArrowRight, Check, Cpu, Gauge, Zap, Bot } from 'lucide-react';
+import { ArrowRight, Check, Cpu, Gauge, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   COMPUTE_JOBS,
@@ -14,6 +14,7 @@ import {
   type Facility,
   type FacilityAction,
 } from '@/lib/facility';
+import MissionVisual from './MissionVisual';
 import { type Briefing } from '@/lib/experience';
 
 type Props = {
@@ -36,19 +37,26 @@ export function BriefingCard({
 }) {
   return (
     <div className="shift-briefing">
-      <div className="briefing-speaker">
-        <span>
-          <Bot size={28} />
-        </span>
-        <div>
-          <strong>{briefing.who}</strong>
-        </div>
-      </div>
-      <p>{briefing.text}</p>
-      <div className="briefing-tip">
-        <ArrowRight size={20} />
-        <span>{briefing.tip}</span>
-      </div>
+      <MissionVisual
+        step={
+          briefing.id === 'craft'
+            ? 1
+            : ['rack', 'compute', 'outage'].includes(briefing.id)
+              ? 3
+              : 0
+        }
+      />
+      <p className="visual-briefing-line">
+        {briefing.id === 'welcome'
+          ? 'Tap below. Follow the glowing path.'
+          : briefing.id === 'salvage'
+            ? 'Collect the missing parts.'
+            : briefing.id === 'craft'
+              ? 'Kit ready. Time to build.'
+              : briefing.id === 'rack'
+                ? 'Your rack is earning Compute.'
+                : briefing.text}
+      </p>
       <Button className="primary-action" disabled={busy} onClick={onContinue}>
         {briefing.cta}
         <ArrowRight size={18} />
