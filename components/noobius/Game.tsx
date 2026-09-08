@@ -1,5 +1,6 @@
 'use client';
 import ComputeIcon from './ComputeIcon';
+import ObjectiveCoach from './ObjectiveCoach';
 import { QuickGuide } from './PlayGuide';
 import TokenExchange from './TokenExchange';
 import {
@@ -27,7 +28,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
-  Navigation,
   Hammer,
   CircleHelp,
   BookOpen,
@@ -123,6 +123,11 @@ export default function NoobiusGame() {
   const summarizedWallets = useRef(new Set<string>());
   const worldGeneration = useRef(0);
   const pendingStep = useRef<NextStep | null>(null);
+  const [followingStep, setFollowingStep] = useState<NextStep | null>(null);
+  const updatePendingStep = (step: NextStep | null) => {
+    pendingStep.current = step;
+    setFollowingStep(step);
+  };
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -184,7 +189,7 @@ export default function NoobiusGame() {
     setPosition({ x: 0, z: 17 });
     setPanel(null);
     setGuideCommand(null);
-    pendingStep.current = null;
+    updatePendingStep(null);
   };
   const visitFacility = async (owner: string) => {
     try {
@@ -200,7 +205,7 @@ export default function NoobiusGame() {
       setPosition({ x: 0, z: 17 });
       setPanel(null);
       setGuideCommand(null);
-      pendingStep.current = null;
+      updatePendingStep(null);
     } catch (e) {
       game.setError(
         e instanceof Error ? e.message : 'Could not enter this facility.',
@@ -305,16 +310,19 @@ export default function NoobiusGame() {
         return;
       if (e.key === 'Escape' && !panel) {
         e.preventDefault();
+        stopFollowing();
         setPanel('menu');
         return;
       }
       if (panel && panel !== 'map' && panel !== 'inventory') return;
       if (e.key.toLowerCase() === 'm') {
         e.preventDefault();
+        stopFollowing();
         setPanel((p) => (p === 'map' ? null : 'map'));
       }
       if (e.key.toLowerCase() === 'i') {
         e.preventDefault();
+        stopFollowing();
         setPanel((p) => (p === 'inventory' ? null : 'inventory'));
       }
     };
@@ -331,7 +339,7 @@ export default function NoobiusGame() {
     worldGeneration.current++;
     setCelebration(null);
     setWorkEvent(null);
-    pendingStep.current = null;
+    updatePendingStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
     setSelectedObject(null);
     setPanel((current) =>
@@ -375,7 +383,12 @@ export default function NoobiusGame() {
       alive = false;
     };
   }, [panel]);
+  const stopFollowing = () => {
+    updatePendingStep(null);
+    setGuideCommand({ id: '', revision: Date.now() });
+  };
   const show = (p: Panel, selected?: WorldObject) => {
+    if (pendingStep.current) stopFollowing();
     game.setError('');
     if (p !== panel) {
       setCelebration(null);
@@ -445,7 +458,7 @@ export default function NoobiusGame() {
       goWorld('home');
       return;
     }
-    pendingStep.current = null;
+    updatePendingStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
     setPanel(null);
     if (step.repair) {
@@ -475,7 +488,7 @@ export default function NoobiusGame() {
       return;
     }
     if (step.target && !worldUnavailable) {
-      pendingStep.current = step;
+      updatePendingStep(step);
       setGuideCommand({ id: step.target, revision: Date.now() });
     } else if (step.action) void act(step.action);
     else if (step.panel) show(step.panel as Panel);
@@ -500,7 +513,7 @@ export default function NoobiusGame() {
     setSelectedObject(object);
     if (pendingStep.current?.target === object.id) {
       const step = pendingStep.current;
-      pendingStep.current = null;
+      updatePendingStep(null);
       if (step.action) {
         void act(step.action);
         return;
@@ -684,9 +697,12 @@ export default function NoobiusGame() {
               guideCommand={guideCommand}
               objectiveId={room === 'home' ? objective.target : undefined}
               workEvent={workEvent}
-              onUnavailable={() => setWorldUnavailable(true)}
+              onUnavailable={() => {
+                setWorldUnavailable(true);
+                stopFollowing();
+              }}
               onCancelGuide={() => {
-                pendingStep.current = null;
+                updatePendingStep(null);
               }}
             />
           )}
@@ -744,25 +760,13 @@ export default function NoobiusGame() {
           )}
           <div className="home-guidance">
             {room === 'home' && (
-              <button
-                className="objective-hud next-action"
-                onClick={followObjective}
-                disabled={busy}
-                aria-label={`${objective.title}. ${objective.cta}`}
-              >
-                <span className="next-action-icon">
-                  <Navigation size={22} />
-                </span>
-                <span className="next-action-copy">
-                  <small>Next up</small>
-                  <strong>{objective.title}</strong>
-                  <span className="next-action-detail">{objective.detail}</span>
-                </span>
-                <ArrowRight className="next-action-arrow" size={20} />
-                <i className="objective-meter">
-                  <i style={{ width: `${objective.progress}%` }} />
-                </i>
-              </button>
+              <ObjectiveCoach
+                objective={objective}
+                following={followingStep}
+                busy={busy}
+                onFollow={followObjective}
+                onStop={stopFollowing}
+              />
             )}
             {room === 'home' && modules(facility) > 0 && (
               <button
@@ -773,16 +777,33 @@ export default function NoobiusGame() {
                     ? void act({ type: 'compute-collect' })
                     : storedCompute > 0
                       ? void act({ type: 'compute-harvest' })
-                      : show('compute')
+                      : show('facility')
                 }
               >
                 <ComputeIcon size={30} />
                 <span>
                   {facility.workload && now >= facility.workload.readyAt
-                    ? `Collect +${facility.workload.reward}`
+                    ? `Collect bonus +${facility.workload.reward}`
                     : storedCompute > 0
                       ? `Collect +${storedCompute}`
-                      : 'Machines working'}
+                      : 'View machines'}
+                  {storedCompute === 0 &&
+                    !(
+                      facility.workload && now >= facility.workload.readyAt
+                    ) && (
+                      <small>
+                        Next +{computePerTick(facility)} in{' '}
+                        {Math.max(
+                          1,
+                          Math.ceil(
+                            (15000 -
+                              (Math.max(0, now - facility.computeAt) % 15000)) /
+                              1000,
+                          ),
+                        )}
+                        s
+                      </small>
+                    )}
                 </span>
                 <ArrowRight size={15} />
               </button>
@@ -1174,7 +1195,7 @@ export default function NoobiusGame() {
                     })
                   }
                   onTravel={() => {
-                    pendingStep.current = null;
+                    updatePendingStep(null);
                     setGuideCommand({ id: '', revision: Date.now() });
                     setTravelCommand((n) => n + 1);
                     setPanel(null);

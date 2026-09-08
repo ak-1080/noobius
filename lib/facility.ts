@@ -262,7 +262,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'commons',
     x: 5,
     z: 9,
-    name: 'Employee lockers',
+    name: 'Parts storage',
     panel: 'inventory',
   },
   {
@@ -354,7 +354,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'workshop',
     x: 26,
     z: 9,
-    name: 'Power & cooling',
+    name: 'Build desk',
     panel: 'facility',
   },
   {
@@ -363,7 +363,7 @@ export const OBJECTS: WorldObject[] = [
     zone: 'workshop',
     x: 23,
     z: 16,
-    name: 'Patch · Crew outfitter',
+    name: 'Patch · Skills coach',
     panel: 'skills',
   },
   {

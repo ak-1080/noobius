@@ -7,7 +7,7 @@ const slides = [
     image: '/assets/noobius.jpeg',
     alt: 'Noobius ready for his first shift',
     title: 'Never wonder what’s next.',
-    text: 'Tap “Next up” in the game. Noobius follows the glowing path to your next job.',
+    text: '“Next up” tells you what to do. Tap its action to collect, build, or follow the glowing path.',
   },
   {
     image: '/assets/tutorial/tutorial-server.png',
@@ -52,6 +52,7 @@ export default function HowToSlides({
               <span>
                 <small>Next up</small>
                 <strong>Meet Margo</strong>
+                <span className="howto-example-action">Show me Margo →</span>
               </span>
               <ArrowRight size={20} />
             </div>

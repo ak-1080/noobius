@@ -897,6 +897,7 @@ export default function Campus(props: Props) {
       waypoints = path.map(([x, z]) => new T.Vector3(x, 0, z));
       target = waypoints.shift() ?? null;
       targetObject = target ? object : null;
+      if (object && !target) live.current.onCancelGuide();
     };
     const walkObject = (obj: WorldObject) => {
       const options = [
@@ -913,6 +914,7 @@ export default function Campus(props: Props) {
             Math.hypot(b[0] - avatar.g.position.x, b[1] - avatar.g.position.z),
         )[0];
       if (dest) go(dest[0], dest[1], obj);
+      else live.current.onCancelGuide();
     };
     travel.current = (zoneId) => {
       const z = ZONES.find((z) => z.id === zoneId);
@@ -1143,8 +1145,10 @@ export default function Campus(props: Props) {
               Math.cos(Math.atan2(dx, dz) - avatar.g.rotation.y),
             ) * Math.min(1, dt * 12);
           if (!moving) {
+            if (targetObject) p.onCancelGuide();
             target = null;
             waypoints = [];
+            targetObject = null;
           }
         }
       } else keys.clear();

@@ -31,7 +31,7 @@ export const GUIDE_TOPICS = [
     text: 'Open Build. Collect what your machines have made, then choose an upgrade. Tap a machine in the world to see its own upgrade first.',
     image: '/assets/guide/build-and-collect.png',
     alt: 'Build menu: collect machine earnings, then choose an upgrade with its price and income change',
-    tip: 'Faster machines improves every machine at once. Each machine also has three levels of its own.',
+    tip: 'The “Faster machines” upgrade speeds up every machine at once. Each machine also has three levels of its own.',
   },
   {
     id: 'expand',
@@ -357,7 +357,8 @@ function GuideDetails() {
         <h2>When you’re stuck</h2>
         <p>
           <strong>Not sure what to do?</strong> Tap “Next up.” It shows the
-          cost, countdown, or location you need.
+          action, cost, or countdown you need. While Noobius is walking, tap
+          “Stop walking” to take control.
         </p>
         <p>
           <strong>Can’t afford something?</strong> Collect your machines’

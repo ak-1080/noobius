@@ -139,3 +139,17 @@ While saving, the coach keeps the intended purchase as its title and shows the a
 - [x] Coach collection after moving away from the starter paid 486 immediately (79 → 565). Opening Cooling still required a separate 100-Compute action.
 - [x] Phone illustrated-guide review: the fresh Build capture shows collection and the following purchase together; the final browser error log was empty.
 - [x] Read-only audit found no remaining correctness blocker in selection, account isolation, confirmed receipts, legacy collection, or optional bonus integration.
+
+## Visible actions and cancellable guidance
+
+The Next up card now prints its actual action: Collect, Open Build, Build, or Upgrade. Its icon changes to match. A guided walk preserves the selected task in the card, says “On our way,” and offers Stop walking. Stopping, moving manually, opening a menu, changing worlds/accounts, an unavailable world, or a blocked route clears the pending action. Arrival still performs the selected action once through the existing authoritative action handler.
+
+An empty earnings button now says View machines and shows the next tick countdown; it opens Build. A ready boost says Collect bonus, distinct from ordinary machine collection. Parts storage, Build desk, and Patch · Skills coach now describe the menus those world objects actually open. The pre-game slides and Docs reflect the visible action and stop control.
+
+- [x] 53 existing tests passed; this change does not alter economy rules.
+- [x] Desktop: guided build displayed On our way, arrived, built the Inference rack for exactly 450 Compute, and returned to the next task.
+- [x] Stop walking canceled the next 800-Compute build, preserving the 1,308 balance. Opening the pause menu during another attempt and resuming also preserved that balance and the unbuilt target.
+- [x] Phone 390 × 844: visible action, countdown, collection receipt, and bottom controls fit without overlap. View machines opened Build with the same income and balance.
+- [x] Quick boost: Collect bonus +24 changed 36,348 to 36,372, then restored the ordinary stored-output button without collecting that output.
+- [x] Browser error log empty for those paths; viewport restored after testing.
+- [ ] WebGL-loss and dynamically blocked-route cancellation have source review evidence; those exceptional conditions were not induced in the browser.
