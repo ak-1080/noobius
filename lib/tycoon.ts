@@ -86,11 +86,11 @@ export function tycoonObjective(
     return stored > 0
       ? wrap(
           {
-            title: `Collect ${stored} Compute`,
+            title: next,
             detail:
               balance + stored >= cost
-                ? `Enough for ${next.toLowerCase()}. Collect, then spend ${cost} Compute.`
-                : `After collecting: ${balance + stored} / ${cost} for ${next.toLowerCase()}.`,
+                ? `${stored} Compute ready. Collect, then spend ${cost}.`
+                : `${balance + stored} / ${cost} Compute · ${stored} ready to collect.`,
             cta: 'Collect',
             target: first,
             action: { type: 'compute-harvest' },
@@ -99,11 +99,10 @@ export function tycoonObjective(
         )
       : wrap(
           {
-            title: 'Your machine is working',
-            detail: `Next Compute in ${seconds}s · ${rate}/min. Save ${cost} for ${next.toLowerCase()}.`,
-            cta: 'Watch my machine',
-            target: first,
-            panel: 'compute',
+            title: next,
+            detail: `${balance} / ${cost} Compute · next +${computePerTick(f)} in ${seconds}s.`,
+            cta: 'Open Build',
+            panel: 'facility',
           },
           Math.min(100, (balance / cost) * 100),
         );

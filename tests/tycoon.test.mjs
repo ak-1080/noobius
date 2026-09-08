@@ -17,10 +17,15 @@ test('collection coach recognizes below, exact, and above the purchase threshold
   const f = newFacility(0);
   f.builds['rack-a'] = 1;
   f.seen.push('intro:welcome');
+  const waiting = tycoonObjective(f, 0, 0);
+  assert.equal(waiting.title, 'Faster machines');
+  assert.equal(waiting.panel, 'facility');
+  assert.equal(waiting.target, undefined);
   assert.match(tycoonObjective(f, 1, 45000).detail, /19 \/ 20/);
   for (const balance of [2, 10]) {
     const next = tycoonObjective(f, balance, 45000);
-    assert.match(next.detail, /Enough for faster machines/);
+    assert.equal(next.title, waiting.title);
+    assert.match(next.detail, /18 Compute ready\. Collect, then spend 20/);
     assert.equal(next.action.type, 'compute-harvest');
     assert.doesNotMatch(next.detail, /\/ 20/);
   }

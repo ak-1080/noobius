@@ -375,13 +375,14 @@ export default function NoobiusGame() {
       alive = false;
     };
   }, [panel]);
-  const show = (p: Panel) => {
+  const show = (p: Panel, selected?: WorldObject) => {
     game.setError('');
     if (p !== panel) {
       setCelebration(null);
       game.setNotice('');
     }
     if ((p === 'badge' || p === 'profile') && profile) setName(profile.name);
+    if (p === 'facility') setSelectedObject(selected ?? null);
     setPanel(p);
   };
   const play = async () => {
@@ -459,9 +460,16 @@ export default function NoobiusGame() {
     // short walk and its own animation instead of another catalog dialog.
     if (
       step.action &&
-      ['claim', 'daily', 'daily-bonus', 'bank', 'coffee', 'unlock'].includes(
-        step.action.type,
-      )
+      [
+        'claim',
+        'daily',
+        'daily-bonus',
+        'bank',
+        'coffee',
+        'unlock',
+        'compute-harvest',
+        'compute-collect',
+      ].includes(step.action.type)
     ) {
       void act(step.action);
       return;
@@ -498,20 +506,12 @@ export default function NoobiusGame() {
         return;
       }
       if (step.panel) {
-        show(step.panel as Panel);
+        show(step.panel as Panel, object);
         return;
       }
     }
     if (object.id === 'margo' && briefing?.id === 'welcome') {
       show('briefing');
-      return;
-    }
-    if (incident?.rack === object.id) {
-      show('outage');
-      return;
-    }
-    if (object.kind === 'build' && (facility.builds[object.id] ?? 0) > 0) {
-      show('compute');
       return;
     }
     if (object.kind === 'node') {
@@ -523,7 +523,7 @@ export default function NoobiusGame() {
       return;
     }
     if (object.kind === 'build') {
-      show('facility');
+      show('facility', object);
       return;
     }
     show((object.panel ?? 'contracts') as Panel);
@@ -1154,6 +1154,7 @@ export default function NoobiusGame() {
                   jobTab="story"
                   onFollow={followObjective}
                   onRepair={() => show('jobs')}
+                  onExtra={() => show('compute')}
                   onHelp={(request) =>
                     executeStep(
                       resolveObjective(facility, profile.credits, now, request),

@@ -123,3 +123,19 @@ Verification:
 - [x] Phone at 390 × 844: max-tier machine, label, floor marker and HUD remain readable. Desktop: working tool/spark effect is visible after closing Build.
 - [x] Desktop overview: unlocked GPU for 750 and inspected its fixtures alongside the active Cooling, Workshop and Commons rooms; Network and Core stayed dormant. Browser error log was empty.
 - [ ] Connected shared-campus repair labels and delayed cross-world responses have source evidence; real-wallet browser acceptance remains outstanding.
+
+## Collect and upgrade in one place
+
+Build now shows live uncollected output, income, and the next production tick. The same collection strip appears in Production. Collecting moves confirmed earnings into the spendable balance; buying remains a separate action. An empty balance no longer forces a player out of Build to pick up enough for an upgrade.
+
+Interacting with personal machines opens Build with that machine first, including during an optional bonus event. Opening the general Build menu clears the previous selection. Each card has a lightweight tier preview that changes from an empty pad through three cabinet levels; it needs no additional WebGL renderer. Bonuses remain reachable from the gold HUD button and Build's “A little extra” link.
+
+While saving, the coach keeps the intended purchase as its title and shows the amount available or next production tick. Coach collection is immediate, like the green Collect button. Building still involves walking to the plot. Legacy crafted-part pickup remains a workbench interaction. The illustrated guide has a fresh Build screenshot and matching collection, upgrade and bonus directions.
+
+- [x] TypeScript, production build, and 53 tests. Existing guidance expectations now cover the Build route and a stable purchase title across the collection threshold.
+- [x] Desktop: 0 balance → collect 108 → explicit 20 speed purchase → 88 balance, with Build staying open and the authoritative receipt visible. Income changed 24 → 36/min.
+- [x] Phone 390 × 844: collection and prices fit; selected starter card appears before global speed. A 294 collection changed 88 → 382; subsequent 90 and 180 machine purchases changed the preview to levels 2 and 3 and disabled the max-level button.
+- [x] World interaction during an active bonus opens the machine upgrade card. General Build clears that selection. Optional Quick boost remained available and its +14 collection changed 490 → 504 without taking regular output.
+- [x] Coach collection after moving away from the starter paid 486 immediately (79 → 565). Opening Cooling still required a separate 100-Compute action.
+- [x] Phone illustrated-guide review: the fresh Build capture shows collection and the following purchase together; the final browser error log was empty.
+- [x] Read-only audit found no remaining correctness blocker in selection, account isolation, confirmed receipts, legacy collection, or optional bonus integration.

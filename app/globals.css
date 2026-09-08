@@ -6250,12 +6250,16 @@ a {
   object-fit: cover;
 }
 .guide-image-upgrade {
-  height: 385px;
+  height: auto;
+  width: min(390px, 100%);
+  margin-inline: auto;
+  aspect-ratio: 390 / 450;
 }
 .guide-image-upgrade img {
   height: auto;
   width: min(390px, 100%);
-  margin: -64px auto 0;
+  margin: 0 auto;
+  transform: translateY(-9%);
 }
 .guide-image-bonuses {
   height: 610px;
@@ -6271,10 +6275,10 @@ a {
 }
 @media (max-width: 450px) {
   .guide-image-upgrade {
-    height: 315px;
+    height: auto;
   }
   .guide-image-upgrade img {
-    margin-top: -48px;
+    margin-top: 0;
   }
   .guide-image-bonuses {
     height: 480px;
@@ -6302,6 +6306,146 @@ a {
 
 .modal-heading:focus {
   outline: none;
+}
+
+/* Keep earning, collecting, and buying in the same place. */
+.tycoon-machine-art {
+  background: radial-gradient(ellipse at 50% 60%, #274a4d, #0c202b 75%);
+}
+.machine-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 5px 4px 25px;
+}
+.collection-strip {
+  grid-column: 1 / -1;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid #85b97c4a;
+  border-radius: 16px;
+  background: #b6ed8610;
+}
+.collection-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.collection-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.collection-summary strong {
+  font-size: 1rem;
+  color: #e5f1dc;
+}
+.collection-summary span {
+  font-size: 0.8rem;
+  color: #acc3bd;
+}
+.collection-summary .primary-action {
+  margin: 0;
+  width: auto;
+  min-height: 44px;
+  padding: 10px 16px;
+}
+.collection-timing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 13px;
+  color: #a3beb6;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.collection-timing small {
+  font-size: inherit;
+  color: #849f9b;
+}
+.collection-tick {
+  height: 3px;
+  border-radius: 3px;
+  background: #b6ed861c;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.collection-tick i {
+  display: block;
+  height: 100%;
+  background: #b8e88b;
+}
+.tycoon-machine-focus {
+  grid-column: 1 / -1;
+  margin-bottom: 18px;
+}
+.tycoon-machine-focus .tycoon-machine {
+  display: grid;
+  grid-template-columns: minmax(108px, 30%) minmax(0, 1fr);
+}
+.tycoon-machine-focus .tycoon-machine-art {
+  height: 100%;
+  min-height: 168px;
+}
+.tycoon-extra-link {
+  display: flex;
+  grid-column: 1 / -1;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 16px;
+  color: #cde3d1;
+  font-weight: 600;
+}
+.tycoon-extra-link > span {
+  color: #8faca7;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.tycoon-extra-link:hover {
+  color: #c4f28c;
+}
+@media (min-width: 601px) {
+  .tycoon-build > .tycoon-wallet {
+    grid-column: 1/-1;
+  }
+  .tycoon-build > .tycoon-wallet > span {
+    flex-basis: auto;
+    padding-left: 0;
+    margin-top: 0;
+  }
+  .tycoon-build > .collection-strip,
+  .tycoon-machine-focus,
+  .tycoon-extra-link {
+    margin: 0;
+  }
+}
+@media (max-width: 600px) {
+  .collection-strip {
+    padding: 13px;
+  }
+  .collection-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .collection-summary > .compute-icon {
+    display: none;
+  }
+  .collection-summary strong {
+    font-size: 0.9rem;
+  }
+  .collection-summary .primary-action {
+    padding: 9px 12px;
+  }
+  .collection-timing small {
+    display: none;
+  }
 }
 .menu-save-status {
   margin: -4px 0 14px;

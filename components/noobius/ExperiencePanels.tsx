@@ -1,5 +1,6 @@
 'use client';
 import ComputeIcon from './ComputeIcon';
+import ComputeCollection from './ComputeCollection';
 import { useState } from 'react';
 import { ArrowRight, Check, Cpu, Gauge, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,9 +12,7 @@ import {
   OUTAGE_STEPS,
   activeIncident,
   computePerTick,
-  computeTankCapacity,
   modules,
-  storedComputeNow,
   type Facility,
   type FacilityAction,
 } from '@/lib/facility';
@@ -72,18 +71,12 @@ export function ComputeDesk({
   onStarted,
   onOutage,
 }: Props & { onStarted: () => void; onOutage: () => void }) {
-  const stored = storedComputeNow(f, now),
-    cap = computeTankCapacity(f),
-    job = f.workload;
+  const job = f.workload;
   const cost = BOOST_PRICES[f.computeBoost],
     rate = computePerTick(f) * 4;
   const bonusWait = Math.max(
     0,
     Math.ceil(((f.cooldowns['compute-boost'] ?? 0) - now) / 1000),
-  );
-  const tickWait = Math.max(
-    1,
-    15 - (Math.floor((now - f.computeAt) / 1000) % 15),
   );
   return (
     <div className="compute-desk simple-compute">
@@ -92,48 +85,12 @@ export function ComputeDesk({
         <strong>{f.compute.toLocaleString()}</strong>
         <span>Compute to spend</span>
       </div>
-      <section className="compute-card production-card">
-        <img
-          src="/assets/tutorial/tutorial-server.png"
-          alt="Your machines generate Compute automatically"
-        />
-        <h3>
-          {stored >= cap
-            ? 'Storage is full.'
-            : rate
-              ? 'Your machines are working.'
-              : 'Build your first machine.'}
-        </h3>
-        <p>
-          <strong>{rate} Compute / min</strong>
-        </p>
-        <div
-          className="compute-tank"
-          role="progressbar"
-          aria-label="Compute storage"
-          aria-valuemin={0}
-          aria-valuemax={cap}
-          aria-valuenow={stored}
-        >
-          <i style={{ width: `${(stored / cap) * 100}%` }} />
-        </div>
-        <small>
-          {stored.toLocaleString()} ready · room for {cap.toLocaleString()}
-        </small>
-        <Button
-          className="primary-action"
-          disabled={busy || stored < 1}
-          onClick={() => void onAction({ type: 'compute-harvest' })}
-        >
-          <ComputeIcon size={28} />
-          {stored ? `Collect ${stored}` : `Next Compute in ${tickWait}s`}
-        </Button>
-        <p className="muted-small">
-          {stored >= cap
-            ? 'Collect to make room. Then your machines can keep earning.'
-            : 'Collect whenever you like. There’s room for an hour of earnings.'}
-        </p>
-      </section>
+      <ComputeCollection
+        facility={f}
+        now={now}
+        busy={busy}
+        onAction={onAction}
+      />
       <section className="compute-card">
         <h3>
           <Gauge size={21} /> Faster machines

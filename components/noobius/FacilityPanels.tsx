@@ -76,6 +76,7 @@ type Props = {
   onMarket: (a: string, b: Record<string, unknown>) => Promise<unknown>;
   onPanel: (p: ExpansionPanel) => void;
   onTravel: () => void;
+  onExtra: () => void;
   objective: Objective;
   onFollow: () => void;
   onRepair: () => void;
@@ -107,6 +108,7 @@ export default function FacilityPanels({
   onMarket,
   onPanel,
   onTravel,
+  onExtra,
   objective,
   onFollow,
   onRepair,
@@ -446,9 +448,11 @@ export default function FacilityPanels({
         facility={f}
         balance={profile.credits}
         busy={busy}
+        now={now}
         selected={selected?.id}
         onAction={onAction}
         onExpand={() => onPanel('map')}
+        onExtra={onExtra}
       />
     );
   if (panel === 'market')

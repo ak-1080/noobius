@@ -28,10 +28,10 @@ export const GUIDE_TOPICS = [
   {
     id: 'upgrade',
     title: 'Make more, faster',
-    text: 'Open Build. Buy another machine or choose Faster machines. The numbers show what you earn now and what you’ll earn after buying.',
-    image: '/assets/guide/first-upgrade.png',
-    alt: 'First speed upgrade: 20 Compute increases income from 24 to 36 per minute',
-    tip: 'Your first speed upgrade costs 20 Compute. It raises starter income to 36 per minute.',
+    text: 'Open Build. Collect what your machines have made, then choose an upgrade. Tap a machine in the world to see its own upgrade first.',
+    image: '/assets/guide/build-and-collect.png',
+    alt: 'Build menu: collect machine earnings, then choose an upgrade with its price and income change',
+    tip: 'Faster machines improves every machine at once. Each machine also has three levels of its own.',
   },
   {
     id: 'expand',
@@ -44,7 +44,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'bonuses',
     title: 'Play for a little extra',
-    text: 'Try a boost in your machine panel. Or tap the gold Bonus button when it appears. Wake the sleepy server by tapping three glowing buttons.',
+    text: 'Open Build and choose “A little extra” for a bonus boost. Or tap the gold Bonus button when it appears. Light up three buttons to wake a sleepy server.',
     image: '/assets/guide/bonus.png',
     alt: 'Bonus round: tap the glowing button to light up all three',
     tip: 'Bonuses are optional. Your machines keep earning while you play.',
