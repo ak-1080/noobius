@@ -7,6 +7,7 @@ import {
   type FacilityAction,
 } from '@/lib/facility';
 import { signInWallet } from '@/lib/wallet';
+import { facilityReceipt, type FacilityReceipt } from '@/lib/game-feedback';
 import {
   GUEST_SAVE_KEY,
   GuestSaveStore,
@@ -47,6 +48,8 @@ export class ClientError extends Error {
   }
 }
 export type GameData = {
+  receipt?: FacilityReceipt | null;
+  actionApplied?: boolean;
   profile: Profile | null;
   shift: Shift | null;
   correct?: boolean;
@@ -671,13 +674,16 @@ export function useNoobius() {
     run(async () => {
       const p = state.current.profile;
       if (!p) return;
+      const epoch = generation.current;
       const key = JSON.stringify(['facility', action]);
       if (pending.current?.key !== key)
         pending.current = { key, id: crypto.randomUUID() };
       const a = { ...action, requestId: pending.current.id } as FacilityAction;
+      let data: GameData;
       if (p.wallet === 'practice') {
-        const next = applyFacility(p.facility ?? newFacility(), a, p.credits);
-        apply({
+        const before = p.facility ?? newFacility();
+        const next = applyFacility(before, a, p.credits);
+        data = {
           profile: {
             ...p,
             facility: next.facility,
@@ -685,18 +691,28 @@ export function useNoobius() {
             xp: p.xp + next.xp,
           },
           shift: state.current.shift,
-        });
-        setNotice(next.message);
+          receipt: facilityReceipt(before, a, next),
+          actionApplied: !before.requests.includes(a.requestId),
+          message: next.message,
+        };
       } else {
-        const data = await api('facility', {
+        data = await api('facility', {
           action: a,
           expectedWallet: p.wallet,
         });
-        apply(data);
-        setNotice(data.message ?? 'Saved.');
       }
+      if (
+        epoch !== generation.current ||
+        state.current.profile?.wallet !== p.wallet
+      )
+        return;
+      apply(data, epoch);
+      setNotice(data.receipt ? '' : (data.message ?? 'Saved.'));
       pending.current = null;
-      return true;
+      return {
+        receipt: data.receipt ?? null,
+        applied: data.actionApplied !== false,
+      };
     });
   const marketAction = async (action: string, body: Record<string, unknown>) =>
     run(async () => {

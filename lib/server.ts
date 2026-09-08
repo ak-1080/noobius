@@ -1,4 +1,5 @@
 import { EMERGENCY_STATIONS, eventAt, validRoom } from './multiplayer';
+import { facilityReceipt } from './game-feedback';
 import { env } from 'cloudflare:workers';
 import { getAddress, isAddress, verifyMessage } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
@@ -633,7 +634,12 @@ export async function handleGame(request: Request, action: string) {
           'Your facility changed in another tab. Please retry.',
         );
     }
-    return result({ ...(await responseFor(wallet)), message: updated.message });
+    return result({
+      ...(await responseFor(wallet)),
+      message: updated.message,
+      receipt: facilityReceipt(previous, a, updated),
+      actionApplied: !previous.requests.includes(a.requestId),
+    });
   }
   if (action === 'presence') {
     const room = body.room ?? 'campus-1';

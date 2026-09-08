@@ -43,7 +43,7 @@ All purchases and rewards retain server-side pricing, request IDs and optimistic
 - [x] Desktop browser: picture-guide routes and topic navigation; Docs price table; wheel zoom, keyboard rotation after closing Build, and Escape opening/closing the menu.
 - [x] Phone browser at 390 × 844: Build, bonus game and HUD spacing after popup/focus fix.
 - [x] Phone browser at 390 × 844: picture-guide text and first-upgrade screenshot, Docs price table, collapsed/expanded menu, and exchange amount validation/Max/confirmation.
-- [ ] Latest optional bonus-button positioning still needs a fresh post-follow-up check.
+- [x] Phone bonus prompt moved above the help button; all HUD controls remain unobstructed at 390 × 844.
 - [x] Production build.
 - [x] Private deployment v18 succeeded.
 - [x] Follow-up browser review: character name/look → four slides → automatic Margo welcome → first free machine. Guest title screen → Connect → Back to game resumes the existing machine without resetting progress.
@@ -84,3 +84,21 @@ The coach now says when collecting will afford the next purchase. Fully upgraded
 - [x] Phone at 390 × 844: save status and pause-menu controls remain readable and usable. Browser error log empty for these paths.
 - [ ] Endgame objectives and next-day goal state passed logic tests. Visual acceptance of the last-upgrade celebration and the endgame screens remains outstanding.
 - [ ] Same-page wallet login/logout with a real browser wallet still needs device testing; account isolation and stale-save guards have unit/source evidence.
+
+
+## Reward visibility and returning-player follow-up
+
+Build, speed, collection, expansion, daily and outage successes now use an action-specific receipt. Wallet receipts are derived from the committed mutation after the compare-and-swap succeeds, before unrelated later profile activity can contaminate a reward amount. The guest path uses the same receipt helper. Replayed requests refresh the state without a second celebration; stale account/generation responses cannot set success feedback.
+
+An open gameplay panel retains its receipt, including the exact Compute cost and before/after income. A sticky receipt remains visible while scrolling; the menu title and close button stay outside the scrolling body. Returning to the world starts the dismissal timer. Opening another menu clears old feedback. Text remains available with reduced motion.
+
+Once per wallet per page session, an established player's Continue flow shows a short summary if at least a minute of output is ready. It says “Compute ready,” does not attribute all uncollected output to time away, and never collects automatically. Players can collect explicitly or look around first. Full storage explains that collection makes room for more earnings. Goals has a ready indicator until the daily bonus is claimed; gold-unlock messaging distinguishes a new unlock from later daily rewards.
+
+- [x] TypeScript and production build.
+- [x] 53 unit tests, including collection across a production tick, replay suppression versus a free first build, capped/nonmutating return summaries, UTC daily states, and either final purchase's completion receipt.
+- [x] Local D1 receipt test: committed free build, repeated request without another receipt, and an actual timed collection with a matching reward amount.
+- [x] Phone 390 × 844 and desktop: welcome-back summary; explicit 702-Compute collection changed 16 to 718; speed purchase showed 200 spent and 36 → 48/min; new machine showed 75 spent and 48 → 96/min.
+- [x] Receipts stayed visible beyond their former expiration and while purchasing/scrolled near the bottom of Build. Fixed header and close button stayed visible.
+- [x] Daily claim showed +35 Compute/+25 XP and 1 of 3 days; Goals' ready dot cleared after claiming. Later machine upgrades showed their exact cost and income change.
+- [x] Phone help and Locker layouts reviewed after the scroll-container adjustment. Optional bonus prompt no longer overlaps help. Fresh reload → Continue → Look around first kept the 238-Compute balance unchanged; browser error log was empty.
+- [ ] Full-storage and final-upgrade receipt contents passed logic tests; those exact visual states still need acceptance on a fully progressed game.

@@ -97,7 +97,13 @@ export function ComputeDesk({
           src="/assets/tutorial/tutorial-server.png"
           alt="Your machines generate Compute automatically"
         />
-        <h3>Your machines are working.</h3>
+        <h3>
+          {stored >= cap
+            ? 'Storage is full.'
+            : rate
+              ? 'Your machines are working.'
+              : 'Build your first machine.'}
+        </h3>
         <p>
           <strong>{rate} Compute / min</strong>
         </p>
@@ -123,7 +129,9 @@ export function ComputeDesk({
           {stored ? `Collect ${stored}` : `Next Compute in ${tickWait}s`}
         </Button>
         <p className="muted-small">
-          Collect whenever you like. There’s room for an hour of earnings.
+          {stored >= cap
+            ? 'Collect to make room. Then your machines can keep earning.'
+            : 'Collect whenever you like. There’s room for an hour of earnings.'}
         </p>
       </section>
       <section className="compute-card">
