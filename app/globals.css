@@ -1869,7 +1869,7 @@ a {
   z-index: 7;
 }
 .expansion-modal {
-  max-width: 760px !important;
+  max-width: var(--panel-max-width, 760px) !important;
 }
 .facility-summary {
   display: flex;
@@ -6230,6 +6230,260 @@ a {
     padding: 14px;
   }
 }
+.room-picker-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: #bdd0d0;
+  font-size: 14px;
+}
+.room-picker-heading p {
+  margin: 0;
+}
+.room-picker-heading > span {
+  color: #c4f28c;
+}
+.room-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: '. core .' 'thermal compute network' 'salvage commons workshop';
+  gap: 9px;
+  padding: 15px;
+  border-radius: 18px;
+  border: 1px solid #466071;
+  background: radial-gradient(ellipse at center, #1a3643, #0c202c);
+}
+.room-picker-button {
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  align-content: center;
+  min-height: 90px;
+  padding: 10px 6px;
+  border: 1px solid #395565;
+  border-radius: 12px;
+  background: #0e2530;
+  color: #b7c9ce;
+  cursor: pointer;
+  transition:
+    border-color 0.16s,
+    background 0.16s;
+}
+.room-picker-button:hover,
+.room-picker-button.is-selected {
+  border-color: var(--room-color);
+  background: #29424c;
+}
+.room-picker-button:focus-visible {
+  outline: 2px solid var(--room-color);
+  outline-offset: 3px;
+}
+.room-picker-button > svg {
+  color: var(--room-color);
+}
+.room-picker-button strong {
+  font-size: 13px;
+  line-height: 1.25;
+  color: #edf4ef;
+}
+.room-picker-button small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.room-details {
+  margin: 20px 0;
+  border: 1px solid #466071;
+  border-radius: 18px;
+  padding: 22px;
+  background: #102832;
+}
+.room-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.room-detail-header small {
+  color: var(--room-color);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.room-detail-header h3 {
+  margin: 4px 0 0;
+  font-size: 25px;
+}
+.room-detail-header > span {
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+  color: #b9cece;
+}
+.room-preview {
+  width: 100%;
+  max-height: 220px;
+  margin: 12px auto 0;
+  display: block;
+}
+.room-description {
+  color: #d3e1df;
+  margin: 8px 0 18px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.room-machine-list {
+  border-top: 1px solid #385560;
+}
+.room-machine-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #385560;
+  font-size: 14px;
+}
+.room-machine-list > div > span {
+  display: grid;
+  gap: 4px;
+}
+.room-machine-list > div > span:last-child {
+  text-align: right;
+  color: #c4f28c;
+}
+.room-machine-list small {
+  color: #a8c1c6;
+  font-size: 12px;
+}
+.room-purchase-note,
+.room-shortage {
+  font-size: 13px;
+  color: #b7cace;
+  line-height: 1.5;
+}
+.room-requirements {
+  display: grid;
+  gap: 9px;
+  padding: 16px;
+  margin: 18px 0 10px;
+  background: #091e29;
+  border-radius: 12px;
+}
+.room-requirements > div {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 14px;
+  color: #bdcbd0;
+}
+.room-requirements > div.is-met {
+  color: #c4f28c;
+}
+.room-requirements svg {
+  flex-shrink: 0;
+}
+.room-help-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  color: #c4f28c;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.room-detail-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.room-detail-actions .primary-action {
+  margin: 0;
+  flex: 1;
+}
+.room-shortage {
+  margin-bottom: 0;
+}
+@media (min-width: 760px) {
+  .noobius-modal.game-panel-shell.room-modal {
+    --panel-max-width: 1040px;
+    width: calc(100vw - 64px);
+  }
+  .room-progress {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(330px, 1.2fr);
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    gap: 16px 20px;
+  }
+  .room-picker-heading {
+    grid-column: 1;
+    margin: 0;
+  }
+  .room-picker {
+    grid-column: 1;
+    padding: 10px;
+  }
+  .room-picker-button {
+    min-height: 80px;
+  }
+  .room-details {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    margin: 0;
+    padding: 18px;
+  }
+  .room-preview {
+    max-height: 145px;
+  }
+  .room-description {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  .room-progress > .collection-strip {
+    grid-column: 1;
+  }
+  .room-progress .collection-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .room-progress .collection-summary > .compute-icon {
+    display: none;
+  }
+  .room-progress .collection-timing {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 600px) {
+  .room-picker {
+    padding: 8px;
+    gap: 6px;
+  }
+  .room-picker-button {
+    min-height: 78px;
+    padding: 8px 3px;
+  }
+  .room-picker-button strong {
+    font-size: 11px;
+  }
+  .room-details {
+    padding: 16px;
+  }
+  .room-detail-header h3 {
+    font-size: 22px;
+  }
+  .room-detail-actions {
+    flex-direction: column;
+  }
+  .room-requirements {
+    padding: 12px;
+  }
+  .room-requirements > div {
+    font-size: 13px;
+  }
+}
 .home-guidance {
   display: contents;
 }
@@ -6612,6 +6866,224 @@ a {
 }
 .return-modal {
   max-width: 460px;
+}
+.noobius-modal.game-panel-shell.wallet-modal {
+  width: min(460px, calc(100vw - 32px));
+  max-width: 460px;
+  max-height: calc(100dvh - 32px);
+  padding: 26px;
+  gap: 18px;
+  color: #f7f7f8;
+  background: #1b1c1f;
+  border: 1px solid #343539;
+  border-radius: 22px;
+  box-shadow: 0 28px 100px #0009;
+}
+.wallet-modal .modal-heading {
+  margin: 0;
+  padding: 3px 30px 4px;
+  font-size: 27px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+  text-align: center;
+}
+.wallet-modal [data-slot='dialog-close'] {
+  top: 20px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border: 1px solid #38393e;
+  border-radius: 50%;
+  color: #a8a9b2;
+  background: #2a2b30;
+}
+.wallet-modal .game-panel-body {
+  gap: 0;
+  scrollbar-color: #505157 transparent;
+}
+.wallet-picker button:focus-visible,
+.wallet-picker a:focus-visible {
+  outline: 2px solid #c4ec91;
+  outline-offset: -2px;
+}
+.wallet-group-title {
+  margin: 5px 0 10px;
+  font-size: 17px;
+  font-weight: 650;
+  color: #a8a8ae;
+}
+.wallet-other-title {
+  margin-top: 22px;
+}
+.wallet-popular-list {
+  display: grid;
+  gap: 4px;
+}
+.wallet-brand-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 15px;
+  padding: 10px 7px;
+  min-height: 64px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #f7f7f8;
+  text-align: left;
+  transition: background 150ms ease;
+}
+.wallet-brand-row:hover:not(:disabled) {
+  background: #292a30;
+}
+.wallet-brand-row:disabled {
+  opacity: 0.55;
+}
+.wallet-brand-row > img,
+.wallet-generic-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 10px;
+}
+.wallet-generic-icon {
+  display: grid;
+  place-items: center;
+  background: #393b43;
+}
+.wallet-brand-row > strong {
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.35px;
+}
+.wallet-brand-row > small,
+.wallet-brand-row > .wallet-spinner {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.wallet-brand-row > small {
+  color: #a6bd93;
+  font-size: 10px;
+}
+.wallet-spinner {
+  animation: wallet-spin 1s linear infinite;
+}
+@keyframes wallet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.wallet-picker-footer {
+  border-top: 1px solid #34353a;
+  padding-top: 14px;
+  margin-top: 18px;
+  text-align: center;
+}
+.wallet-picker-footer > p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #a8a9b2;
+}
+.wallet-picker-footer > button {
+  padding: 11px 12px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e7e7eb;
+}
+.wallet-install {
+  text-align: center;
+}
+.wallet-install > img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  margin: 24px auto 16px;
+}
+.wallet-install > h3 {
+  font-size: 23px;
+  margin-bottom: 16px;
+}
+.wallet-install > p {
+  color: #b9bac3;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 10px 0;
+}
+.wallet-back {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b9bac3;
+  font-size: 13px;
+  padding: 6px 0;
+}
+.wallet-install-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  margin-top: 24px;
+  border-radius: 10px;
+  background: #eff0f5;
+  color: #1b1c1f;
+  font-size: 14px;
+  font-weight: 700;
+}
+.wallet-retry {
+  padding: 15px 2px 0;
+  color: #c7c8d1;
+  font-size: 12px;
+}
+.wallet-picker-error {
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid #76534a;
+  border-radius: 10px;
+  background: #3f2b28;
+  color: #ffd0be;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wallet-picker-status {
+  margin-top: 15px;
+  font-size: 13px;
+  color: #d7eac2;
+}
+@media (max-width: 480px) {
+  .noobius-modal.game-panel-shell.wallet-modal {
+    padding: 22px 18px;
+  }
+  .wallet-modal .modal-heading {
+    font-size: 24px;
+    padding: 3px 24px 4px;
+  }
+  .wallet-modal [data-slot='dialog-close'] {
+    top: 19px;
+    right: 12px;
+    width: 30px;
+    height: 30px;
+  }
+  .wallet-brand-row {
+    gap: 12px;
+    padding-inline: 3px;
+  }
+  .wallet-brand-row > strong {
+    font-size: 19px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-spinner {
+    animation: none;
+  }
+  .wallet-brand-row {
+    transition: none;
+  }
 }
 .return-summary {
   display: grid;

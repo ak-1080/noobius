@@ -1,5 +1,6 @@
 'use client';
 import TycoonBuildPanel, { TycoonGoals } from './TycoonBuildPanel';
+import RoomProgressPanel from './RoomProgressPanel';
 import ItemIcon from './ItemIcon';
 import { useEffect, useState } from 'react';
 import {
@@ -74,7 +75,7 @@ type Props = {
   busy: boolean;
   onAction: (a: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
   onMarket: (a: string, b: Record<string, unknown>) => Promise<unknown>;
-  onPanel: (p: ExpansionPanel) => void;
+  onPanel: (p: ExpansionPanel, selected?: WorldObject) => void;
   onTravel: () => void;
   onExtra: () => void;
   objective: Objective;
@@ -176,58 +177,16 @@ export default function FacilityPanels({
   const ids = Object.keys(ITEMS) as ItemId[];
   if (panel === 'map')
     return (
-      <div className="campus-directory">
-        <div className="facility-summary">
-          <span>
-            <strong>{computePerTick(f) * 4}</strong> Compute / min
-          </span>
-          <span>
-            <strong>{modules(f)}</strong> machine levels
-          </span>
-          <span>
-            <strong>{f.unlocked.length}/7</strong> open
-          </span>
-        </div>
-        <div className="directory-map">
-          <div className="map-spine" />
-          {ZONES.map((z) => (
-            <button
-              key={z.id}
-              className={`map-department ${f.unlocked.includes(z.id) ? 'open' : 'locked'}`}
-              style={
-                {
-                  left: `${50 + z.x * 1.47}%`,
-                  top: `${15 + (z.z + 32) * 1.42}%`,
-                  '--department-color': z.color,
-                } as React.CSSProperties
-              }
-              disabled={busy}
-              onClick={async () => {
-                if (f.unlocked.includes(z.id)) {
-                  if (await onAction({ type: 'travel', id: z.id })) onTravel();
-                } else await action({ type: 'unlock', id: z.id });
-              }}
-            >
-              <span>
-                {f.unlocked.includes(z.id) ? (
-                  <Zap size={18} />
-                ) : (
-                  <Lock size={17} />
-                )}
-              </span>
-              <strong>{z.name}</strong>
-              <small>
-                {f.unlocked.includes(z.id)
-                  ? 'Go'
-                  : z.id === 'core' && !f.unlocked.includes('compute')
-                    ? 'Open GPU room first'
-                    : `${z.modules} machine levels · ${z.cost} Compute`}
-              </small>
-            </button>
-          ))}
-        </div>
-        <p className="muted-small">Choose a room to travel or unlock.</p>
-      </div>
+      <RoomProgressPanel
+        facility={f}
+        balance={profile.credits}
+        busy={busy}
+        now={now}
+        initialRoom={selected?.kind === 'gate' ? selected.zone : undefined}
+        onAction={onAction}
+        onTravel={onTravel}
+        onBuild={(plot) => onPanel('facility', plot)}
+      />
     );
   if (panel === 'inventory')
     return (

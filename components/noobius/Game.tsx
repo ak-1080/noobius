@@ -1,6 +1,7 @@
 'use client';
 import ComputeIcon from './ComputeIcon';
 import ObjectiveCoach from './ObjectiveCoach';
+import WalletPicker from './WalletPicker';
 import { QuickGuide } from './PlayGuide';
 import TokenExchange from './TokenExchange';
 import {
@@ -395,7 +396,7 @@ export default function NoobiusGame() {
       game.setNotice('');
     }
     if ((p === 'badge' || p === 'profile') && profile) setName(profile.name);
-    if (p === 'facility') setSelectedObject(selected ?? null);
+    if (p === 'facility' || p === 'map') setSelectedObject(selected ?? null);
     setPanel(p);
   };
   const play = async () => {
@@ -532,7 +533,7 @@ export default function NoobiusGame() {
       return;
     }
     if (object.kind === 'gate') {
-      show('map');
+      show('map', object);
       return;
     }
     if (object.kind === 'build') {
@@ -907,9 +908,9 @@ export default function NoobiusGame() {
           }}
         />
       )}
-      {(error || soundError) && (
+      {((error && panel !== 'wallet') || soundError) && (
         <div className="error-notice" role="alert">
-          <span>{error || soundError}</span>
+          <span>{panel === 'wallet' ? soundError : error || soundError}</span>
           <button
             aria-label="Dismiss message"
             onClick={() => {
@@ -934,7 +935,7 @@ export default function NoobiusGame() {
           <DialogContent
             key={panel ?? 'closed'}
             initialFocus={panelHeading}
-            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel === 'map' ? 'room-modal' : ''} ${panel === 'wallet' ? 'wallet-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
           >
             <DialogTitle
               className="modal-heading"
@@ -953,7 +954,7 @@ export default function NoobiusGame() {
                     crewjob: 'Cluster down',
                     menu: 'Paused',
                     jobs: 'Repairs',
-                    wallet: 'Clock in.',
+                    wallet: 'Connect a Wallet',
                     badge: 'Your employee badge.',
                     profile: 'Your employee badge.',
                     guide: 'How to play',
@@ -970,9 +971,7 @@ export default function NoobiusGame() {
               }
             </DialogTitle>
             <div className="game-panel-body">
-              <DialogDescription
-                className={panel === 'wallet' ? '' : 'sr-only'}
-              >
+              <DialogDescription className="sr-only">
                 {
                   (
                     {
@@ -1169,7 +1168,7 @@ export default function NoobiusGame() {
                   busy={busy}
                   onAction={act}
                   onMarket={game.marketAction}
-                  onPanel={(p) => show(p)}
+                  onPanel={(p, selected) => show(p, selected)}
                   key={panel}
                   objective={objective}
                   jobTab="story"
@@ -1366,86 +1365,21 @@ export default function NoobiusGame() {
                 </>
               )}
               {panel === 'wallet' && (
-                <div className="wallet-flow">
-                  <div className="login-steps">
-                    <span>
-                      <span>1</span> Connect
-                    </span>
-                    <ChevronRight size={14} />
-                    <span>
-                      <span>2</span> Sign in
-                    </span>
-                    <ChevronRight size={14} />
-                    <span>
-                      <span>3</span> Play
-                    </span>
-                  </div>
-                  {game.wallets.length ? (
-                    game.wallets.map((w) => (
-                      <button
-                        className="wallet-option"
-                        key={w.id}
-                        disabled={busy}
-                        onClick={async () => {
-                          if (await game.connect(w)) show('badge');
-                        }}
-                      >
-                        <Wallet size={22} />
-                        <strong>{w.name}</strong>
-                        <span>
-                          {busy ? 'Check wallet…' : 'Connect'}
-                          <ChevronRight size={15} />
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="wallet-empty">
-                      <Wallet size={28} />
-                      <h3>No wallet detected.</h3>
-                      <p>
-                        Use MetaMask or another Ethereum-compatible browser
-                        wallet. On mobile, open this site in your wallet’s
-                        browser.
-                      </p>
-                      <a
-                        className="outline-button"
-                        href="https://metamask.io/download/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Get MetaMask <ArrowRight size={15} />
-                      </a>
-                      <a
-                        className="text-action"
-                        href={`https://metamask.app.link/dapp/noobius-compute-crew.rivd609.chatgpt.site`}
-                      >
-                        Open in MetaMask <ChevronRight size={14} />
-                      </a>
-                    </div>
-                  )}
-                  <div className="wallet-fine-print">
-                    You’ll sign a readable login message. No gas fee, token
-                    approval, or spending permission. Standard Ethereum accounts
-                    supported.
-                  </div>
-                  <button
-                    className="practice-button modal-practice"
-                    onClick={
-                      profile?.wallet === 'practice'
-                        ? () => {
-                            setPanel(null);
-                            if (mode === 'lobby') void play();
-                          }
-                        : practice
-                    }
-                    disabled={busy || game.initializing}
-                  >
-                    <Gamepad2 size={16} />{' '}
-                    {profile?.wallet === 'practice'
-                      ? 'Back to game'
-                      : 'Play a practice shift instead'}
-                  </button>
-                </div>
+                <WalletPicker
+                  wallets={game.wallets}
+                  busy={busy || game.initializing}
+                  error={error}
+                  isPractice={profile?.wallet === 'practice'}
+                  onConnect={async (wallet) => {
+                    if (await game.connect(wallet)) show('badge');
+                  }}
+                  onBackToGame={() => {
+                    if (profile?.wallet === 'practice') {
+                      setPanel(null);
+                      if (mode === 'lobby') void play();
+                    } else practice();
+                  }}
+                />
               )}
               {(panel === 'badge' || panel === 'profile') && profile && (
                 <div className="profile-panel">

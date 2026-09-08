@@ -250,3 +250,69 @@ test('buying machines or speed keeps the production clock and settles old output
     assert.equal(bought.credits, -cost);
   }
 });
+
+import { ZONES } from '../lib/facility.ts';
+import { roomUnlockState } from '../lib/room-progress.ts';
+test('room requirement display matches authoritative unlock acceptance at each boundary', () => {
+  for (const room of ZONES.filter((z) => z.cost > 0)) {
+    for (const levels of [room.modules - 1, room.modules, room.modules + 1]) {
+      for (const balance of [room.cost - 1, room.cost, room.cost + 1]) {
+        for (const gpuOpen of [false, true]) {
+          const f = newFacility(0);
+          f.builds = {
+            'rack-a': Math.min(3, levels),
+            'rack-b': Math.min(3, Math.max(0, levels - 3)),
+            'rack-c': Math.max(0, levels - 6),
+          };
+          if (gpuOpen && room.id !== 'compute') f.unlocked.push('compute');
+          const state = roomUnlockState(f, balance, room);
+          let accepted = false;
+          try {
+            action(f, 'unlock', balance, 0, { id: room.id });
+            accepted = true;
+          } catch {}
+          assert.equal(
+            state.canUnlock,
+            accepted,
+            `${room.id}: ${levels} levels, ${balance} balance, GPU ${gpuOpen}`,
+          );
+        }
+      }
+    }
+  }
+});
+test('unlocking buys space only; travel and machine building remain separate actions', () => {
+  for (const room of ZONES.filter((z) => z.cost > 0)) {
+    const f = newFacility(0);
+    f.builds = { 'rack-a': 3, 'rack-b': 3 };
+    if (room.id === 'core') f.unlocked.push('compute');
+    const result = action(f, 'unlock', room.cost, 0, { id: room.id });
+    assert.equal(result.credits, -room.cost);
+    assert.deepEqual(result.facility.builds, f.builds);
+    assert.equal(result.facility.zone, f.zone);
+    assert.equal(computePerTick(result.facility), computePerTick(f));
+    assert.equal(roomUnlockState(result.facility, 0, room).canUnlock, false);
+    const traveled = action(result.facility, 'travel', 0, 1, { id: room.id });
+    assert.equal(traveled.facility.zone, room.id);
+    assert.equal(traveled.credits, 0);
+  }
+});
+
+import { roomMachinePrice } from '../lib/room-progress.ts';
+test('future room previews show post-starter prices, not a second free machine', () => {
+  const before = newFacility(0);
+  const after = action(before, 'build', 0, 0, { id: 'rack-a' }).facility;
+  assert.equal(roomMachinePrice(before, 'rack-a'), 0);
+  for (const id of [
+    'rack-b',
+    'rack-c',
+    'rack-d',
+    'rack-e',
+    'rack-f',
+    'rack-g',
+  ]) {
+    assert.ok(roomMachinePrice(before, id) > 0);
+    assert.equal(roomMachinePrice(before, id), rackPrice(after, id));
+  }
+  assert.equal(roomMachinePrice(after, 'rack-a'), 90);
+});

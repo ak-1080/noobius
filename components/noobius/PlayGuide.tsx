@@ -36,10 +36,10 @@ export const GUIDE_TOPICS = [
   {
     id: 'expand',
     title: 'Open a new room',
-    text: 'Fill your first room, then tap “Make room for more” in Build. Spend Compute to open a door. Later rooms have stronger machines.',
+    text: 'In Build, tap “Make room for more.” Choose a room to see its machine spots, prices, and requirements. Unlock it, then tap “Go to room.”',
     image: '/assets/facility.png',
     alt: 'An expanding data center full of server machines',
-    tip: 'The first new room costs 100 Compute. You choose when to buy it. Machine levels count toward opening doors.',
+    tip: 'Cooling costs 100 Compute to open. Its machine costs another 180. Unlocking the room gives you space; building the machine makes it earn.',
   },
   {
     id: 'bonuses',

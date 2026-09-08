@@ -818,7 +818,7 @@ export const productionUnits = (f: Facility) =>
 export const machineGain = (f: Facility, id: string) =>
   (MACHINE_POWER[id] ?? 1) * (6 + f.computeBoost * 3) * 4;
 export const BOOST_PRICES = [20, 200, 900, 3500, 12000] as const;
-const RACK_PRICES: Record<string, number> = {
+export const RACK_PRICES: Record<string, number> = {
   'rack-a': 45,
   'rack-b': 75,
   'rack-c': 180,
@@ -1197,9 +1197,13 @@ export function applyFacility(
       if (!zone || f.unlocked.includes(zone.id))
         throw new FacilityError('That department is already open.');
       if (zone.id === 'core' && !f.unlocked.includes('compute'))
-        throw new FacilityError('Open GPU room before entering the Hot Zone.');
+        throw new FacilityError(
+          'Open the GPU room before unlocking the Core room.',
+        );
       if (modules(f) < zone.modules)
-        throw new FacilityError(`Install ${zone.modules} rack modules first.`);
+        throw new FacilityError(
+          `Build or upgrade machines to reach ${zone.modules} total machine levels first.`,
+        );
       spend({}, zone.cost);
       f.unlocked.push(zone.id);
       xp = 25;

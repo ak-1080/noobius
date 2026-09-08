@@ -153,3 +153,17 @@ An empty earnings button now says View machines and shows the next tick countdow
 - [x] Quick boost: Collect bonus +24 changed 36,348 to 36,372, then restored the ordinary stored-output button without collecting that output.
 - [x] Browser error log empty for those paths; viewport restored after testing.
 - [ ] WebGL-loss and dynamically blocked-route cancellation have source review evidence; those exceptional conditions were not induced in the browser.
+
+## Room previews and a recognizable wallet picker
+
+Expand now previews all seven rooms before spending. Each room shows its machine spots, build prices, income, and every unlock requirement together. Unlocking buys space; Go to room and Build machines are separate explicit actions. Selecting a gate retains that room, Build machines opens its relevant plot first, and reopening the general Expand menu clears the prior gate selection. Lightweight SVG room previews show built machine tiers and empty pads without another WebGL renderer.
+
+The Connect a Wallet panel follows the supplied reference: dark neutral surface, centered heading, circular close control, and six large branded rows. Browser providers are matched by EIP-6963 metadata, with legacy flags as a fallback. The exact selected provider performs the existing verified message-sign-in flow. Late announcements enrich a provider without duplicating it; additional providers remain selectable. Missing wallets show official installation links. WalletConnect explicitly says phone/QR connections are not available yet; no QR or session is simulated. Local wallet artwork includes its source and license.
+
+- [x] TypeScript, production build, and 58 tests passed. New tests compare displayed room requirements with authoritative unlock acceptance at each boundary and cover provider identity, compatibility flags, and late announcements.
+- [x] Room browser acceptance: Cooling unlock spent exactly 100 (565 → 465), kept production at 240/min, and left its 180-Compute machine unbuilt. Build machines selected the Chiller first. Traveling to Cooling closed the panel without another spend.
+- [x] Core showed all three unmet requirements together; GPU stayed locked with 465 spendable Compute even when 14,400 uncollected output was available. Selecting rooms alone did not spend.
+- [x] Earlier room phone acceptance at 390 × 844: selecting Core scrolled its details into view; close stayed visible and no horizontal overflow was observed.
+- [x] Wallet desktop browser acceptance: all six logos and rows rendered; missing MetaMask, retry discovery, return to list, and WalletConnect availability details worked. Error log was empty.
+- [ ] The wallet phone viewport override did not take effect in this browser session (rendered viewport stayed 1280 × 720); phone visual acceptance remains outstanding. Temporary override reset.
+- [ ] Real extension/mobile-wallet acceptance remains outstanding. No injected wallet was available in the test browser; signing/cancellation/account-switch behavior passed the existing provider-based tests. Existing session-provider restoration still uses the remembered display name; stable restoration metadata is a follow-up.

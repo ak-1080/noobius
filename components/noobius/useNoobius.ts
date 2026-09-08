@@ -25,15 +25,13 @@ import {
   type Shift,
   type Upgrade,
 } from '@/lib/game';
-export type Provider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (name: string, fn: (...args: any[]) => void) => void;
-  removeListener?: (name: string, fn: (...args: any[]) => void) => void;
-  isMetaMask?: boolean;
-  isCoinbaseWallet?: boolean;
-  providers?: Provider[];
-};
-export type WalletOption = { id: string; name: string; provider: Provider };
+import {
+  mergeWalletOption,
+  legacyWalletName,
+  type Provider,
+  type WalletOption,
+} from '@/lib/wallet-options';
+export type { Provider, WalletOption } from '@/lib/wallet-options';
 declare global {
   interface Window {
     ethereum?: Provider;
@@ -219,12 +217,15 @@ export function useNoobius() {
       .finally(() => {
         if (alive) setInitializing(false);
       });
-    const found = new Map<string, WalletOption>();
-    const add = (id: string, name: string, provider: Provider) => {
-      if (typeof provider?.request === 'function' && !found.has(id)) {
-        found.set(id, { id, name, provider });
-        setWallets([...found.values()]);
-      }
+    let found: WalletOption[] = [];
+    const add = (
+      id: string,
+      name: string,
+      provider: Provider,
+      rdns?: string,
+    ) => {
+      found = mergeWalletOption(found, { id, name, provider, rdns });
+      setWallets(found);
     };
     const announce = (event: Event) => {
       const detail = (event as CustomEvent).detail;
@@ -233,7 +234,14 @@ export function useNoobius() {
         typeof detail.info?.uuid === 'string' &&
         typeof detail.info?.name === 'string'
       )
-        add(detail.info.uuid, detail.info.name.slice(0, 40), detail.provider);
+        add(
+          detail.info.uuid,
+          detail.info.name.slice(0, 40),
+          detail.provider,
+          typeof detail.info.rdns === 'string'
+            ? detail.info.rdns.slice(0, 255)
+            : undefined,
+        );
     };
     window.addEventListener('eip6963:announceProvider', announce);
     window.dispatchEvent(new Event('eip6963:requestProvider'));
@@ -241,16 +249,7 @@ export function useNoobius() {
       const p = window.ethereum;
       if (p) {
         for (const provider of p.providers ?? [p])
-          if (![...found.values()].some((x) => x.provider === provider))
-            add(
-              'injected' + found.size,
-              provider.isMetaMask
-                ? 'MetaMask'
-                : provider.isCoinbaseWallet
-                  ? 'Coinbase Wallet'
-                  : 'Browser wallet',
-              provider,
-            );
+          add('injected' + found.length, legacyWalletName(provider), provider);
       }
     }, 300);
     return () => {
