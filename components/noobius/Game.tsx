@@ -7,6 +7,7 @@ import {
   type SharedWorld,
   type WorldVisit,
 } from '@/lib/multiplayer';
+import ContractAddress from './ContractAddress';
 import { BriefingCard, ComputeDesk, OutageRepair } from './ExperiencePanels';
 import Onboarding from './Onboarding';
 import { nextBriefing, shiftObjective } from '@/lib/experience';
@@ -652,6 +653,7 @@ export default function NoobiusGame() {
                 : 'Play now'}
             <ArrowRight size={20} />
           </Button>
+          <ContractAddress onToken={() => show('token')} />
         </main>
       ) : (
         <main
@@ -840,6 +842,11 @@ export default function NoobiusGame() {
             </div>
           )}
         </main>
+      )}
+      {!playing && (
+        <div className="screen-footer">
+          <span>EARLY ACCESS · THE NIGHT SHIFT</span>
+        </div>
       )}
       {needsIdentity && (
         <Onboarding
