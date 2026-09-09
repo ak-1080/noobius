@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game, wallet entry, specialist dispatch choices, batch economy, connected supply guidance and timed cluster commissioning are published as **Site version 36** on September 9, 2026 at 08:17:09 UTC. Source: `3b32158c38927f3bfd92fb1dd560a2715f4e54bf`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
+The neighborhood game, wallet entry, specialist dispatch choices, batch economy, connected supply guidance, timed cluster commissioning and in-world work indicators are published as **Site version 37** on September 9, 2026 at 08:41:23 UTC. Source: `2eb04cd791482651195d8643dfcd62759cb7670a`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
 
-Deployment `appgdep_6aa115f8faac8191be60027c48762359` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_35edbc76d27c8191b755beed495407b8`, with environment revision zero. The default suite now has 187 passing checks; timed commissioning also passed a real local Worker/D1 API journey. The service, pending-workload, output and machine-choice screens were reviewed with local API-state fixtures. Those fixtures were removed before building. This remains a private playable release, not public multiplayer or live-extension acceptance.
+Deployment `appgdep_6aa11ba68d388191978b939a2ee00e11` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_dbe1a739d27c8191b856c610f9b77393`, with environment revision zero. The default suite now has 192 passing checks; timed commissioning also passed a real local Worker/D1 API journey, including shared running-state updates. An isolated browser save verified exact-job navigation, guided repair arrival, completed fabrication and explicit client collection. Temporary fixtures were removed before building. See [work feedback](world-work-feedback.md) and [remaining checkpoints](next-upgrade-checkpoints.md). This remains a private playable release, not public multiplayer or live-extension acceptance.
 
 ## Implemented
 

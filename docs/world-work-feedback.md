@@ -16,3 +16,9 @@ Visitors and the public campus receive no private work indicators. Worksite keys
 - Visual review removed overlapping ordinary and active-work rack labels. The temporary route, seeded browser origin and isolated API database were separate from the existing player's save. Temporary route/configuration were removed before the production build.
 
 This is interaction and correctness evidence, not independent-player acceptance, hosted capacity measurement or proof of long-term enjoyment. Multiplayer still uses HTTP polling. The real holder policy and token payouts remain unconfigured.
+
+## Publication
+
+Published owner-private as Site version 37 at 08:41:23 UTC, September 9, 2026, from source `2eb04cd791482651195d8643dfcd62759cb7670a`. No database migration or hosted environment change was required. Production build, TypeScript, diff checks and scoped lint for the new presentation logic passed.
+
+The published game reopened the existing guest save with 880,287 spendable and 408,240 stored Compute. Only Continue guest game and Look around first were used; nothing was collected or spent. No error-level messages appeared in the browser log. This does not verify a real wallet or a multiplayer session.
