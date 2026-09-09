@@ -1,6 +1,6 @@
 # Neighborhoods completion audit
 
-September 9, 2026. Audited against the full neighborhoods upgrade plan after private Site version 46, with independent read-only gameplay and operations reviews. This is a remaining-work record, not a completion claim.
+September 9, 2026. Audited against the full neighborhoods upgrade plan after private Site version 47, with independent read-only gameplay and operations reviews. This is a remaining-work record, not a completion claim.
 
 ## Evidence against the delivery stages
 

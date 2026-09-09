@@ -52,3 +52,9 @@ Recovery dispatches at most two orphan jobs per batch. Storage can fail after on
 ## Operator follow-through
 
 Configure collection, retention, an accountable operator and alert destinations before public opening. Investigate growing retry age, expirations, repeated backlog rejection and storage failure; correlate eligible/grace/denial outcomes with provider availability without exposing account identifiers. Confirm recovery in a hosted restart/backup drill. No alert threshold, staffing arrangement or successful hosted drill is implied by emitting these events. Source changes to `services/room-coordinator` need a separate authorized service deployment after the existing host/private-ingress prerequisites are resolved.
+
+## Private release record
+
+Site version 47 (`appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_f9b200bc23e0819193f67ef49ae6973c`) deployed successfully at 14:35:26 UTC on September 9, 2026. Application source: `21aa49661ae9e848578b56ba7c2d2ac2f6b172ec`. Deployment: `appgdep_6aa16e9c15488191b7150160169062fd`. Exact validated source was pushed to GitHub main/work branch and Sites main. The normalized archive hash was `sha256:0c2e1e555e4fe74896076d883d466a54f53cd52df294a48e9465c0e1fcf12692` (167 files, 33,556,480 bytes); no temporary QA config or environment file was packaged.
+
+The push-triggered [GitHub checks](https://github.com/ak-1080/noobius/actions/runs/34364404133) passed on both Node 22 and 24. The Site remains owner-private with environment revision zero and canonical migrations 0000–0011 unchanged. GPU pause remains off by default; no live holder asset, reviewer or coordinator host was enabled. This release changes the deployed application and the stored coordinator source, not a separately running room service. No player save was reset or collected for this pass. Broader hosted/human acceptance remains open.
