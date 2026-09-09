@@ -21,7 +21,7 @@ Connected accounts keep one personal center and join five-player neighborhoods. 
 
 ## Run locally
 
-Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once on a fresh local database**. This applies the six canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
+Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once on a fresh local database**. This applies the seven canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
 
 - `npm test`: game rules, wallet handshake, navigation, progression, migration preservation, purchase clocks, daily rewards and retry protection.
 - `npm run typecheck` and `npm run build`: TypeScript and the production Worker/browser build.
@@ -50,3 +50,5 @@ The Site remains owner-private. Local automated API/load tests, request logs, ad
 ## Assets and research
 
 The portrait and cinematics are user-supplied. The playable Three.js model interprets Noobius’s pale-blue silhouette, worried unequal eyes, shirt and black headset. Other illustration assets and notes are in [the art record](docs/art-assets.md). The guide uses Noobius artwork and local gameplay captures; no Kintara or Touch Grass assets were copied. [Game research](docs/game-research.md) records sources and evidence limits. Earlier iteration notes in `docs/` are historical where superseded by the revamp record.
+
+Report-review setup and limitations are recorded in [the moderation guide](docs/moderation.md). Dependency patch status is recorded in [the release review](docs/dependency-review-2026-09-09.md).

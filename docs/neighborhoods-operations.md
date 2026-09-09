@@ -38,7 +38,7 @@ Solana login does not imply Solana holder verification: the current adapter retu
 ## Migration and release sequence
 
 1. Record the exact source commit, current hosted version, target version, deployment audience and existing database migration state.
-2. Confirm the canonical history in `drizzle/meta/_journal.json`: `0000`–`0003`, `0004_odd_blackheart`, then `0005_tired_jocasta`. Retain the published wallet migration. Do not deploy the experimental SQL archived in `docs/migration-history/pre-reconciliation-4385554`.
+2. Confirm the canonical history in `drizzle/meta/_journal.json`: `0000`–`0003`, `0004_odd_blackheart`, then `0005_tired_jocasta` and `0006_handy_polaris`. Retain the published wallet migration. Do not deploy the experimental SQL archived in `docs/migration-history/pre-reconciliation-4385554`.
 3. Run the default rules suite, migration reconciliation tests, TypeScript, production build and relevant local API suites. Generated-key fixtures and test databases must remain separate from real saves.
 4. Verify the actual hosted recovery capability and record a usable recovery point before applying a hosted migration. A local SQLite migration test is not a backup or restore drill.
 5. Publish through the hosting workflow, wait for terminal deployment success and record the commit/version/migration mapping. Then check homepage/assets, login cancellation and success, returning saves, neighborhood entry, takeover, visits and existing claims on the deployed HTTPS origin.
@@ -60,8 +60,8 @@ Before public access, assign an operator and verify dashboards/alerts for 5xx, 4
 
 ## Social reports and public-release gates
 
-Players can mute/block peers and report a message from their neighborhood. Reports persist the reported message and reason in `player_reports`; there is no moderator dashboard, notification pipeline or staffed response process. An operator must define who reviews reports, how action is taken, how users contact support and how records are retained. Existing controls are not proof that abuse handling is operational.
+Players can mute/block peers and report a message from their neighborhood. Reports persist the reported message and reason in `player_reports`; an explicitly allowlisted moderator can review them at `/moderation`, dismiss a report or remove its message with a retained decision note. No reviewer is configured, and there is no notification pipeline or staffed response process. See [the moderator guide](moderation.md). An operator must define who reviews reports, how action is taken, how users contact support and how records are retained. Existing controls are not proof that abuse handling is operational.
 
-Open acceptance items are real wallet extensions, mobile devices, multi-person play/reconnect, longer return-session playtests, hosted load/cost measurements, dependency patch review, operational alerts and a hosted backup/restore rehearsal. Dependency review flagged 13 advisories with reviewed tooling paths and no confirmed request-path reachability; retain the patch follow-up rather than describing the build as vulnerability-free.
+Open acceptance items are real wallet extensions, mobile devices, multi-person play/reconnect, longer return-session playtests, hosted load/cost measurements, dependency patch review, operational alerts and a hosted backup/restore rehearsal. The targeted dependency patch leaves 10 affected packages (4 moderate, 6 high); follow the [dependency review](dependency-review-2026-09-09.md) rather than describing the build as vulnerability-free.
 
 Real $NOOBIUS rewards require a separately specified and funded quote/settlement system. The current Exchange only previews an amount and creates no transfer or payout request. Keep release copy consistent with that behavior.

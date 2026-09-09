@@ -228,6 +228,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0003_confused_wolfsbane',
       '0004_odd_blackheart',
       '0005_tired_jocasta',
+      '0006_handy_polaris',
     ],
   );
   assert.ok(
@@ -533,7 +534,7 @@ function schemaSemantics(sqlite) {
 }
 
 test('reconciliation retains the archived upgrade schema and index/FK semantics', (t) => {
-  const canonical = database(t);
+  const canonical = database(t, journal.slice(0, 6));
   const experimental = database(t, journal.slice(0, 4));
   const directory = 'docs/migration-history/pre-reconciliation-4385554';
   for (const tag of [

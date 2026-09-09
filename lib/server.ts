@@ -1,4 +1,5 @@
 import { listingsPage, escrowListing } from './market-server';
+import { reportQueue, reviewReport } from './moderation-server';
 import { runtimeControls, pausedAction } from './operations';
 import { canTrade, TRADE_QUALIFICATION } from './market';
 import {
@@ -480,6 +481,17 @@ export async function handleGame(request: Request, action: string) {
         ? ((await identity(request)) ?? undefined)
         : undefined,
     );
+    if (action === 'moderation-reports') {
+      const wallet = await identity(request);
+      return result(
+        await reportQueue(
+          db(),
+          wallet,
+          realmValues(),
+          new URL(request.url).searchParams,
+        ),
+      );
+    }
     if (action === 'leaderboard') {
       const rows = await db()
         .prepare(
@@ -761,6 +773,10 @@ export async function handleGame(request: Request, action: string) {
   );
 
   const permit = permitFor(request);
+  if (action === 'moderation-review') {
+    await rate(request, 'moderation', 30, wallet);
+    return result(await reviewReport(db(), wallet, realmValues(), body));
+  }
   const controls = runtimeControls(realmValues());
   const paused = pausedAction(action, controls);
   if (paused) throw new ApiError(503, paused);

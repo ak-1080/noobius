@@ -45,7 +45,7 @@ async function handle(
   const action = (await context.params).action.slice(0, 64);
   const important =
     response.status >= 400 ||
-    /^(listing-|project-claim|project-contribute|neighborhood-join)/.test(
+    /^(listing-|project-claim|project-contribute|neighborhood-join|moderation-)/.test(
       action,
     );
   if (important || Math.random() < 0.02)

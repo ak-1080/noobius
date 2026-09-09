@@ -9,3 +9,5 @@ The active chain now continues the deployed wallet schema with `0005_tired_jocas
 `tests/migration-reconciliation.test.mjs` checks fresh initialization, populated live-schema upgrade, account/inventory/session/escrow preservation, constraints, local transactional failure/retry, and final schema equivalence to the archived chain. This does not certify the hosted runner's bookkeeping or a hosted backup restoration.
 
 The existing development database already has the equivalent expanded schema from the archived local chain and has no migration tracking table. Do not replay the canonical full chain or `0005` over it. Fresh environments use the active journal. Hosted deployments continue from their recorded deployed `0004`; future changes must append another migration.
+
+The next additive migration, `0006_handy_polaris`, adds review metadata and an index to `player_reports`. Its preservation test checks existing reports, account values, sessions and escrow. It does not replace or re-run `0005`. The archived-schema equivalence test remains explicitly scoped to the reconciliation through `0005`.

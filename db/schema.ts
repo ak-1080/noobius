@@ -279,8 +279,14 @@ export const playerReports = sqliteTable(
     reason: text('reason').notNull(),
     createdAt: integer('created_at').notNull(),
     status: text('status').notNull().default('open'),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: integer('reviewed_at'),
+    reviewNote: text('review_note'),
   },
-  (t) => [uniqueIndex('idx_report_message_once').on(t.wallet, t.messageId)],
+  (t) => [
+    uniqueIndex('idx_report_message_once').on(t.wallet, t.messageId),
+    index('idx_report_status_time').on(t.status, t.createdAt, t.id),
+  ],
 );
 
 export const recentNeighbors = sqliteTable(
