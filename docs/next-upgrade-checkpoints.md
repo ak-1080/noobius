@@ -16,6 +16,8 @@ Follow-up evidence: the managed proof deployed, but reported no room binding and
 
 Authorization audit: `crew_presence` is checked inside facility, shared work, projects, chat and targeted-trade writes. Generations are random identifiers, not monotonic counters. `syncNow()` currently gates physical commands; a future socket barrier must await an authoritative durable checkpoint, or commands must be routed through one fenced coordinator. Facility travel writes a new position/sequence directly and must be reconciled before subsequent movement. Never broadcast whole personalized snapshots: membership credentials, claimed/pending/mine fields and private center details are recipient-specific. Earned project/crew claims and escrow cancellations must remain available after leaving a room.
 
+The narrow server authentication foundation is implemented but disabled: single-use tickets, exact-login grants, HMAC request authentication and refresh fencing. No movement checkpoint or browser socket is enabled. See [protocol and checks](room-authentication.md). The hosted transport and private machine-ingress requirements above still apply.
+
 ## Recurring uses for neglected materials
 
 Implemented in the recurring-materials increment; see [behavior and verification](recurring-materials-upgrade.md). Live balance and return-session validation remain required:

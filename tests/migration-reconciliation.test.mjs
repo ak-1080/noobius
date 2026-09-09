@@ -231,6 +231,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0006_handy_polaris',
       '0007_nappy_red_wolf',
       '0008_foamy_sersi',
+      '0009_bouncy_lilith',
     ],
   );
   assert.ok(
@@ -249,6 +250,9 @@ test('the canonical journal installs a fresh database in deployed migration orde
     'social_preferences',
     'recent_neighbors',
     'player_reports',
+    'room_tickets',
+    'room_grants',
+    'room_service_nonces',
   ]) {
     assert.ok(
       sqlite
@@ -576,4 +580,35 @@ test('dispatch migration preserves populated project terms and makes no retrospe
     .get(id);
   assert.equal(benefit_json, null);
   assert.deepEqual({ ...before }, after);
+});
+
+test('room authentication migration adds empty credentials without touching saved players or economy', (t) => {
+  const sqlite = database(t, journal.slice(0, 5));
+  seedDeployed(sqlite);
+  for (const entry of journal.slice(5, 9)) sqlite.exec(migration(entry.tag));
+  const tables = sqlite
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all()
+    .map((r) => r.name);
+  const before = Object.fromEntries(
+    tables.map((name) => [
+      name,
+      sqlite.prepare(`SELECT * FROM ${name} ORDER BY 1`).all(),
+    ]),
+  );
+  sqlite.exec(migration('0009_bouncy_lilith'));
+  for (const name of tables)
+    assert.deepEqual(
+      sqlite.prepare(`SELECT * FROM ${name} ORDER BY 1`).all(),
+      before[name],
+      name,
+    );
+  for (const name of ['room_tickets', 'room_grants', 'room_service_nonces'])
+    assert.equal(
+      sqlite.prepare(`SELECT count(*) AS n FROM ${name}`).get().n,
+      0,
+    );
+  assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });

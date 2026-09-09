@@ -1,4 +1,5 @@
 import { NeighborhoodError } from '@/lib/neighborhoods-server';
+import { RoomAuthError } from '@/lib/room-auth';
 import { FacilityError } from '@/lib/facility';
 import { ApiError, handleGame } from '@/lib/server';
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,11 @@ async function respond(
   try {
     return await handleGame(request, (await params).action);
   } catch (error) {
-    if (error instanceof ApiError || error instanceof NeighborhoodError)
+    if (
+      error instanceof ApiError ||
+      error instanceof NeighborhoodError ||
+      error instanceof RoomAuthError
+    )
       return Response.json(
         { error: error.message },
         { status: error.status, headers: { 'Cache-Control': 'no-store' } },

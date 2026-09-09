@@ -1,4 +1,6 @@
 import { listingsPage, escrowListing } from './market-server';
+import { roomAuthConfig, RoomAuthError } from './room-auth';
+import { issueRoomTicket, handleRoomService } from './room-auth-server';
 import { finalizeProjectWork } from './commissioning';
 import { reportQueue, reviewReport } from './moderation-server';
 import { runtimeControls, pausedAction } from './operations';
@@ -248,15 +250,20 @@ async function player(wallet: string): Promise<Profile> {
     }),
   };
 }
-async function identity(request: Request) {
+async function sessionIdentity(request: Request) {
   const t = cookieValue(request, SESSION_COOKIE);
   if (!t || !/^[a-f0-9]{64}$/.test(t)) return null;
+  const sessionHash = await hash(t);
   const s = await db()
-    .prepare('SELECT wallet FROM sessions WHERE token_hash=? AND expires_at>?')
-    .bind(await hash(t), Date.now())
-    .first<{ wallet: string }>();
-  return s?.wallet ?? null;
+    .prepare(
+      'SELECT wallet,expires_at FROM sessions WHERE token_hash=? AND expires_at>?',
+    )
+    .bind(sessionHash, Date.now())
+    .first<{ wallet: string; expires_at: number }>();
+  return s ? { wallet: s.wallet, sessionHash, expiresAt: s.expires_at } : null;
 }
+const identity = async (request: Request) =>
+  (await sessionIdentity(request))?.wallet ?? null;
 async function getRun(wallet: string, id?: string) {
   const row = id
     ? await db()
@@ -436,6 +443,20 @@ async function withShared(
   };
 }
 const realmValues = () => env as unknown as Record<string, unknown>;
+function configuredRoomAuth(request: Request) {
+  const local =
+    import.meta.env.DEV === true &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(new URL(request.url).hostname);
+  const config = roomAuthConfig(realmValues(), local);
+  if (!config) throw new RoomAuthError(503, 'Room transport is not enabled.');
+  return config;
+}
+export async function handleRoomRequest(request: Request) {
+  const config = configuredRoomAuth(request);
+  return result(
+    await handleRoomService(db(), request, config, permitFor(request)),
+  );
+}
 function permitFor(request: Request): RealmPermit {
   const values = realmValues();
   const policy = tokenPolicy(values)?.key ?? null;
@@ -773,7 +794,8 @@ export async function handleGame(request: Request, action: string) {
       'Set-Cookie': cookie(request, SESSION_COOKIE, '', 0),
     });
   }
-  const wallet = await identity(request);
+  const authenticated = await sessionIdentity(request);
+  const wallet = authenticated?.wallet;
   if (!wallet)
     throw new ApiError(
       401,
@@ -804,6 +826,7 @@ export async function handleGame(request: Request, action: string) {
     [
       'neighborhood-sync',
       'neighborhood-scene',
+      'room-ticket',
       'project-start',
       'project-contribute',
       'project-inspect',
@@ -922,6 +945,18 @@ export async function handleGame(request: Request, action: string) {
       ...(await responseFor(wallet)),
       message: `Cluster commissioned! +${reward.compute} Compute · +${reward.reputation} reputation.${reward.dispatch ? ` +${reward.dispatch.granted} ${reward.dispatch.family} job choices (${reward.dispatch.stored}/2 stored).` : ''}`,
     });
+  }
+  if (action === 'room-ticket') {
+    await rate(request, 'room-ticket', 20, wallet);
+    return result(
+      await issueRoomTicket(
+        db(),
+        configuredRoomAuth(request),
+        authenticated!,
+        controllerFrom(body),
+        permit,
+      ),
+    );
   }
   if (action === 'neighborhood-join') {
     const p = await player(wallet);

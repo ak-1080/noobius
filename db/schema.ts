@@ -7,6 +7,58 @@ import {
   check,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+// Hashes only. Session IDs deliberately have no FK: logout and ordinary
+// expired-session cleanup must immediately invalidate, not be blocked by, grants.
+export const roomServiceNonces = sqliteTable(
+  'room_service_nonces',
+  {
+    keyId: text('key_id').notNull(),
+    nonce: text('nonce').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_room_nonce_once').on(t.keyId, t.nonce),
+    index('idx_room_nonce_expiry').on(t.expiresAt),
+  ],
+);
+export const roomTickets = sqliteTable(
+  'room_tickets',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    wallet: text('wallet').notNull(),
+    sessionHash: text('session_hash').notNull(),
+    neighborhoodId: text('neighborhood_id').notNull(),
+    clientId: text('client_id').notNull(),
+    generation: integer('generation').notNull(),
+    scene: text('scene').notNull(),
+    audience: text('audience').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    index('idx_room_ticket_expiry').on(t.expiresAt),
+    index('idx_room_ticket_wallet').on(t.wallet),
+  ],
+);
+export const roomGrants = sqliteTable(
+  'room_grants',
+  {
+    grantHash: text('grant_hash').primaryKey(),
+    wallet: text('wallet').notNull(),
+    sessionHash: text('session_hash').notNull(),
+    neighborhoodId: text('neighborhood_id').notNull(),
+    clientId: text('client_id').notNull(),
+    generation: integer('generation').notNull(),
+    scene: text('scene').notNull(),
+    audience: text('audience').notNull(),
+    keyId: text('key_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_room_grant_controller').on(t.wallet),
+    index('idx_room_grant_expiry').on(t.expiresAt),
+  ],
+);
 export const players = sqliteTable(
   'players',
   {
