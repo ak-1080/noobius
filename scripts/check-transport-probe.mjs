@@ -22,6 +22,7 @@ async function exchange(mode, overrideOrigin = origin) {
     socket.on('unexpected-response', (_, response) => {
       response.resume();
       reject(Error('Handshake status ' + response.statusCode));
+      socket.terminate();
     });
     socket.on('error', reject);
     socket.on('close', (code) => receipt ? resolve({ ...receipt, code }) : reject(Error('Closed without receipt: ' + code)));
