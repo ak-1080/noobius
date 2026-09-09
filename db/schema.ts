@@ -187,6 +187,7 @@ export const clusterProjects = sqliteTable(
     scale: integer('scale').notNull(),
     required: text('required_json').notNull(),
     benefit: text('benefit_json'),
+    workVersion: integer('work_version').notNull().default(0),
     progress: text('progress_json').notNull(),
     version: integer('version').notNull().default(0),
     createdAt: integer('created_at').notNull(),
@@ -211,6 +212,9 @@ export const clusterContributions = sqliteTable(
       .references(() => players.wallet),
     family: text('family').notNull(),
     units: integer('units').notNull(),
+    state: text('state').notNull().default('complete'),
+    readyAt: integer('ready_at'),
+    work: text('work_json'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
@@ -233,6 +237,28 @@ export const clusterClaims = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [uniqueIndex('idx_cluster_claim_once').on(t.projectId, t.wallet)],
+);
+
+export const clusterServiceSessions = sqliteTable(
+  'cluster_service_sessions',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => clusterProjects.id),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    stage: text('stage').notNull(),
+    fault: integer('fault').notNull(),
+    nextAt: integer('next_at').notNull(),
+    version: integer('version').notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex('idx_service_active')
+      .on(t.projectId, t.wallet)
+      .where(sql`${t.stage} != 'complete'`),
+  ],
 );
 
 export const realmEntitlements = sqliteTable('realm_entitlements', {

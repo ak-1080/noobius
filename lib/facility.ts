@@ -1,6 +1,21 @@
 import { machinePerTick } from './production.ts';
-export { MACHINE_POWER, machinePerTick, workloadCapacity } from './production.ts';
-import { applyContract, ContractError, newCareer, reservedProduction, type Career } from './contracts.ts';
+import {
+  validProjectReservations,
+  type ProjectReservation,
+} from './commissioning.ts';
+export {
+  MACHINE_POWER,
+  machinePerTick,
+  workloadCapacity,
+} from './production.ts';
+import {
+  applyContract,
+  availableRacks,
+  ContractError,
+  newCareer,
+  reservedProduction,
+  type Career,
+} from './contracts.ts';
 
 export type ItemId =
   | 'scrap'
@@ -29,6 +44,7 @@ export type Facility = {
   economyVersion?: number;
   tycoonVersion?: number;
   productionVersion?: number;
+  projectReservations?: ProjectReservation[];
   accessory?: string;
   visiting?: boolean;
   version: number;
@@ -43,7 +59,12 @@ export type Facility = {
   stats: Record<string, number>;
   claims: string[];
   cooldowns: Record<string, number>;
-  craft: { id?: string; recipe: string; readyAt: number; quantity?: number } | null;
+  craft: {
+    id?: string;
+    recipe: string;
+    readyAt: number;
+    quantity?: number;
+  } | null;
   energy: number;
   energyAt: number;
   storage: number;
@@ -76,7 +97,14 @@ export type Facility = {
     startedAt: number | null;
   } | null;
 };
-export const SHOP_ITEMS: ItemId[] = ['scrap', 'copper', 'silicon', 'coolant', 'fiber', 'coffee'];
+export const SHOP_ITEMS: ItemId[] = [
+  'scrap',
+  'copper',
+  'silicon',
+  'coolant',
+  'fiber',
+  'coffee',
+];
 export const ITEMS: Record<
   ItemId,
   { name: string; short: string; color: string; buy: number; sell: number }
@@ -513,7 +541,8 @@ export const RECIPES: {
     seconds: 5,
     skill: 1,
     zone: 'workshop',
-    description: 'Build equipment modules, fill supply orders and help crew projects.',
+    description:
+      'Build equipment modules, fill supply orders and help crew projects.',
   },
   {
     id: 'board',
@@ -522,7 +551,8 @@ export const RECIPES: {
     seconds: 8,
     skill: 1,
     zone: 'workshop',
-    description: 'Run training jobs, fill supply orders and build equipment modules.',
+    description:
+      'Run training jobs, fill supply orders and build equipment modules.',
   },
   {
     id: 'pump',
@@ -540,7 +570,8 @@ export const RECIPES: {
     seconds: 10,
     skill: 2,
     zone: 'workshop',
-    description: 'Fill supply orders or upgrade the power station. Please keep it dry.',
+    description:
+      'Fill supply orders or upgrade the power station. Please keep it dry.',
   },
   {
     id: 'coffee',
@@ -745,8 +776,20 @@ export function normalizeFacility(
   saved: Partial<Facility>,
   now = Date.now(),
 ): Facility {
-  if (saved.productionVersion !== undefined && ![1, 2].includes(saved.productionVersion))
-    throw new FacilityError('This save uses a newer production system. Refresh before playing.');
+  if (
+    saved.projectReservations !== undefined &&
+    !validProjectReservations(saved.projectReservations)
+  )
+    throw new FacilityError(
+      'This save contains unsupported project work. Refresh before playing.',
+    );
+  if (
+    saved.productionVersion !== undefined &&
+    ![1, 2].includes(saved.productionVersion)
+  )
+    throw new FacilityError(
+      'This save uses a newer production system. Refresh before playing.',
+    );
   const fresh = newFacility(now);
   const f = {
     ...fresh,
@@ -761,14 +804,20 @@ export function normalizeFacility(
   // Settle the old rate once before enabling the tycoon economy. Keep every
   // earned item, pending job, claim and the separate currency migration flag.
   if (saved.tycoonVersion !== 1) {
-    f.storedCompute = storedComputeNow({ ...f, tycoonVersion: undefined, productionVersion: undefined }, now);
+    f.storedCompute = storedComputeNow(
+      { ...f, tycoonVersion: undefined, productionVersion: undefined },
+      now,
+    );
     f.computeAt = now;
     f.tycoonVersion = 1;
   }
   if (saved.productionVersion !== 2) {
     // Settle completed old ticks before changing rates, keeping the partial tick.
     // Existing job receipts, holdings and above-cap output remain earned property.
-    f.storedCompute = storedComputeNow({ ...f, productionVersion: saved.productionVersion }, now);
+    f.storedCompute = storedComputeNow(
+      { ...f, productionVersion: saved.productionVersion },
+      now,
+    );
     f.computeAt += Math.max(0, Math.floor((now - f.computeAt) / 15000)) * 15000;
     f.productionVersion = 2;
   }
@@ -822,8 +871,12 @@ export const machineGain = (f: Facility, id: string) => {
   const next = { ...f, builds: { ...f.builds, [id]: (f.builds[id] ?? 0) + 1 } };
   return (machinePerTick(next, id) - machinePerTick(f, id)) * 4;
 };
-export const boostGain = (f: Facility) => f.computeBoost >= 5 ? 0 :
-  (computePerTick({ ...f, computeBoost: f.computeBoost + 1 }) - computePerTick(f)) * 4;
+export const boostGain = (f: Facility) =>
+  f.computeBoost >= 5
+    ? 0
+    : (computePerTick({ ...f, computeBoost: f.computeBoost + 1 }) -
+        computePerTick(f)) *
+      4;
 export const BOOST_PRICES = [20, 80, 220, 500, 900] as const;
 export const RACK_PRICES: Record<string, number> = {
   'rack-a': 45,
@@ -843,12 +896,58 @@ export function storedComputeNow(f: Facility, now = Date.now()) {
     f.computeAt,
     f.tycoonVersion === 1 ? now : Math.min(now, f.incident?.at ?? now),
   );
-  return Math.max(f.storedCompute, Math.min(
-    computeTankCapacity(f),
-    f.storedCompute +
-      Math.max(0, Math.floor((until - f.computeAt) / 15000)) *
-        computePerTick(f) - reservedProduction(f, until),
-  ));
+  return Math.max(
+    f.storedCompute,
+    Math.min(
+      computeTankCapacity(f),
+      f.storedCompute +
+        Math.max(0, Math.floor((until - f.computeAt) / 15000)) *
+          computePerTick(f) -
+        reservedProduction(f, until),
+    ),
+  );
+}
+/** The next storage tick uses the same reservation accounting as settlement. */
+export function computeForecast(f: Facility, now: number) {
+  const nextAt =
+    f.computeAt +
+    (Math.max(0, Math.floor((now - f.computeAt) / 15000)) + 1) * 15000;
+  const occupied = new Set(
+    [...(f.career?.active ?? []), ...(f.projectReservations ?? [])]
+      .filter(
+        (r) =>
+          r.rack &&
+          r.startedAt !== null &&
+          r.readyAt !== null &&
+          r.startedAt <= now &&
+          r.readyAt > now,
+      )
+      .map((r) => r.rack!),
+  );
+  const paused = [...occupied].reduce(
+    (sum, id) => sum + machinePerTick(f, id),
+    0,
+  );
+  return {
+    nextAt,
+    nextAmount: Math.max(
+      0,
+      storedComputeNow(f, nextAt) - storedComputeNow(f, now),
+    ),
+    perMinute: Math.max(0, computePerTick(f) - paused) * 4,
+    pausedPerMinute: paused * 4,
+  };
+}
+export function settleFacilityProduction(f: Facility, now: number) {
+  f.storedCompute = storedComputeNow(f, now);
+  f.computeAt = !modules(f)
+    ? now
+    : f.computeAt +
+      Math.max(0, Math.floor((now - f.computeAt) / 15000)) * 15000;
+  if (f.projectReservations)
+    f.projectReservations = f.projectReservations.filter(
+      (r) => r.readyAt > f.computeAt,
+    );
 }
 export const INTRO_IDS = [
   'identity',
@@ -920,7 +1019,9 @@ export function craftQuote(recipe: (typeof RECIPES)[number], quantity = 1) {
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 30)
     throw new FacilityError('Choose between 1 and 30 parts.');
   return {
-    cost: Object.fromEntries(Object.entries(recipe.cost).map(([id, n]) => [id, n! * quantity])) as Bag,
+    cost: Object.fromEntries(
+      Object.entries(recipe.cost).map(([id, n]) => [id, n! * quantity]),
+    ) as Bag,
     seconds: recipe.seconds * quantity,
   };
 }
@@ -937,13 +1038,7 @@ export function applyFacility(
   if (!/^[a-zA-Z0-9-]{8,80}$/.test(action.requestId))
     throw new FacilityError('Missing action identifier.');
   const ticks = Math.floor((now - f.energyAt) / 5000);
-  f.storedCompute = storedComputeNow(f, now);
-  const computeUntil = Math.max(f.computeAt, now);
-  f.computeAt =
-    !modules(f)
-      ? now
-      : f.computeAt +
-        Math.max(0, Math.floor((computeUntil - f.computeAt) / 15000)) * 15000;
+  settleFacilityProduction(f, now);
   f.energy = energyNow(f, now);
   f.energyAt = f.energy >= 100 ? now : f.energyAt + ticks * 5000;
   let delta = 0,
@@ -972,423 +1067,472 @@ export function applyFacility(
         'Storage is full. Bank or sell some parts first.',
       );
   };
-  if (action.type.startsWith('contract-') || action.type.startsWith('module-')) {
+  if (
+    action.type.startsWith('contract-') ||
+    action.type.startsWith('module-')
+  ) {
     try {
       const result = applyContract(f, action, now);
       message = result.message;
       xp = result.xp;
     } catch (error) {
-      if (error instanceof ContractError) throw new FacilityError(error.message);
+      if (error instanceof ContractError)
+        throw new FacilityError(error.message);
       throw error;
     }
-  } else switch (action.type) {
-    case 'intro-skip': {
-      f.seen = [
-        ...new Set([...f.seen, ...INTRO_IDS.map((id) => 'intro:' + id)]),
-      ];
-      message = 'Tips skipped. Your next job stays on screen.';
-      break;
-    }
-    case 'compute-harvest': {
-      if (f.storedCompute < 1)
-        throw new FacilityError(
-          'Your machines are warming up. Compute arrives every 15 seconds.',
-        );
-      const reward = f.storedCompute;
-      f.compute += reward;
-      f.storedCompute = 0;
-      count('computeEarned', reward);
-      count('collections');
-      if (!f.incident) scheduleIncident(f, now, true);
-      message = `+${reward} Compute. Your machines keep earning.`;
-      break;
-    }
-    case 'compute-upgrade': {
-      if (f.career?.active.some(r => r.rack && r.readyAt !== null && r.readyAt > now))
-        throw new FacilityError('Finish running client workloads before changing the facility speed.');
-      if (!modules(f))
-        throw new FacilityError(
-          'Build your first machine before upgrading its speed.',
-        );
-      if (f.computeBoost >= 5)
-        throw new FacilityError('Your machines are already at top speed.');
-      const cost = BOOST_PRICES[f.computeBoost];
-      if (f.compute < cost)
-        throw new FacilityError(`You need ${cost} Compute for this upgrade.`);
-      f.compute -= cost;
-      f.computeBoost++;
-      message = 'Faster machines! Every machine now makes more Compute.';
-      break;
-    }
-    case 'tycoon-daily': {
-      if (f.lastWorkday === f.day || (f.daily.computeEarned ?? 0) < 100)
-        throw new FacilityError(
-          'Collect 100 Compute today to earn this reward.',
-        );
-      f.lastWorkday = f.day;
-      f.workdays++;
-      delta += 35;
-      xp = 25;
-      if (f.workdays >= 3 && !f.owned.includes('afterhours'))
-        f.owned.push('afterhours');
-      message =
-        f.workdays === 3
-          ? 'Gold outfit unlocked! Try it in your Locker.'
-          : 'Daily goal complete! +35 Compute.';
-      break;
-    }
-    case 'intro': {
-      if (
-        !INTRO_IDS.includes(action.id as (typeof INTRO_IDS)[number]) ||
-        !introReady(f, action.id!)
-      )
-        throw new FacilityError('That introduction is not ready yet.');
-      if (!f.seen.includes('intro:' + action.id))
-        f.seen.push('intro:' + action.id);
-      message = 'Let’s get to work.';
-      break;
-    }
-    case 'compute-start': {
-      const job = COMPUTE_JOBS.find((j) => j.id === action.id);
-      if (!job || modules(f) < job.required)
-        throw new FacilityError('Build more rack levels to run this job.');
-      if (f.workload)
-        throw new FacilityError('Collect your current compute job first.');
-      if ((f.cooldowns['compute-boost'] ?? 0) > now)
-        throw new FacilityError('Your next bonus boost is still charging.');
-      const rack = Object.keys(f.builds).find((id) => f.builds[id] > 0)!;
-      f.workload = {
-        id: action.requestId,
-        rack,
-        label: job.name,
-        startedAt: now,
-        readyAt: now + job.seconds * 1000,
-        reward: job.base + modules(f) * job.perLevel,
-      };
-      f.cooldowns['compute-boost'] = now + 90000;
-      message = `${job.name} running. Explore while the rack works.`;
-      break;
-    }
-    case 'compute-collect': {
-      if (!f.workload || f.workload.readyAt > now)
-        throw new FacilityError('The compute job is still running.');
-      const reward = f.workload.reward;
-      f.compute += reward;
-      count('computeJobs');
-      count('computeEarned', reward);
-      f.workload = null;
-      xp = 10;
-      if (!f.incident) scheduleIncident(f, now, true);
-      message = `+${reward} compute. Batch complete!`;
-      break;
-    }
-    case 'outage-start': {
-      const incident = activeIncident(f, now);
-      if (!incident || action.id !== String(incident.at))
-        throw new FacilityError('That outage is no longer active.');
-      if (incident.startedAt === null) incident.startedAt = now;
-      message = 'Fault located. Follow the three repair steps.';
-      break;
-    }
-    case 'outage-fix': {
-      const incident = activeIncident(f, now);
-      if (!incident || action.id !== String(incident.at))
-        throw new FacilityError('That outage is no longer active.');
-      if (incident.startedAt === null || now - incident.startedAt < 3000)
-        throw new FacilityError('Give the system a moment to reset.');
-      if (action.direction !== OUTAGE_STEPS[incident.kind].join('|'))
-        throw new FacilityError('Follow the repair steps in order.');
-      f.compute += 40;
-      count('outages');
-      count('computeEarned', 40);
-      xp = 20;
-      scheduleIncident(f, now);
-      message = 'Back online! +40 compute · +20 XP. Your waiting job is safe.';
-      break;
-    }
-    case 'compute-exchange': {
-      throw new FacilityError(
-        'Token trading is not open. Compute buys equipment and player-listed items.',
-      );
-    }
-    case 'accessory': {
-      const accessory = ACCESSORIES.find((a) => a.id === action.id);
-      if (!accessory)
-        throw new FacilityError('Choose an accessory from your locker.');
-      if (!f.owned.includes(accessory.id)) {
-        spend({}, accessory.price);
-        f.owned.push(accessory.id);
+  } else
+    switch (action.type) {
+      case 'intro-skip': {
+        f.seen = [
+          ...new Set([...f.seen, ...INTRO_IDS.map((id) => 'intro:' + id)]),
+        ];
+        message = 'Tips skipped. Your next job stays on screen.';
+        break;
       }
-      f.accessory = accessory.id;
-      message = 'Look saved. Your crew will see the new you.';
-      break;
-    }
-    case 'travel': {
-      const zone = ZONES.find((z) => z.id === action.id);
-      if (!zone || !f.unlocked.includes(zone.id))
-        throw new FacilityError('Unlock that department first.');
-      f.zone = zone.id;
-      if (!f.seen.includes(zone.id)) f.seen.push(zone.id);
-      message = zone.name;
-      break;
-    }
-    case 'gather': {
-      const node = OBJECTS.find((n) => n.id === action.id && n.kind === 'node');
-      if (!node?.item || !f.unlocked.includes(node.zone))
-        throw new FacilityError('That salvage point is not available.');
-      if ((f.cooldowns[node.id] ?? 0) > now)
-        throw new FacilityError(
-          'This salvage point is replenishing. Try another one.',
-        );
-      const use = node.hazard ?? 0;
-      if (f.energy < use)
-        throw new FacilityError(
-          'Your suit needs energy. Use coffee or wait for it to recharge.',
-        );
-      const amount =
-        node.amount! +
-        Math.min(2, Math.floor(skillLevel(f.skills.salvaging) / 3));
-      space(amount);
-      add(node.item, amount);
-      f.energy -= use;
-      f.cooldowns[node.id] = now + (use ? 45000 : 15000);
-      f.skills.salvaging += 5;
-      count('gathered', amount);
-      count(node.item, amount);
-      xp = 2;
-      message = `+${amount} ${ITEMS[node.item].name}`;
-      break;
-    }
-    case 'craft': {
-      const recipe = RECIPES.find((r) => r.id === action.id);
-      if (!recipe || !f.unlocked.includes(recipe.zone))
-        throw new FacilityError('Unlock the recipe’s department first.');
-      if (f.craft)
-        throw new FacilityError('Collect your finished craft first.');
-      if (skillLevel(f.skills.engineering) < recipe.skill)
-        throw new FacilityError('Raise your engineering skill first.');
-      const quantity = action.quantity === undefined ? 1 : action.quantity;
-      const quote = craftQuote(recipe, quantity);
-      spend(quote.cost);
-      f.craft = { id: crypto.randomUUID(), recipe: recipe.id, quantity, readyAt: now + quote.seconds * 1000 };
-      message = `Making ${quantity} ${recipe.name.toLowerCase()} · ${quote.seconds} seconds`;
-      break;
-    }
-    case 'collect': {
-      if (!f.craft || f.craft.readyAt > now)
-        throw new FacilityError('The bench is still working.');
-      if (f.craft.id && action.id !== f.craft.id)
-        throw new FacilityError('That batch is no longer at the bench. Reopen the workbench.');
-      const recipe = RECIPES.find((r) => r.id === f.craft!.recipe)!;
-      const quantity = f.craft.quantity ?? 1;
-      space(quantity);
-      add(recipe.id, quantity);
-      f.craft = null;
-      f.skills.engineering += 10 * quantity;
-      count('crafted', quantity);
-      xp = 5 * quantity;
-      message = `${quantity} ${recipe.name.toLowerCase()} ready.`;
-      break;
-    }
-    case 'build': {
-      if (f.career?.active.some(r => r.rack === action.id && r.readyAt !== null && r.readyAt > now))
-        throw new FacilityError('This machine is reserved for a client. Upgrade it when the batch finishes.');
-      const plot = OBJECTS.find(
-        (o) => o.id === action.id && o.kind === 'build',
-      );
-      if (!plot || !f.unlocked.includes(plot.zone))
-        throw new FacilityError('Open this room before building its machine.');
-      const level = f.builds[plot.id] ?? 0;
-      if (level >= 3)
-        throw new FacilityError('This machine is fully upgraded.');
-      spend({}, rackPrice(f, plot.id));
-      f.builds[plot.id] = level + 1;
-      f.skills.engineering += 15;
-      count('built');
-      xp = 15;
-      message = level
-        ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
-        : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
-      break;
-    }
-    case 'utility': {
-      if (action.id !== 'power' && action.id !== 'cooling')
-        throw new FacilityError('Choose a utility.');
-      if (f[action.id] >= 8)
-        throw new FacilityError('This utility is fully expanded.');
-      spend(
-        action.id === 'power' ? { battery: 1 } : { pump: 1 },
-        40 + f[action.id] * 20,
-      );
-      f[action.id]++;
-      xp = 10;
-      message =
-        action.id === 'power'
-          ? 'More power. Room for 3 more rack levels.'
-          : 'More cooling. Room for 4 more rack levels.';
-      break;
-    }
-    case 'unlock': {
-      const zone = ZONES.find((z) => z.id === action.id);
-      if (!zone || f.unlocked.includes(zone.id))
-        throw new FacilityError('That department is already open.');
-      if (zone.id === 'core' && !f.unlocked.includes('compute'))
-        throw new FacilityError(
-          'Open the GPU room before unlocking the Core room.',
-        );
-      if (modules(f) < zone.modules)
-        throw new FacilityError(
-          `Build or upgrade machines to reach ${zone.modules} total machine levels first.`,
-        );
-      spend({}, zone.cost);
-      f.unlocked.push(zone.id);
-      xp = 25;
-      message = zone.name + ' is open.';
-      break;
-    }
-    case 'claim': {
-      const index = STORY.findIndex((c) => c.id === action.id),
-        c = STORY[index];
-      if (!c || f.claims.includes(c.id))
-        throw new FacilityError('That contract was already claimed.');
-      if (index > 0 && !f.claims.includes(STORY[index - 1].id))
-        throw new FacilityError('Finish the previous story contract first.');
-      if (storyValue(f, c.stat) < c.target)
-        throw new FacilityError('The contract is not complete yet.');
-      f.claims.push(c.id);
-      delta += c.credits;
-      xp = c.xp;
-      message = `+${c.credits} Compute · +${c.xp} XP. Margo is briefly impressed.`;
-      break;
-    }
-    case 'daily': {
-      const c = DAILY_TASKS.find((t) => t.id === action.id);
-      if (
-        !c ||
-        f.dailyClaims.includes(c.id) ||
-        (f.daily[c.stat] ?? 0) < c.target
-      )
-        throw new FacilityError('That daily contract is not ready.');
-      f.dailyClaims.push(c.id);
-      delta += c.cr;
-      xp = 15;
-      message = `Daily job complete · +${c.cr} Compute · +15 XP`;
-      break;
-    }
-    case 'daily-bonus': {
-      if (
-        f.lastWorkday === f.day ||
-        !DAILY_TASKS.every((t) => f.dailyClaims.includes(t.id))
-      )
-        throw new FacilityError(
-          'Finish and collect all three daily jobs first.',
-        );
-      f.lastWorkday = f.day;
-      f.workdays++;
-      delta += 25;
-      xp = 25;
-      if (f.workdays >= 3 && !f.owned.includes('afterhours'))
-        f.owned.push('afterhours');
-      message =
-        f.workdays === 3
-          ? 'After-hours gold unlocked! Try it on at Patch’s.'
-          : `Day ${f.workdays} stamped! +25 Compute. No streak to lose.`;
-      break;
-    }
-    case 'order': {
-      const order = ORDERS.find((o) => o.id === action.id);
-      if (!order || !f.unlocked.includes(order.zone))
-        throw new FacilityError('That order is not available.');
-      if ((f.cooldowns['order-' + order.id] ?? 0) > now)
-        throw new FacilityError('Dispatch is processing the last delivery.');
-      spend(order.cost);
-      delta += order.reward;
-      xp = 10;
-      count('orders');
-      f.skills.operations += 10;
-      f.cooldowns['order-' + order.id] = now + 30000;
-      message = 'Delivery accepted. Compute received.';
-      break;
-    }
-    case 'bank': {
-      const id = action.item,
-        n = action.quantity;
-      if (
-        !id ||
-        !Object.hasOwn(ITEMS, id) ||
-        !Number.isSafeInteger(n) ||
-        n! < 1 ||
-        n! > 500
-      )
-        throw new FacilityError('Choose a valid item quantity.');
-      const source = action.direction === 'deposit' ? f.inventory : f.bank,
-        target = action.direction === 'deposit' ? f.bank : f.inventory;
-      if ((source[id] ?? 0) < n!)
-        throw new FacilityError('You do not have that many.');
-      space(n!, target);
-      add(id, -n!, source);
-      add(id, n!, target);
-      message = 'Storage updated.';
-      break;
-    }
-    case 'buy':
-    case 'sell': {
-      const id = action.item,
-        n = action.quantity;
-      if (
-        !id ||
-        !Object.hasOwn(ITEMS, id) ||
-        !Number.isSafeInteger(n) ||
-        n! < 1 ||
-        n! > 50
-      )
-        throw new FacilityError('Choose a valid item quantity.');
-      if (action.type === 'buy') {
-        if (!SHOP_ITEMS.includes(id)) throw new FacilityError('Craft equipment at the workbench or buy it from another player.');
-        space(n!);
-        spend({}, ITEMS[id].buy * n!);
-        add(id, n!);
-      } else {
-        spend({ [id]: n! });
-        delta += ITEMS[id].sell * n!;
+      case 'compute-harvest': {
+        if (f.storedCompute < 1)
+          throw new FacilityError(
+            'Your machines are warming up. Compute arrives every 15 seconds.',
+          );
+        const reward = f.storedCompute;
+        f.compute += reward;
+        f.storedCompute = 0;
+        count('computeEarned', reward);
+        count('collections');
+        if (!f.incident) scheduleIncident(f, now, true);
+        message = `+${reward} Compute. Your machines keep earning.`;
+        break;
       }
-      message = 'Trade complete.';
-      break;
-    }
-    case 'coffee': {
-      if (f.energy >= 100)
-        throw new FacilityError('Your suit is already charged.');
-      spend({ coffee: 1 });
-      f.energy = Math.min(100, f.energy + 35);
-      message = 'Caffeinated. Probably fine.';
-      break;
-    }
-    case 'storage': {
-      if (f.storage >= 5)
-        throw new FacilityError('Your backpack is fully expanded.');
-      spend({ kit: 1 }, 80 + f.storage * 60);
-      f.storage++;
-      message = '40 more backpack spaces.';
-      break;
-    }
-    case 'outfit': {
-      const outfit = OUTFITS.find((o) => o.id === action.id);
-      if (!outfit) throw new FacilityError('Unknown outfit.');
-      if (outfit.id === 'afterhours' && !f.owned.includes(outfit.id))
-        throw new FacilityError(
-          'Finish the daily card on 3 different days to earn this shirt.',
-        );
-      if (!f.owned.includes(outfit.id)) {
-        spend({}, outfit.price);
-        f.owned.push(outfit.id);
+      case 'compute-upgrade': {
+        if (f.projectReservations?.some((r) => r.readyAt > now))
+          throw new FacilityError(
+            'Wait for your commissioning runs before changing the facility speed.',
+          );
+        if (
+          f.career?.active.some(
+            (r) => r.rack && r.readyAt !== null && r.readyAt > now,
+          )
+        )
+          throw new FacilityError(
+            'Finish running client workloads before changing the facility speed.',
+          );
+        if (!modules(f))
+          throw new FacilityError(
+            'Build your first machine before upgrading its speed.',
+          );
+        if (f.computeBoost >= 5)
+          throw new FacilityError('Your machines are already at top speed.');
+        const cost = BOOST_PRICES[f.computeBoost];
+        if (f.compute < cost)
+          throw new FacilityError(`You need ${cost} Compute for this upgrade.`);
+        f.compute -= cost;
+        f.computeBoost++;
+        message = 'Faster machines! Every machine now makes more Compute.';
+        break;
       }
-      f.outfit = outfit.id;
-      message = 'New shift. New look.';
-      break;
+      case 'tycoon-daily': {
+        if (f.lastWorkday === f.day || (f.daily.computeEarned ?? 0) < 100)
+          throw new FacilityError(
+            'Collect 100 Compute today to earn this reward.',
+          );
+        f.lastWorkday = f.day;
+        f.workdays++;
+        delta += 35;
+        xp = 25;
+        if (f.workdays >= 3 && !f.owned.includes('afterhours'))
+          f.owned.push('afterhours');
+        message =
+          f.workdays === 3
+            ? 'Gold outfit unlocked! Try it in your Locker.'
+            : 'Daily goal complete! +35 Compute.';
+        break;
+      }
+      case 'intro': {
+        if (
+          !INTRO_IDS.includes(action.id as (typeof INTRO_IDS)[number]) ||
+          !introReady(f, action.id!)
+        )
+          throw new FacilityError('That introduction is not ready yet.');
+        if (!f.seen.includes('intro:' + action.id))
+          f.seen.push('intro:' + action.id);
+        message = 'Let’s get to work.';
+        break;
+      }
+      case 'compute-start': {
+        const job = COMPUTE_JOBS.find((j) => j.id === action.id);
+        if (!job || modules(f) < job.required)
+          throw new FacilityError('Build more rack levels to run this job.');
+        if (f.workload)
+          throw new FacilityError('Collect your current compute job first.');
+        if ((f.cooldowns['compute-boost'] ?? 0) > now)
+          throw new FacilityError('Your next bonus boost is still charging.');
+        const rack = availableRacks(f, now)[0];
+        if (!rack)
+          throw new FacilityError(
+            'Wait for an available machine before starting a bonus boost.',
+          );
+        f.workload = {
+          id: action.requestId,
+          rack,
+          label: job.name,
+          startedAt: now,
+          readyAt: now + job.seconds * 1000,
+          reward: job.base + modules(f) * job.perLevel,
+        };
+        f.cooldowns['compute-boost'] = now + 90000;
+        message = `${job.name} running. Explore while the rack works.`;
+        break;
+      }
+      case 'compute-collect': {
+        if (!f.workload || f.workload.readyAt > now)
+          throw new FacilityError('The compute job is still running.');
+        const reward = f.workload.reward;
+        f.compute += reward;
+        count('computeJobs');
+        count('computeEarned', reward);
+        f.workload = null;
+        xp = 10;
+        if (!f.incident) scheduleIncident(f, now, true);
+        message = `+${reward} compute. Batch complete!`;
+        break;
+      }
+      case 'outage-start': {
+        const incident = activeIncident(f, now);
+        if (!incident || action.id !== String(incident.at))
+          throw new FacilityError('That outage is no longer active.');
+        if (incident.startedAt === null) incident.startedAt = now;
+        message = 'Fault located. Follow the three repair steps.';
+        break;
+      }
+      case 'outage-fix': {
+        const incident = activeIncident(f, now);
+        if (!incident || action.id !== String(incident.at))
+          throw new FacilityError('That outage is no longer active.');
+        if (incident.startedAt === null || now - incident.startedAt < 3000)
+          throw new FacilityError('Give the system a moment to reset.');
+        if (action.direction !== OUTAGE_STEPS[incident.kind].join('|'))
+          throw new FacilityError('Follow the repair steps in order.');
+        f.compute += 40;
+        count('outages');
+        count('computeEarned', 40);
+        xp = 20;
+        scheduleIncident(f, now);
+        message =
+          'Back online! +40 compute · +20 XP. Your waiting job is safe.';
+        break;
+      }
+      case 'compute-exchange': {
+        throw new FacilityError(
+          'Token trading is not open. Compute buys equipment and player-listed items.',
+        );
+      }
+      case 'accessory': {
+        const accessory = ACCESSORIES.find((a) => a.id === action.id);
+        if (!accessory)
+          throw new FacilityError('Choose an accessory from your locker.');
+        if (!f.owned.includes(accessory.id)) {
+          spend({}, accessory.price);
+          f.owned.push(accessory.id);
+        }
+        f.accessory = accessory.id;
+        message = 'Look saved. Your crew will see the new you.';
+        break;
+      }
+      case 'travel': {
+        const zone = ZONES.find((z) => z.id === action.id);
+        if (!zone || !f.unlocked.includes(zone.id))
+          throw new FacilityError('Unlock that department first.');
+        f.zone = zone.id;
+        if (!f.seen.includes(zone.id)) f.seen.push(zone.id);
+        message = zone.name;
+        break;
+      }
+      case 'gather': {
+        const node = OBJECTS.find(
+          (n) => n.id === action.id && n.kind === 'node',
+        );
+        if (!node?.item || !f.unlocked.includes(node.zone))
+          throw new FacilityError('That salvage point is not available.');
+        if ((f.cooldowns[node.id] ?? 0) > now)
+          throw new FacilityError(
+            'This salvage point is replenishing. Try another one.',
+          );
+        const use = node.hazard ?? 0;
+        if (f.energy < use)
+          throw new FacilityError(
+            'Your suit needs energy. Use coffee or wait for it to recharge.',
+          );
+        const amount =
+          node.amount! +
+          Math.min(2, Math.floor(skillLevel(f.skills.salvaging) / 3));
+        space(amount);
+        add(node.item, amount);
+        f.energy -= use;
+        f.cooldowns[node.id] = now + (use ? 45000 : 15000);
+        f.skills.salvaging += 5;
+        count('gathered', amount);
+        count(node.item, amount);
+        xp = 2;
+        message = `+${amount} ${ITEMS[node.item].name}`;
+        break;
+      }
+      case 'craft': {
+        const recipe = RECIPES.find((r) => r.id === action.id);
+        if (!recipe || !f.unlocked.includes(recipe.zone))
+          throw new FacilityError('Unlock the recipe’s department first.');
+        if (f.craft)
+          throw new FacilityError('Collect your finished craft first.');
+        if (skillLevel(f.skills.engineering) < recipe.skill)
+          throw new FacilityError('Raise your engineering skill first.');
+        const quantity = action.quantity === undefined ? 1 : action.quantity;
+        const quote = craftQuote(recipe, quantity);
+        spend(quote.cost);
+        f.craft = {
+          id: crypto.randomUUID(),
+          recipe: recipe.id,
+          quantity,
+          readyAt: now + quote.seconds * 1000,
+        };
+        message = `Making ${quantity} ${recipe.name.toLowerCase()} · ${quote.seconds} seconds`;
+        break;
+      }
+      case 'collect': {
+        if (!f.craft || f.craft.readyAt > now)
+          throw new FacilityError('The bench is still working.');
+        if (f.craft.id && action.id !== f.craft.id)
+          throw new FacilityError(
+            'That batch is no longer at the bench. Reopen the workbench.',
+          );
+        const recipe = RECIPES.find((r) => r.id === f.craft!.recipe)!;
+        const quantity = f.craft.quantity ?? 1;
+        space(quantity);
+        add(recipe.id, quantity);
+        f.craft = null;
+        f.skills.engineering += 10 * quantity;
+        count('crafted', quantity);
+        xp = 5 * quantity;
+        message = `${quantity} ${recipe.name.toLowerCase()} ready.`;
+        break;
+      }
+      case 'build': {
+        if (
+          f.projectReservations?.some(
+            (r) => r.rack === action.id && r.readyAt > now,
+          )
+        )
+          throw new FacilityError(
+            'This machine is commissioning a cluster. Upgrade it when the run finishes.',
+          );
+        if (
+          f.career?.active.some(
+            (r) =>
+              r.rack === action.id && r.readyAt !== null && r.readyAt > now,
+          )
+        )
+          throw new FacilityError(
+            'This machine is reserved for a client. Upgrade it when the batch finishes.',
+          );
+        const plot = OBJECTS.find(
+          (o) => o.id === action.id && o.kind === 'build',
+        );
+        if (!plot || !f.unlocked.includes(plot.zone))
+          throw new FacilityError(
+            'Open this room before building its machine.',
+          );
+        const level = f.builds[plot.id] ?? 0;
+        if (level >= 3)
+          throw new FacilityError('This machine is fully upgraded.');
+        spend({}, rackPrice(f, plot.id));
+        f.builds[plot.id] = level + 1;
+        f.skills.engineering += 15;
+        count('built');
+        xp = 15;
+        message = level
+          ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
+          : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
+        break;
+      }
+      case 'utility': {
+        if (action.id !== 'power' && action.id !== 'cooling')
+          throw new FacilityError('Choose a utility.');
+        if (f[action.id] >= 8)
+          throw new FacilityError('This utility is fully expanded.');
+        spend(
+          action.id === 'power' ? { battery: 1 } : { pump: 1 },
+          40 + f[action.id] * 20,
+        );
+        f[action.id]++;
+        xp = 10;
+        message =
+          action.id === 'power'
+            ? 'More power. Room for 3 more rack levels.'
+            : 'More cooling. Room for 4 more rack levels.';
+        break;
+      }
+      case 'unlock': {
+        const zone = ZONES.find((z) => z.id === action.id);
+        if (!zone || f.unlocked.includes(zone.id))
+          throw new FacilityError('That department is already open.');
+        if (zone.id === 'core' && !f.unlocked.includes('compute'))
+          throw new FacilityError(
+            'Open the GPU room before unlocking the Core room.',
+          );
+        if (modules(f) < zone.modules)
+          throw new FacilityError(
+            `Build or upgrade machines to reach ${zone.modules} total machine levels first.`,
+          );
+        spend({}, zone.cost);
+        f.unlocked.push(zone.id);
+        xp = 25;
+        message = zone.name + ' is open.';
+        break;
+      }
+      case 'claim': {
+        const index = STORY.findIndex((c) => c.id === action.id),
+          c = STORY[index];
+        if (!c || f.claims.includes(c.id))
+          throw new FacilityError('That contract was already claimed.');
+        if (index > 0 && !f.claims.includes(STORY[index - 1].id))
+          throw new FacilityError('Finish the previous story contract first.');
+        if (storyValue(f, c.stat) < c.target)
+          throw new FacilityError('The contract is not complete yet.');
+        f.claims.push(c.id);
+        delta += c.credits;
+        xp = c.xp;
+        message = `+${c.credits} Compute · +${c.xp} XP. Margo is briefly impressed.`;
+        break;
+      }
+      case 'daily': {
+        const c = DAILY_TASKS.find((t) => t.id === action.id);
+        if (
+          !c ||
+          f.dailyClaims.includes(c.id) ||
+          (f.daily[c.stat] ?? 0) < c.target
+        )
+          throw new FacilityError('That daily contract is not ready.');
+        f.dailyClaims.push(c.id);
+        delta += c.cr;
+        xp = 15;
+        message = `Daily job complete · +${c.cr} Compute · +15 XP`;
+        break;
+      }
+      case 'daily-bonus': {
+        if (
+          f.lastWorkday === f.day ||
+          !DAILY_TASKS.every((t) => f.dailyClaims.includes(t.id))
+        )
+          throw new FacilityError(
+            'Finish and collect all three daily jobs first.',
+          );
+        f.lastWorkday = f.day;
+        f.workdays++;
+        delta += 25;
+        xp = 25;
+        if (f.workdays >= 3 && !f.owned.includes('afterhours'))
+          f.owned.push('afterhours');
+        message =
+          f.workdays === 3
+            ? 'After-hours gold unlocked! Try it on at Patch’s.'
+            : `Day ${f.workdays} stamped! +25 Compute. No streak to lose.`;
+        break;
+      }
+      case 'order': {
+        const order = ORDERS.find((o) => o.id === action.id);
+        if (!order || !f.unlocked.includes(order.zone))
+          throw new FacilityError('That order is not available.');
+        if ((f.cooldowns['order-' + order.id] ?? 0) > now)
+          throw new FacilityError('Dispatch is processing the last delivery.');
+        spend(order.cost);
+        delta += order.reward;
+        xp = 10;
+        count('orders');
+        f.skills.operations += 10;
+        f.cooldowns['order-' + order.id] = now + 30000;
+        message = 'Delivery accepted. Compute received.';
+        break;
+      }
+      case 'bank': {
+        const id = action.item,
+          n = action.quantity;
+        if (
+          !id ||
+          !Object.hasOwn(ITEMS, id) ||
+          !Number.isSafeInteger(n) ||
+          n! < 1 ||
+          n! > 500
+        )
+          throw new FacilityError('Choose a valid item quantity.');
+        const source = action.direction === 'deposit' ? f.inventory : f.bank,
+          target = action.direction === 'deposit' ? f.bank : f.inventory;
+        if ((source[id] ?? 0) < n!)
+          throw new FacilityError('You do not have that many.');
+        space(n!, target);
+        add(id, -n!, source);
+        add(id, n!, target);
+        message = 'Storage updated.';
+        break;
+      }
+      case 'buy':
+      case 'sell': {
+        const id = action.item,
+          n = action.quantity;
+        if (
+          !id ||
+          !Object.hasOwn(ITEMS, id) ||
+          !Number.isSafeInteger(n) ||
+          n! < 1 ||
+          n! > 50
+        )
+          throw new FacilityError('Choose a valid item quantity.');
+        if (action.type === 'buy') {
+          if (!SHOP_ITEMS.includes(id))
+            throw new FacilityError(
+              'Craft equipment at the workbench or buy it from another player.',
+            );
+          space(n!);
+          spend({}, ITEMS[id].buy * n!);
+          add(id, n!);
+        } else {
+          spend({ [id]: n! });
+          delta += ITEMS[id].sell * n!;
+        }
+        message = 'Trade complete.';
+        break;
+      }
+      case 'coffee': {
+        if (f.energy >= 100)
+          throw new FacilityError('Your suit is already charged.');
+        spend({ coffee: 1 });
+        f.energy = Math.min(100, f.energy + 35);
+        message = 'Caffeinated. Probably fine.';
+        break;
+      }
+      case 'storage': {
+        if (f.storage >= 5)
+          throw new FacilityError('Your backpack is fully expanded.');
+        spend({ kit: 1 }, 80 + f.storage * 60);
+        f.storage++;
+        message = '40 more backpack spaces.';
+        break;
+      }
+      case 'outfit': {
+        const outfit = OUTFITS.find((o) => o.id === action.id);
+        if (!outfit) throw new FacilityError('Unknown outfit.');
+        if (outfit.id === 'afterhours' && !f.owned.includes(outfit.id))
+          throw new FacilityError(
+            'Finish the daily card on 3 different days to earn this shirt.',
+          );
+        if (!f.owned.includes(outfit.id)) {
+          spend({}, outfit.price);
+          f.owned.push(outfit.id);
+        }
+        f.outfit = outfit.id;
+        message = 'New shift. New look.';
+        break;
+      }
+      default:
+        throw new FacilityError('Unknown facility action.');
     }
-    default:
-      throw new FacilityError('Unknown facility action.');
-  }
   delta += f.compute - credits;
   f.compute = credits + delta;
   f.requests = [...f.requests.slice(-99), action.requestId];

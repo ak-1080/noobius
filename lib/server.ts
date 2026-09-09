@@ -1,4 +1,5 @@
 import { listingsPage, escrowListing } from './market-server';
+import { finalizeProjectWork } from './commissioning';
 import { reportQueue, reviewReport } from './moderation-server';
 import { runtimeControls, pausedAction } from './operations';
 import { canTrade, TRADE_QUALIFICATION } from './market';
@@ -19,6 +20,8 @@ import {
   projectSnapshot,
   startProject,
   contributeProject,
+  startProjectService,
+  advanceProjectService,
   claimProject,
 } from './projects-server';
 import type { ContractFamily } from './contracts';
@@ -381,21 +384,31 @@ async function withShared(
     corrected?: boolean;
   },
 ) {
-  const [world, project] = await Promise.all([
+  let [world, project] = await Promise.all([
     sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
     db()
       .prepare(
-        "SELECT id,variant,state,required_json,progress_json FROM cluster_projects WHERE neighborhood_id=? ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1",
+        "SELECT id,variant,state,required_json,progress_json,EXISTS(SELECT 1 FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending' AND c.ready_at<=?) AS due FROM cluster_projects WHERE neighborhood_id=? ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1",
       )
-      .bind(snapshot.membership.neighborhoodId)
+      .bind(Date.now(), snapshot.membership.neighborhoodId)
       .first<{
         id: string;
         variant: string;
         state: string;
         required_json: string;
         progress_json: string;
+        due: number;
       }>(),
   ]);
+  if (project?.state === 'open' && project.due) {
+    await finalizeProjectWork(db(), project.id, Date.now());
+    project = await db()
+      .prepare(
+        'SELECT id,variant,state,required_json,progress_json,0 AS due FROM cluster_projects WHERE id=?',
+      )
+      .bind(project.id)
+      .first<NonNullable<typeof project>>();
+  }
   const sum = (json: string) =>
     Object.values(JSON.parse(json) as Record<string, number>).reduce(
       (total, n) => total + n,
@@ -786,6 +799,8 @@ export async function handleGame(request: Request, action: string) {
       'neighborhood-scene',
       'project-start',
       'project-contribute',
+      'project-inspect',
+      'project-service',
       'crew-work',
       'message',
     ].includes(action) ||
@@ -850,10 +865,48 @@ export async function handleGame(request: Request, action: string) {
       String(body.requestId),
       Date.now(),
       permit,
+      { rack: typeof body.rack === 'string' ? body.rack : undefined },
     );
     return result({
       ...(await responseFor(wallet)),
-      message: 'Contribution delivered. Your crew is one step closer.',
+      message:
+        body.family === 'workload' && body.rack
+          ? 'Machine assigned. The run finishes automatically, even if you leave.'
+          : 'Contribution delivered. Your crew is one step closer.',
+    });
+  }
+  if (action === 'project-inspect') {
+    await startProjectService(
+      db(),
+      wallet,
+      controllerFrom(body),
+      String(body.projectId),
+      String(body.requestId),
+      Date.now(),
+      permit,
+    );
+    return result({
+      ...(await responseFor(wallet)),
+      message: 'Scanning the cluster. Stay with Margo to read the results.',
+    });
+  }
+  if (action === 'project-service') {
+    const message = await advanceProjectService(
+      db(),
+      wallet,
+      controllerFrom(body),
+      String(body.projectId),
+      String(body.sessionId),
+      body.version as number,
+      String(body.step),
+      body.choice,
+      Date.now(),
+      permit,
+    );
+    return result({
+      ...(await responseFor(wallet)),
+      message:
+        message ?? 'Service checks complete. Your contribution is recorded.',
     });
   }
   if (action === 'project-claim') {

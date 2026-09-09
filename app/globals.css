@@ -6487,6 +6487,36 @@ a {
 .home-guidance {
   display: contents;
 }
+.commissioning-check {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+.commissioning-check label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.commissioning-check p {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.commissioning-repairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.commissioning-runs {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.commissioning-runs article {
+  background: #183839;
+  border: 1px solid #91c09b55;
+  padding: 16px;
+  border-radius: 14px;
+}
 .objective-coach-wrap {
   position: absolute;
   top: 84px;
@@ -6521,7 +6551,9 @@ a {
   min-height: 32px;
   color: #c5ef9c;
 }
-.recipe.is-focused { border-color: #c5ef9c; }
+.recipe.is-focused {
+  border-color: #c5ef9c;
+}
 @media (max-width: 600px) {
   .home-guidance .objective-coach-wrap {
     position: static;
@@ -8392,21 +8424,79 @@ a {
   font-size: 0.875rem;
 }
 /* Wallet entry keeps guest play accessible while making saved accounts primary. */
-.wallet-guest-entry { display: block; margin: 1rem auto 0; border: 0; background: transparent; color: #d8e2e9; font: inherit; font-size: 1rem; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
-.wallet-guest-entry:disabled { opacity: .5; cursor: default; }
-.wallet-guest-entry:focus-visible { outline: 2px solid #b9edff; outline-offset: 6px; }
-.wallet-family-tabs { width: 100%; margin-bottom: 1rem; }
-.wallet-family-tabs > button { flex: 1; }
-.wallet-help-copy { margin: 1rem 0; font-size: .875rem; line-height: 1.5; }
+.wallet-guest-entry {
+  display: block;
+  margin: 1rem auto 0;
+  border: 0;
+  background: transparent;
+  color: #d8e2e9;
+  font: inherit;
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.wallet-guest-entry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wallet-guest-entry:focus-visible {
+  outline: 2px solid #b9edff;
+  outline-offset: 6px;
+}
+.wallet-family-tabs {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.wallet-family-tabs > button {
+  flex: 1;
+}
+.wallet-help-copy {
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
 
-.project-choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; width:100%; }
-.project-choice { padding:18px; border:1px solid #779fa22b; border-radius:16px; background:#0a202780; display:flex; flex-direction:column; gap:12px; }
-.project-choice h4 { margin:0; font-size:18px; }
-.project-choice p { margin:0; color:var(--muted); font-size:14px; line-height:1.55; }
-.project-choice strong { font-size:13px; color:#c3d1ff; }
-.project-choice button { margin-top:auto; }
-.job-focus .text-action + .text-action { margin-left:18px; }
-@media (max-width:540px) { .project-choice-grid { grid-template-columns:1fr; } }
+.project-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+.project-choice {
+  padding: 18px;
+  border: 1px solid #779fa22b;
+  border-radius: 16px;
+  background: #0a202780;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.project-choice h4 {
+  margin: 0;
+  font-size: 18px;
+}
+.project-choice p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.project-choice strong {
+  font-size: 13px;
+  color: #c3d1ff;
+}
+.project-choice button {
+  margin-top: auto;
+}
+.job-focus .text-action + .text-action {
+  margin-left: 18px;
+}
+@media (max-width: 540px) {
+  .project-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 .dispatch-picker {
   display: grid;

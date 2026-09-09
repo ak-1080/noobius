@@ -46,10 +46,16 @@ export default function TycoonBuildPanel({
       (modules(f) > 0 || o.id === 'rack-a'),
   );
   const boostCost = BOOST_PRICES[f.computeBoost];
+  const loans = (f.projectReservations ?? []).filter((r) => r.readyAt > now);
+  const runningClients = (f.career?.active ?? []).filter(
+    (r) => r.rack && r.readyAt !== null && r.readyAt > now,
+  );
   const machineCard = (o: (typeof plots)[number]) => {
     const level = f.builds[o.id] ?? 0;
     const cost = rackPrice(f, o.id);
     const gain = machineGain(f, o.id);
+    const loan = loans.find((r) => r.rack === o.id);
+    const client = f.career?.active.find((r) => r.rack === o.id);
     return (
       <section
         className={`tycoon-machine ${selected === o.id ? 'is-selected' : ''}`}
@@ -86,7 +92,9 @@ export default function TycoonBuildPanel({
           </p>
           <Button
             className={cost === 0 ? 'primary-action' : 'outline-button'}
-            disabled={busy || level >= 3 || balance < cost}
+            disabled={
+              busy || !!loan || !!client || level >= 3 || balance < cost
+            }
             aria-label={
               level >= 3
                 ? `${o.name} is fully upgraded`
@@ -105,6 +113,20 @@ export default function TycoonBuildPanel({
               </>
             )}
           </Button>
+          {loan && (
+            <p className="muted-small">
+              Commissioning a crew cluster ·{' '}
+              {Math.ceil((loan.readyAt - now) / 1000)}s left. Ordinary output
+              resumes automatically.
+            </p>
+          )}
+          {client && (
+            <p className="muted-small">
+              {client.readyAt! > now
+                ? `Processing a client batch · ${Math.ceil((client.readyAt! - now) / 1000)}s left.`
+                : 'Client results ready. Collect them in Jobs to free this machine.'}
+            </p>
+          )}
           {level < 3 && balance < cost && (
             <small className="tycoon-short">
               Need {cost - balance} more. Collect above.
@@ -142,16 +164,20 @@ export default function TycoonBuildPanel({
               ) : (
                 <>
                   {rate} <ArrowRight size={14} />{' '}
-                  <strong>
-                    {rate + boostGain(f)} Compute / min
-                  </strong>
+                  <strong>{rate + boostGain(f)} Compute / min</strong>
                 </>
               )}
             </p>
           </div>
           <Button
             className="primary-action"
-            disabled={busy || f.computeBoost >= 5 || balance < boostCost}
+            disabled={
+              busy ||
+              loans.length > 0 ||
+              runningClients.length > 0 ||
+              f.computeBoost >= 5 ||
+              balance < boostCost
+            }
             onClick={() => void onAction({ type: 'compute-upgrade' })}
           >
             {f.computeBoost >= 5 ? (
@@ -165,6 +191,11 @@ export default function TycoonBuildPanel({
               </>
             )}
           </Button>
+          {(loans.length > 0 || runningClients.length > 0) && (
+            <small>
+              Speed upgrades resume when assigned machine runs finish.
+            </small>
+          )}
         </section>
       )}
       <div className="tycoon-machine-grid">

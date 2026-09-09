@@ -1,6 +1,7 @@
 import type { Bag } from './facility.ts';
 import type { Career, ContractFamily, ModuleStyle } from './contracts.ts';
 import type { DispatchBenefit } from './dispatch.ts';
+import type { ServiceSession, CommissioningWork } from './commissioning.ts';
 export const PROJECT_FAMILIES: ContractFamily[] = [
   'service',
   'supply',
@@ -147,6 +148,8 @@ export function consumeProjectReport(
   return true;
 }
 export type Project = {
+  workVersion?: number;
+  pendingWorkload?: number;
   benefit?: DispatchBenefit | null;
   id: string;
   neighborhoodId: string;
@@ -160,12 +163,15 @@ export type Project = {
   completedAt: number | null;
 };
 export type ProjectSnapshot = {
+  service?: ServiceSession | null;
+  workloads?: (CommissioningWork & { name: string; mine: boolean })[];
   project: Project | null;
   contributions: {
     name: string;
     family: ContractFamily;
     units: number;
     mine: boolean;
+    pending?: number;
   }[];
   history: {
     benefit?: DispatchBenefit | null;

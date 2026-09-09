@@ -1328,7 +1328,11 @@ export default function NoobiusGame() {
                   busy={busy}
                   onAction={async (action, body) => {
                     if (
-                      action === 'project-contribute' &&
+                      [
+                        'project-contribute',
+                        'project-inspect',
+                        'project-service',
+                      ].includes(action) &&
                       !(await neighborhood.syncNow())
                     )
                       throw new Error(

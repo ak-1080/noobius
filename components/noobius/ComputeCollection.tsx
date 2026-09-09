@@ -3,6 +3,7 @@ import { ArrowDownToLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   computePerTick,
+  computeForecast,
   computeTankCapacity,
   storedComputeNow,
   type Facility,
@@ -27,7 +28,8 @@ export default function ComputeCollection({
   const capacity = computeTankCapacity(facility);
   const perTick = computePerTick(facility);
   const elapsed = Math.max(0, now - facility.computeAt) % 15000;
-  const seconds = Math.max(1, Math.ceil((15000 - elapsed) / 1000));
+  const forecast = computeForecast(facility, now);
+  const seconds = Math.max(1, Math.ceil((forecast.nextAt - now) / 1000));
   const full = ready >= capacity;
   if (!perTick) return null;
 
@@ -40,7 +42,11 @@ export default function ComputeCollection({
         <ComputeIcon size={34} />
         <div>
           <strong>{ready.toLocaleString()} Compute ready</strong>
-          <span>Your machines earn {perTick * 4}/min.</span>
+          <span>
+            Your machines earn {forecast.perMinute}/min.
+            {forecast.pausedPerMinute > 0 &&
+              ` ${forecast.pausedPerMinute}/min paused for assigned work.`}
+          </span>
         </div>
         <Button
           className="primary-action"
@@ -54,7 +60,9 @@ export default function ComputeCollection({
         <span>
           {full
             ? 'Storage full. Collect to keep earning.'
-            : `Next +${Math.min(perTick, capacity - ready)} in ${seconds}s`}
+            : forecast.nextAmount > 0
+              ? `Next +${forecast.nextAmount} in ${seconds}s`
+              : 'Ordinary output resumes as assigned machines finish.'}
         </span>
         <small>
           {full ? '1 hour stored' : 'Keeps earning while you build'}

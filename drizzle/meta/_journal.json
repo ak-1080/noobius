@@ -57,6 +57,13 @@
       "when": 1788936548927,
       "tag": "0007_nappy_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788940594722,
+      "tag": "0008_foamy_sersi",
+      "breakpoints": true
     }
   ]
 }

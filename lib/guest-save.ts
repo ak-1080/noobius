@@ -1,4 +1,5 @@
 import { validCareer } from './contracts.ts';
+import { validProjectReservations } from './commissioning.ts';
 import {
   ACCESSORIES,
   ITEMS,
@@ -50,6 +51,12 @@ const date = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 function facility(v: unknown): v is Facility {
+  if (
+    record(v) &&
+    v.projectReservations !== undefined &&
+    !validProjectReservations(v.projectReservations)
+  )
+    return false;
   if (record(v) && v.career !== undefined && !validCareer(v.career))
     return false;
   if (

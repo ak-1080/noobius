@@ -325,7 +325,7 @@ test('GPU writes reject revoked holdings at commit and safe return preserves the
       wallet,
       controller,
       started.project.id,
-      'service',
+      'supply',
       crypto.randomUUID(),
       now,
       permit,

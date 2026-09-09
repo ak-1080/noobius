@@ -15,11 +15,21 @@ import {
   leaveNeighborhood,
 } from '../lib/neighborhoods-server.ts';
 import {
-  startProject,
+  startProject as createProject,
   contributeProject,
   claimProject,
   projectSnapshot,
 } from '../lib/projects-server.ts';
+// These cases preserve pre-commissioning projects and their report/dispatch terms.
+// New project activity, capacity and concurrency are covered in commissioning.test.mjs.
+async function startProject(...args) {
+  const result = await createProject(...args);
+  args[0].sqlite
+    .prepare('UPDATE cluster_projects SET work_version=0 WHERE id=?')
+    .run(result.project.id);
+  result.project.workVersion = 0;
+  return result;
+}
 async function fixture(count = 1) {
   const db = database(),
     crew = [];

@@ -388,12 +388,16 @@ export function newCareer(f: Pick<Facility, 'unlocked' | 'skills'>): Career {
 export function careerFor(f: Facility): Career {
   return f.career ?? newCareer(f);
 }
-export function availableRacks(f: Facility): string[] {
+export function availableRacks(f: Facility, now = Date.now()): string[] {
   const reserved = careerFor(f)
     .active.filter((r) => r.rack !== null)
     .map((r) => r.rack);
   return Object.keys(f.builds).filter(
-    (id) => f.builds[id] > 0 && !reserved.includes(id),
+    (id) =>
+      f.builds[id] > 0 &&
+      !reserved.includes(id) &&
+      !(f.workload?.rack === id && f.workload.readyAt > now) &&
+      !f.projectReservations?.some((r) => r.rack === id && r.readyAt > now),
   );
 }
 
@@ -483,14 +487,17 @@ export function contractQuote(
 
 /** Amount already occupied by workloads at the same 15-second production ticks. */
 export function reservedProduction(f: Facility, until: number): number {
-  return (f.career?.active ?? []).reduce((sum, r) => {
-    if (!r.rack || r.startedAt === null || r.readyAt === null) return sum;
-    const end = Math.floor(
-      Math.max(0, Math.min(until, r.readyAt) - f.computeAt) / 15000,
-    );
-    const start = Math.floor(Math.max(0, r.startedAt - f.computeAt) / 15000);
-    return sum + Math.max(0, end - start) * machinePerTick(f, r.rack);
-  }, 0);
+  return [...(f.career?.active ?? []), ...(f.projectReservations ?? [])].reduce(
+    (sum, r) => {
+      if (!r.rack || r.startedAt === null || r.readyAt === null) return sum;
+      const end = Math.floor(
+        Math.max(0, Math.min(until, r.readyAt) - f.computeAt) / 15000,
+      );
+      const start = Math.floor(Math.max(0, r.startedAt - f.computeAt) / 15000);
+      return sum + Math.max(0, end - start) * machinePerTick(f, r.rack);
+    },
+    0,
+  );
 }
 
 export class ContractError extends Error {}
@@ -633,7 +640,10 @@ export function applyContract(
     if (style !== 'standard' && !c.loadout.includes(style))
       fail('Equip that module before using it.');
     const rack = t.family === 'workload' ? a.rack : undefined;
-    if (t.family === 'workload' && (!rack || !availableRacks(f).includes(rack)))
+    if (
+      t.family === 'workload' &&
+      (!rack || !availableRacks(f, now).includes(rack))
+    )
       fail('Choose an available machine.');
     const quantity = a.quantity === undefined ? 1 : a.quantity;
     if (t.family === 'workload' && quantity > workloadCapacity(f, rack))

@@ -230,6 +230,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0005_tired_jocasta',
       '0006_handy_polaris',
       '0007_nappy_red_wolf',
+      '0008_foamy_sersi',
     ],
   );
   assert.ok(

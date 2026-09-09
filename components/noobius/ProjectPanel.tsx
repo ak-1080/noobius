@@ -4,11 +4,23 @@ import { ArrowRight, Check, Cpu, Package, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
+  NativeSelect,
+  NativeSelectOption,
+} from '@/components/ui/native-select';
+import { COMMISSIONING_CHECKS, projectLoanQuote } from '@/lib/commissioning';
+import {
   careerFor,
+  availableRacks,
   type ContractFamily,
   type ModuleStyle,
 } from '@/lib/contracts';
-import { ITEMS, type Facility, type ItemId, type Bag } from '@/lib/facility';
+import {
+  ITEMS,
+  OBJECTS,
+  type Facility,
+  type ItemId,
+  type Bag,
+} from '@/lib/facility';
 import {
   PROJECT_FAMILIES,
   PROJECT_INPUTS,
@@ -56,6 +68,12 @@ export default function ProjectPanel({
   const [data, setData] = useState<ProjectSnapshot | null>(null),
     [error, setError] = useState(''),
     [saving, setSaving] = useState(false);
+  const [now, setNow] = useState(Date.now),
+    [rack, setRack] = useState('');
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!connected) {
       setData(null);
@@ -129,6 +147,11 @@ export default function ProjectPanel({
           ? variant?.description
           : 'Turn your completed jobs into a shared build. Anyone can help with any part.'}
       </p>
+      {project?.workVersion === 1 && (
+        <p className="job-note">
+          Deliver parts, test the cluster and lend a machine.
+        </p>
+      )}
       {(!project || project.state === 'completed') && (
         <div className="project-start-options">
           {project && (
@@ -177,7 +200,11 @@ export default function ProjectPanel({
       {project?.state === 'open' && (
         <>
           <div className="project-progress">
-            <strong>{remaining} contributions to bring it online</strong>
+            <strong>
+              {remaining === (project.pendingWorkload ?? 0)
+                ? 'Your assigned machines are finishing the cluster'
+                : `${remaining - (project.pendingWorkload ?? 0)} contributions still needed`}
+            </strong>
             <Progress
               value={
                 (100 *
@@ -201,10 +228,22 @@ export default function ProjectPanel({
               hasParts = Object.entries(cost).every(
                 ([id, n]) => (facility.inventory[id as ItemId] ?? 0) >= n!,
               ),
-              done = project.progress[family] >= project.required[family];
+              pending =
+                family === 'workload' ? (project.pendingWorkload ?? 0) : 0,
+              complete = project.progress[family] >= project.required[family],
+              done =
+                project.progress[family] + pending >= project.required[family],
+              racks = availableRacks(facility, now),
+              quote = racks.includes(rack)
+                ? projectLoanQuote(facility, rack)
+                : null,
+              service = data.service,
+              wait = service
+                ? Math.max(0, Math.ceil((service.nextAt - now) / 1000))
+                : 0;
             return (
               <article
-                className={`project-role ${done ? 'complete' : ''}`}
+                className={`project-role ${complete ? 'complete' : done ? 'running' : ''}`}
                 key={family}
               >
                 <header>
@@ -212,21 +251,30 @@ export default function ProjectPanel({
                   <strong>{LABELS[family]}</strong>
                   <span>
                     {project.progress[family]}/{project.required[family]}
+                    {pending > 0 && ` · ${pending} running`}
                   </span>
                 </header>
-                <p>
-                  {reports > 0
-                    ? `✓ ${style ? styleLabel(style) + ' job' : 'Job'} completed`
-                    : `Finish and claim a ${style ? styleLabel(style) + ' ' : ''}${family} job`}{' '}
-                  ·{' '}
-                  {Object.entries(cost)
-                    .map(
-                      ([id, n]) =>
-                        `${Math.min(n!, facility.inventory[id as ItemId] ?? 0)}/${n} ${ITEMS[id as ItemId].name}`,
-                    )
-                    .join(' + ')}
-                </p>
-                {style && (
+                {done ? (
+                  <p>
+                    {complete
+                      ? 'Contribution complete.'
+                      : 'All required machines are assigned. Their runs finish automatically.'}
+                  </p>
+                ) : (
+                  <p>
+                    {reports > 0
+                      ? `✓ ${style ? styleLabel(style) + ' job' : 'Job'} completed`
+                      : `Finish and claim a ${style ? styleLabel(style) + ' ' : ''}${family} job`}{' '}
+                    ·{' '}
+                    {Object.entries(cost)
+                      .map(
+                        ([id, n]) =>
+                          `${Math.min(n!, facility.inventory[id as ItemId] ?? 0)}/${n} ${ITEMS[id as ItemId].name}`,
+                      )
+                      .join(' + ')}
+                  </p>
+                )}
+                {style && !done && (
                   <small>
                     Choose {styleLabel(style)} before starting the job. Changing
                     equipment afterward does not change its receipt.
@@ -276,6 +324,144 @@ export default function ProjectPanel({
                       <Button onClick={onWalk}>
                         Meet Margo <ArrowRight size={16} />
                       </Button>
+                    ) : project.workVersion === 1 && family === 'service' ? (
+                      <div className="commissioning-check">
+                        {!service ? (
+                          <Button
+                            disabled={disabled}
+                            onClick={() =>
+                              void perform('project-inspect', {
+                                projectId: project.id,
+                              })
+                            }
+                          >
+                            Inspect the cluster
+                          </Button>
+                        ) : (
+                          <>
+                            <strong>
+                              {service.stage === 'reading'
+                                ? 'Scanning the cluster'
+                                : service.stage === 'repair'
+                                  ? 'What do the readings tell you?'
+                                  : 'Repair applied. Verify it.'}
+                            </strong>
+                            {service.stage !== 'reading' && (
+                              <p>
+                                {COMMISSIONING_CHECKS[service.fault].reading}
+                              </p>
+                            )}
+                            {wait > 0 && (
+                              <p role="status">
+                                {service.stage === 'test'
+                                  ? 'Stabilizing'
+                                  : 'Checking'}{' '}
+                                · {wait}s
+                              </p>
+                            )}
+                            {service.stage === 'repair' ? (
+                              <div className="commissioning-repairs">
+                                {COMMISSIONING_CHECKS.map((check) => (
+                                  <Button
+                                    key={check.answer}
+                                    variant="outline"
+                                    disabled={disabled || wait > 0}
+                                    onClick={() =>
+                                      void perform('project-service', {
+                                        projectId: project.id,
+                                        sessionId: service.id,
+                                        version: service.version,
+                                        step: 'repair',
+                                        choice: check.answer,
+                                      })
+                                    }
+                                  >
+                                    {check.answer}
+                                  </Button>
+                                ))}
+                              </div>
+                            ) : (
+                              <Button
+                                disabled={disabled || wait > 0}
+                                onClick={() =>
+                                  void perform('project-service', {
+                                    projectId: project.id,
+                                    sessionId: service.id,
+                                    version: service.version,
+                                    step:
+                                      service.stage === 'reading'
+                                        ? 'inspect'
+                                        : 'test',
+                                  })
+                                }
+                              >
+                                {service.stage === 'reading'
+                                  ? 'Read diagnostics'
+                                  : 'Test & deliver service'}
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        <small>
+                          Your service report and kit are used only after a
+                          successful test.
+                        </small>
+                      </div>
+                    ) : project.workVersion === 1 && family === 'workload' ? (
+                      <div className="commissioning-check">
+                        <label>
+                          Choose a machine to lend
+                          <NativeSelect
+                            aria-label="Commissioning machine"
+                            value={rack}
+                            onChange={(e) => setRack(e.target.value)}
+                          >
+                            <NativeSelectOption value="">
+                              Select an available machine
+                            </NativeSelectOption>
+                            {racks.map((id) => {
+                              const q = projectLoanQuote(facility, id);
+                              return (
+                                <NativeSelectOption key={id} value={id}>
+                                  {OBJECTS.find((o) => o.id === id)?.name} ·{' '}
+                                  {q.duration}s · pauses {q.pausedOutput}{' '}
+                                  Compute
+                                </NativeSelectOption>
+                              );
+                            })}
+                          </NativeSelect>
+                        </label>
+                        {quote ? (
+                          <p>
+                            Process 20 commissioning packets in {quote.duration}
+                            s. This reserves the whole machine and pauses{' '}
+                            {quote.pausedOutput} Compute of ordinary output.
+                            Your other machines keep working.
+                          </p>
+                        ) : (
+                          <p>
+                            {racks.length
+                              ? 'A bigger machine finishes sooner. A smaller one leaves your larger machine free for client batches.'
+                              : 'No machines are available. Collect finished client results in Jobs, wait for an active run, or build a machine in your center.'}
+                          </p>
+                        )}
+                        <Button
+                          disabled={disabled || !quote}
+                          onClick={() =>
+                            void perform('project-contribute', {
+                              projectId: project.id,
+                              family,
+                              rack,
+                            })
+                          }
+                        >
+                          Assign machine & supplies
+                        </Button>
+                        <small>
+                          The run finishes automatically. No cancellation or
+                          manual pickup; the machine is free at the deadline.
+                        </small>
+                      </div>
                     ) : (
                       <Button
                         disabled={disabled}
@@ -283,7 +469,6 @@ export default function ProjectPanel({
                           void perform('project-contribute', {
                             projectId: project.id,
                             family,
-                            requestId: crypto.randomUUID(),
                           })
                         }
                       >
@@ -295,6 +480,35 @@ export default function ProjectPanel({
               </article>
             );
           })}
+          {!!data.workloads?.length && (
+            <div className="commissioning-runs">
+              <h4>Machines commissioning</h4>
+              {data.workloads.map((run) => (
+                <article key={run.id}>
+                  <strong>
+                    {run.mine ? 'You' : run.name} ·{' '}
+                    {OBJECTS.find((o) => o.id === run.rack)?.name}
+                  </strong>
+                  <p>
+                    {now < run.readyAt
+                      ? `${Math.ceil((run.readyAt - now) / 1000)}s remaining`
+                      : 'Finalizing the completed run…'}{' '}
+                    · capacity {run.capacity}
+                  </p>
+                  <Progress
+                    value={Math.min(
+                      100,
+                      Math.max(
+                        0,
+                        (100 * (now - run.startedAt)) /
+                          (run.readyAt - run.startedAt),
+                      ),
+                    )}
+                  />
+                </article>
+              ))}
+            </div>
+          )}
           <p className="project-reward-rule">
             Each contribution earns 100 Compute + 20 reputation when the cluster
             is complete. Parts are used when delivered. No time limit.
