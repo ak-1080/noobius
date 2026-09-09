@@ -78,7 +78,7 @@ export default function GoalsPanel({
             </h2>
             <p>
               {progress.complete
-                ? 'Every room. Every upgrade. Your data center is complete.'
+                ? 'Your center is fully equipped. Put it to work on client jobs and crew projects.'
                 : `${progress.completed} of ${progress.milestones.length} milestones complete.`}
             </p>
           </div>

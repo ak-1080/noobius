@@ -389,11 +389,12 @@ test('first shift introduces Margo then guides building without forcing optional
   assert.equal(shiftObjective(f, 0, 0).action.type, 'build');
   assert.throws(() => act(f, 'intro', { id: 'compute' }, 0, 0), /not ready/);
   f.builds = { 'rack-a': 1 };
-  assert.equal(shiftObjective(f, 0, 0).panel, 'facility');
-  f.stats.computeJobs = 1;
-  assert.equal(shiftObjective(f, 20, 0).action.type, 'compute-upgrade');
+  assert.equal(shiftObjective(f, 0, 0).target, 'scrap-a');
+  f.stats.gathered = 4; f.stats.crafted = 1;
+  assert.equal(shiftObjective(f, 20, 0).panel, 'contracts');
+  assert.equal(shiftObjective(f, 20, 0).action, undefined);
   f.incident = { at: 0, rack: 'rack-a', kind: 'heat', startedAt: null };
-  assert.equal(shiftObjective(f, 0, 0).panel, 'facility');
+  assert.equal(shiftObjective(f, 0, 0).panel, 'contracts');
   const old = { version: 17, builds: { 'rack-a': 1 }, computeAt: undefined };
   delete old.computeAt;
   assert.equal(normalizeFacility(old, 40000).computeAt, 40000);

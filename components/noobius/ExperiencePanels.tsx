@@ -45,8 +45,8 @@ export function BriefingCard({
         alt="Your free starter machine"
       />
       <p className="visual-briefing-line">
-        “Your first machine is on me. Build it, collect Compute, then buy
-        something bigger.”
+        “Your first machine is on me. Get it running, then choose a job.
+        I’ll show you around. You make the decisions.”
       </p>
       <Button className="primary-action" disabled={busy} onClick={onContinue}>
         {briefing.cta}

@@ -41,9 +41,17 @@ export function facilityReceipt(
             : 'New machine online!';
       detail = `${delta < 0 ? `${(-delta).toLocaleString()} Compute spent` : 'Free starter built'} · ${income}`;
       if (modules(after) === 21 && after.computeBoost === 5) {
-        title = 'Data center complete!';
-        detail += ' · Every machine. Every upgrade. You did it.';
+        title = 'Every machine upgraded!';
+        detail += ' · Ready for client work and crew projects.';
       }
+      break;
+    case 'contract-claim':
+      title = 'Job complete!';
+      detail = `${reward} · +${result.xp} reputation · A new offer is waiting.`;
+      break;
+    case 'module-build':
+      title = 'New equipment built!';
+      detail = 'Choose this module when starting your next job.';
       break;
     case 'compute-harvest':
     case 'compute-collect':

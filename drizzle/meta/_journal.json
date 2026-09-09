@@ -29,6 +29,27 @@
       "when": 1788827551332,
       "tag": "0003_confused_wolfsbane",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788926694409,
+      "tag": "0004_typical_puck",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788927816150,
+      "tag": "0005_careful_reavers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788928729330,
+      "tag": "0006_daffy_changeling",
+      "breakpoints": true
     }
   ]
 }

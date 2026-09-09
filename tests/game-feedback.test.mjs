@@ -90,7 +90,7 @@ test('daily indicator and gold receipt distinguish ready, claimed, new day and a
   assert.doesNotMatch(again.receipt.detail, /toward/);
 });
 
-test('either final purchase triggers completion with the final income and cost', () => {
+test('either final machine purchase celebrates equipment without declaring the game finished', () => {
   for (const type of ['compute-upgrade', 'build']) {
     const f = starter();
     f.builds = Object.fromEntries(
@@ -108,7 +108,8 @@ test('either final purchase triggers completion with the final income and cost',
     f.computeBoost = type === 'compute-upgrade' ? 4 : 5;
     if (type === 'build') f.builds['rack-g'] = 2;
     const result = act(f, type, 99999, 1, { id: 'rack-g' });
-    assert.equal(result.receipt.title, 'Data center complete!');
+    assert.equal(result.receipt.title, 'Every machine upgraded!');
+    assert.match(result.receipt.detail, /client work and crew projects/);
     assert.match(
       result.receipt.detail,
       /Compute spent · .* → 6,804 Compute \/ min/,

@@ -1,4 +1,25 @@
-import { EMERGENCY_STATIONS, eventAt, validRoom } from './multiplayer';
+import {
+  projectSnapshot,
+  startProject,
+  contributeProject,
+  claimProject,
+} from './projects-server';
+import type { ContractFamily } from './contracts';
+import { actionWorksite, needsHome } from './action-authority';
+import {
+  ensurePublicId,
+  joinNeighborhood,
+  neighborhoodSnapshot,
+  controllerFrom,
+  changeScene,
+  leaveNeighborhood,
+  syncNeighborhood,
+  requireMembership,
+  visitCenter,
+} from './neighborhoods-server';
+import { levelBand, realmExists } from './neighborhoods';
+import { careerFor, operatorLicense } from './contracts';
+import { EMERGENCY_STATIONS, eventAt } from './multiplayer';
 import { facilityReceipt } from './game-feedback';
 import { env } from 'cloudflare:workers';
 import { getAddress, isAddress, verifyMessage } from 'viem';
@@ -119,12 +140,6 @@ async function rate(
       db().prepare('DELETE FROM rate_limits WHERE resets_at < ?').bind(now),
       db().prepare('DELETE FROM challenges WHERE expires_at < ?').bind(now),
       db().prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
-      db()
-        .prepare('DELETE FROM campus_work WHERE event < ?')
-        .bind(eventAt(now) - 144),
-      db()
-        .prepare('DELETE FROM campus_rewards WHERE created_at < ?')
-        .bind(now - 86400000),
     ]);
 }
 type PlayerRow = {
@@ -193,6 +208,7 @@ async function player(wallet: string): Promise<Profile> {
     return player(wallet);
   }
   return {
+    id: await ensurePublicId(db(), wallet),
     wallet: p.wallet,
     name: p.name,
     credits: p.credits,
@@ -302,6 +318,52 @@ async function saveRun(wallet: string, previous: Shift, next: Shift) {
     throw new ApiError(409, 'Your shift changed in another tab. Please retry.');
   return next;
 }
+async function sharedSnapshot(wallet: string, neighborhoodId: string) {
+  const now = Date.now(),
+    event = eventAt(now);
+  const work = await db()
+    .prepare(
+      'SELECT w.*,p.name FROM campus_work w JOIN players p ON p.wallet=w.wallet WHERE w.room=? AND w.event=?',
+    )
+    .bind(neighborhoodId, event)
+    .all<any>();
+  const reward = await db()
+    .prepare('SELECT id FROM campus_rewards WHERE id=?')
+    .bind(`${neighborhoodId}:${event}:${wallet}`)
+    .first();
+  const pending = await db()
+    .prepare(`SELECT DISTINCT w.room,w.event FROM campus_work w WHERE w.wallet=? AND w.completed_at IS NOT NULL
+    AND (SELECT count(*) FROM campus_work completed WHERE completed.room=w.room AND completed.event=w.event AND completed.completed_at IS NOT NULL)=3
+    AND NOT EXISTS(SELECT 1 FROM campus_rewards r WHERE r.id=w.room || ':' || w.event || ':' || ?) ORDER BY w.event ASC LIMIT 20`)
+    .bind(wallet, wallet)
+    .all<{ room: string; event: number }>();
+  return {
+    room: neighborhoodId,
+    event,
+    endsAt: (event + 1) * 600000,
+    serverNow: now,
+    claimed: !!reward,
+    pending: pending.results,
+    work: work.results.map((w) => ({
+      station: w.station,
+      name: w.name,
+      mine: w.wallet === wallet,
+      startedAt: w.started_at,
+      completedAt: w.completed_at,
+    })),
+  };
+}
+async function withShared(
+  wallet: string,
+  snapshot: Awaited<ReturnType<typeof neighborhoodSnapshot>> & {
+    corrected?: boolean;
+  },
+) {
+  return {
+    ...snapshot,
+    world: await sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
+  };
+}
 export async function handleGame(request: Request, action: string) {
   if (request.method === 'GET') {
     await rate(
@@ -320,103 +382,38 @@ export async function handleGame(request: Request, action: string) {
         .all();
       return result({ entries: rows.results });
     }
-    if (action === 'campus') {
+    if (action === 'campus')
+      throw new ApiError(
+        410,
+        'The neighborhood system has been upgraded. Refresh the game.',
+      );
+    if (action === 'projects') {
       const wallet = await identity(request);
-      const room = new URL(request.url).searchParams.get('room') ?? 'campus-1';
-      if (!validRoom(room))
-        throw new ApiError(400, 'Choose a campus or a facility.');
-      const people = await db()
-        .prepare(
-          'SELECT substr(p.wallet,3,16) AS id,p.name,c.x,c.z,p.facility_state FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.room=? AND c.updated_at>? LIMIT 30',
-        )
-        .bind(room, Date.now() - 10000)
-        .all<any>();
-      const now = Date.now(),
-        event = eventAt(now);
-      const work = await db()
-        .prepare(
-          'SELECT w.*,p.name FROM campus_work w JOIN players p ON p.wallet=w.wallet WHERE w.room=? AND w.event=?',
-        )
-        .bind(room, event)
-        .all<any>();
-      const reward = wallet
-        ? await db()
-            .prepare('SELECT id FROM campus_rewards WHERE id=?')
-            .bind(`${room}:${event}:${wallet}`)
-            .first()
-        : null;
-      return result({
-        people: people.results.map((p) => ({
-          id: p.id,
-          name: p.name,
-          x: p.x,
-          z: p.z,
-          outfit: JSON.parse(p.facility_state || '{}').outfit ?? 'classic',
-          accessory: JSON.parse(p.facility_state || '{}').accessory ?? 'none',
-        })),
-        world: {
-          room,
-          event,
-          endsAt: (event + 1) * 600000,
-          serverNow: now,
-          claimed: !!reward,
-          work: work.results.map((w) => ({
-            station: w.station,
-            name: w.name,
-            mine: w.wallet === wallet,
-            startedAt: w.started_at,
-            completedAt: w.completed_at,
-          })),
-        },
-      });
+      if (!wallet)
+        throw new ApiError(401, 'Connect your wallet to join a crew project.');
+      return result(await projectSnapshot(db(), wallet));
     }
-    if (action === 'directory') {
+    if (action === 'directory' || action === 'visit' || action === 'messages') {
+      const wallet = await identity(request);
+      if (!wallet) throw new ApiError(401, 'Connect to join a neighborhood.');
+      const membership = await requireMembership(db(), wallet);
+      if (action === 'directory') {
+        const snapshot = await neighborhoodSnapshot(db(), wallet);
+        return result({ facilities: snapshot.neighbors });
+      }
+      if (action === 'visit')
+        return result(
+          await visitCenter(
+            db(),
+            wallet,
+            new URL(request.url).searchParams.get('owner') ?? '',
+          ),
+        );
       const rows = await db()
         .prepare(
-          'SELECT substr(p.wallet,3,16) AS id,p.name, p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE c.updated_at>? ORDER BY c.updated_at DESC LIMIT 30',
+          'SELECT m.id,p.name,m.message,m.created_at FROM crew_messages m JOIN players p ON p.wallet=m.wallet WHERE m.neighborhood_id=? ORDER BY m.created_at DESC LIMIT 40',
         )
-        .bind(Date.now() - 120000)
-        .all<any>();
-      return result({
-        facilities: rows.results.map((p) => ({
-          id: p.id,
-          name: p.name,
-          racks: Object.values(
-            JSON.parse(p.facility_state || '{}').builds || {},
-          ).reduce((a: any, b: any) => a + b, 0),
-        })),
-      });
-    }
-    if (action === 'visit') {
-      const owner = new URL(request.url).searchParams.get('owner');
-      if (!owner || !/^[a-fA-F0-9]{16}$/.test(owner))
-        throw new ApiError(400, 'Choose a facility from the directory.');
-      const row = await db()
-        .prepare(
-          'SELECT name,facility_state FROM players WHERE substr(wallet,3,16)=?',
-        )
-        .bind(owner)
-        .first<any>();
-      if (!row) throw new ApiError(404, 'That facility is unavailable.');
-      const f = normalizeFacility(JSON.parse(row.facility_state || '{}'));
-      return result({
-        owner,
-        name: row.name,
-        facility: {
-          ...newFacility(),
-          builds: f.builds,
-          unlocked: f.unlocked,
-          power: f.power,
-          cooling: f.cooling,
-          visiting: true,
-        },
-      });
-    }
-    if (action === 'messages') {
-      const rows = await db()
-        .prepare(
-          'SELECT m.id,p.name,m.message,m.created_at FROM crew_messages m JOIN players p ON p.wallet=m.wallet ORDER BY m.created_at DESC LIMIT 40',
-        )
+        .bind(membership.neighborhood_id)
         .all();
       return result({ messages: rows.results.reverse() });
     }
@@ -424,9 +421,9 @@ export async function handleGame(request: Request, action: string) {
       const wallet = await identity(request);
       const rows = await db()
         .prepare(
-          "SELECT l.id,substr(l.wallet,3,16) AS owner,p.name,l.item,l.quantity,l.price FROM market_listings l JOIN players p ON p.wallet=l.wallet WHERE l.status='open' AND (l.wallet=? OR l.id IN (SELECT id FROM market_listings WHERE status='open' ORDER BY created_at DESC LIMIT 50)) ORDER BY l.created_at DESC",
+          "SELECT l.id,p.public_id AS owner,(l.wallet=?) AS mine,p.name,l.item,l.quantity,l.price FROM market_listings l JOIN players p ON p.wallet=l.wallet WHERE l.status='open' AND (l.wallet=? OR l.id IN (SELECT id FROM market_listings WHERE status='open' ORDER BY created_at DESC LIMIT 50)) ORDER BY l.created_at DESC",
         )
-        .bind(wallet ?? '')
+        .bind(wallet ?? '', wallet ?? '')
         .all();
       return result({ listings: rows.results });
     }
@@ -443,12 +440,12 @@ export async function handleGame(request: Request, action: string) {
     request,
     action === 'nonce' || action === 'verify'
       ? 'auth'
-      : action === 'presence'
+      : action === 'neighborhood-sync'
         ? 'presence-ingress'
         : 'game',
     action === 'nonce' || action === 'verify'
       ? 20
-      : action === 'presence'
+      : action === 'neighborhood-sync'
         ? 10000
         : 600,
   );
@@ -601,10 +598,115 @@ export async function handleGame(request: Request, action: string) {
 
   await rate(
     request,
-    action === 'presence' ? 'presence' : 'actions',
-    action === 'presence' ? 150 : 120,
+    action === 'neighborhood-sync' ? 'presence' : 'actions',
+    action === 'neighborhood-sync' ? 150 : 120,
     wallet,
   );
+
+  if (action === 'project-start') {
+    await startProject(
+      db(),
+      wallet,
+      controllerFrom(body),
+      String(body.variant),
+    );
+    return result({
+      ...(await responseFor(wallet)),
+      message: 'Your cluster project is ready. Meet Margo in the plaza.',
+    });
+  }
+  if (action === 'project-contribute') {
+    await contributeProject(
+      db(),
+      wallet,
+      controllerFrom(body),
+      String(body.projectId),
+      body.family as ContractFamily,
+      String(body.requestId),
+    );
+    return result({
+      ...(await responseFor(wallet)),
+      message: 'Contribution delivered. Your crew is one step closer.',
+    });
+  }
+  if (action === 'project-claim') {
+    const reward = await claimProject(db(), wallet, String(body.projectId));
+    return result({
+      ...(await responseFor(wallet)),
+      message: `Cluster commissioned! +${reward.compute} Compute · +${reward.reputation} reputation.`,
+    });
+  }
+  if (action === 'neighborhood-join') {
+    const p = await player(wallet);
+    if (!realmExists(body.realm) || typeof body.clientId !== 'string')
+      throw new ApiError(400, 'Choose a realm.');
+    if (body.realm === 'gpu') {
+      if (!operatorLicense(careerFor(p.facility!)))
+        throw new ApiError(
+          403,
+          'Earn your Operator license in Crew Commons first.',
+        );
+      throw new ApiError(
+        503,
+        'GPU District is still being commissioned. Your center and equipment are safe.',
+      );
+    }
+    const joined = await joinNeighborhood(
+      db(),
+      wallet,
+      body.realm,
+      levelBand(p.facility!),
+      body.clientId,
+      {
+        target: typeof body.target === 'string' ? body.target : undefined,
+        takeover: body.takeover === true,
+      },
+    );
+    return result(
+      await withShared(
+        wallet,
+        await neighborhoodSnapshot(db(), wallet, {
+          clientId: body.clientId,
+          generation: joined.generation,
+        }),
+      ),
+    );
+  }
+  if (action === 'neighborhood-sync')
+    return result(
+      await withShared(
+        wallet,
+        await syncNeighborhood(
+          db(),
+          wallet,
+          controllerFrom(body),
+          Number(body.sequence),
+          body.position as { x: number; z: number },
+        ),
+      ),
+    );
+  if (action === 'neighborhood-scene') {
+    const controller = controllerFrom(body);
+    const changed = await changeScene(
+      db(),
+      wallet,
+      controller,
+      String(body.scene),
+    );
+    return result(
+      await withShared(
+        wallet,
+        await neighborhoodSnapshot(db(), wallet, {
+          ...controller,
+          generation: changed.generation,
+        }),
+      ),
+    );
+  }
+  if (action === 'neighborhood-leave') {
+    await leaveNeighborhood(db(), wallet, controllerFrom(body));
+    return result({ ok: true });
+  }
 
   if (action === 'facility') {
     const p = await player(wallet),
@@ -612,26 +714,80 @@ export async function handleGame(request: Request, action: string) {
       a = body.action as FacilityAction;
     if (!a || typeof a.type !== 'string' || typeof a.requestId !== 'string')
       throw new ApiError(400, 'Choose a valid facility action.');
-    const updated = applyFacility(previous, a, p.credits);
+    const now = Date.now(),
+      homeRequired = needsHome(a);
+    const controller = homeRequired ? controllerFrom(body) : null;
+    const presence = controller
+      ? await requireMembership(db(), wallet, controller, now)
+      : null;
+    if (presence && presence.room !== 'home-' + p.id)
+      throw new ApiError(403, 'Return to your own center to do this job.');
+    const worksite = actionWorksite(previous, a);
+    if (
+      worksite &&
+      (!presence ||
+        presence.updated_at < now - 10000 ||
+        Math.hypot(presence.x - worksite.x, presence.z - worksite.z) > 4)
+    )
+      throw new ApiError(400, 'Walk to ' + worksite.name + ' first.');
+    const updated = applyFacility(previous, a, p.credits, now);
     if (updated.facility.version !== previous.version) {
-      const r = await db()
-        .prepare(
-          'UPDATE players SET facility_state=?,facility_version=?,credits=credits+?,xp=xp+? WHERE wallet=? AND facility_version=? AND credits=?',
-        )
-        .bind(
-          JSON.stringify(updated.facility),
-          updated.facility.version,
-          updated.credits,
-          updated.xp,
-          wallet,
-          previous.version,
-          p.credits,
-        )
-        .run();
-      if (r.meta.changes !== 1)
+      const authority = controller
+        ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND c.room=?
+        AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16)))`
+        : '';
+      const bindings: (string | number)[] = [
+        JSON.stringify(updated.facility),
+        updated.facility.version,
+        updated.credits,
+        updated.xp,
+        wallet,
+        previous.version,
+        p.credits,
+      ];
+      if (controller)
+        bindings.push(
+          controller.clientId,
+          controller.generation,
+          now,
+          'home-' + p.id,
+          worksite ? 1 : 0,
+          now - 10000,
+          worksite?.x ?? 0,
+          worksite?.x ?? 0,
+          worksite?.z ?? 0,
+          worksite?.z ?? 0,
+        );
+      const statements = [
+        db()
+          .prepare(
+            'UPDATE players SET facility_state=?,facility_version=?,credits=credits+?,xp=xp+? WHERE wallet=? AND facility_version=? AND credits=?' +
+              authority,
+          )
+          .bind(...bindings),
+      ];
+      if (a.type === 'travel' && controller) {
+        const zone = ZONES.find((z) => z.id === updated.facility.zone)!;
+        statements.push(
+          db()
+            .prepare(
+              'UPDATE crew_presence SET x=?,z=?,sequence=sequence+1,updated_at=? WHERE wallet=? AND client_id=? AND generation=? AND changes()=1',
+            )
+            .bind(
+              zone.x,
+              zone.z + 5,
+              now,
+              wallet,
+              controller.clientId,
+              controller.generation,
+            ),
+        );
+      }
+      const results = await db().batch(statements);
+      if (results[0].meta.changes !== 1)
         throw new ApiError(
           409,
-          'Your facility changed in another tab. Please retry.',
+          'Your center or connection changed. Reconnect and try again.',
         );
     }
     return result({
@@ -641,71 +797,66 @@ export async function handleGame(request: Request, action: string) {
       actionApplied: !previous.requests.includes(a.requestId),
     });
   }
-  if (action === 'presence') {
-    const room = body.room ?? 'campus-1';
-    if (!validRoom(room)) throw new ApiError(400, 'Choose a valid room.');
-    const x = Number(body.x),
-      z = Number(body.z);
-    if (
-      !Number.isFinite(x) ||
-      !Number.isFinite(z) ||
-      Math.abs(x) > 34 ||
-      z > 23 ||
-      z < -43
-    )
-      throw new ApiError(400, 'Invalid campus position.');
-    const joined = await db()
-      .prepare(
-        'INSERT INTO crew_presence (wallet,x,z,updated_at,room) SELECT ?,?,?,?,? WHERE (SELECT COUNT(*) FROM crew_presence WHERE room=? AND updated_at>? AND wallet<>?)<30 ON CONFLICT(wallet) DO UPDATE SET x=excluded.x,z=excluded.z,updated_at=excluded.updated_at,room=excluded.room',
-      )
-      .bind(
-        wallet,
-        Math.round(x * 10) / 10,
-        Math.round(z * 10) / 10,
-        Date.now(),
-        room,
-        room,
-        Date.now() - 10000,
-        wallet,
-      )
-      .run();
-    if (!joined.meta.changes)
-      throw new ApiError(409, 'This room is full. Choose another campus.');
-    return result({ ok: true });
-  }
+  if (action === 'presence')
+    throw new ApiError(410, 'Refresh the game to join the new neighborhoods.');
   if (action === 'crew-work' || action === 'crew-claim') {
-    const room = body.room;
-    if (typeof room !== 'string' || !/^campus-[1-3]$/.test(room))
-      throw new ApiError(400, 'Join a shared campus first.');
+    const controller = action === 'crew-work' ? controllerFrom(body) : null;
+    const presence = controller
+      ? await requireMembership(db(), wallet, controller)
+      : null;
+    const room = presence?.neighborhood_id ?? String(body.room);
     const now = Date.now(),
-      event = eventAt(now);
-    if (body.event !== event)
-      throw new ApiError(
-        409,
-        'A new emergency has started. Reopen the job board.',
-      );
-    const presence = await db()
-      .prepare(
-        'SELECT * FROM crew_presence WHERE wallet=? AND room=? AND updated_at>?',
-      )
-      .bind(wallet, room, now - 10000)
-      .first<any>();
-    if (!presence)
-      throw new ApiError(400, 'Enter this campus before joining its job.');
+      event = action === 'crew-work' ? eventAt(now) : Number(body.event);
+    if (
+      !/^(?:[a-f0-9]{32}|campus-[1-3])$/.test(room) ||
+      !Number.isSafeInteger(event) ||
+      event < 0 ||
+      event > eventAt(now)
+    )
+      throw new ApiError(400, 'Choose an earned crew bonus.');
+    if (action === 'crew-work' && body.event !== event)
+      throw new ApiError(409, 'A new crew job has started. Reopen the board.');
+    if (
+      presence &&
+      (presence.room !== 'commons' || presence.updated_at < now - 10000)
+    )
+      throw new ApiError(400, 'Enter the plaza before joining this job.');
     if (action === 'crew-work') {
       const station = EMERGENCY_STATIONS.find((s) => s.id === body.station);
       if (
         !station ||
-        Math.hypot(presence.x - station.x, presence.z - station.z) > 5
+        Math.hypot(presence!.x - station.x, presence!.z - station.z) > 5
       )
         throw new ApiError(400, 'Walk to the highlighted station first.');
       const id = `${room}:${event}:${station.id}`;
+      const guard = `EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.neighborhood_id=? AND c.client_id=? AND c.generation=? AND c.lease_until>? AND c.room='commons' AND c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=25)`;
+      const guardArgs = [
+        wallet,
+        room,
+        controller!.clientId,
+        controller!.generation,
+        now,
+        now - 10000,
+        station.x,
+        station.x,
+        station.z,
+        station.z,
+      ];
       if (body.finish !== true) {
         const r = await db()
           .prepare(
-            'INSERT INTO campus_work (id,room,event,station,wallet,started_at) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET wallet=excluded.wallet,started_at=excluded.started_at WHERE campus_work.completed_at IS NULL AND campus_work.started_at<?',
+            `INSERT INTO campus_work (id,room,event,station,wallet,started_at) SELECT ?,?,?,?,?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET wallet=excluded.wallet,started_at=excluded.started_at WHERE campus_work.completed_at IS NULL AND campus_work.started_at<?`,
           )
-          .bind(id, room, event, station.id, wallet, now, now - 30000)
+          .bind(
+            id,
+            room,
+            event,
+            station.id,
+            wallet,
+            now,
+            ...guardArgs,
+            now - 30000,
+          )
           .run();
         if (!r.meta.changes)
           throw new ApiError(
@@ -716,9 +867,9 @@ export async function handleGame(request: Request, action: string) {
         const r = await db().batch([
           db()
             .prepare(
-              'UPDATE campus_work SET completed_at=? WHERE id=? AND wallet=? AND completed_at IS NULL AND started_at<=? AND started_at>=?',
+              `UPDATE campus_work SET completed_at=? WHERE id=? AND wallet=? AND completed_at IS NULL AND started_at<=? AND started_at>=? AND ${guard}`,
             )
-            .bind(now, id, wallet, now - 6000, now - 30000),
+            .bind(now, id, wallet, now - 6000, now - 30000, ...guardArgs),
           db()
             .prepare(
               'UPDATE players SET credits=credits+20,xp=xp+10 WHERE wallet=? AND changes()=1',
@@ -770,6 +921,11 @@ export async function handleGame(request: Request, action: string) {
     });
   }
   if (action === 'message') {
+    const membership = await requireMembership(
+      db(),
+      wallet,
+      controllerFrom(body),
+    );
     if (typeof body.message !== 'string')
       throw new ApiError(400, 'Write a message.');
     const msg = body.message.trim();
@@ -778,9 +934,22 @@ export async function handleGame(request: Request, action: string) {
     const now = Date.now();
     const inserted = await db()
       .prepare(
-        'INSERT INTO crew_messages (id,wallet,message,created_at) SELECT ?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?)',
+        `INSERT INTO crew_messages (id,wallet,message,created_at,neighborhood_id) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?) AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.client_id=? AND c.generation=? AND c.neighborhood_id=? AND c.lease_until>?)`,
       )
-      .bind(crypto.randomUUID(), wallet, msg, now, wallet, now - 5000)
+      .bind(
+        crypto.randomUUID(),
+        wallet,
+        msg,
+        now,
+        membership.neighborhood_id,
+        wallet,
+        now - 5000,
+        wallet,
+        membership.client_id,
+        membership.generation,
+        membership.neighborhood_id,
+        now,
+      )
       .run();
     if (inserted.meta.changes !== 1)
       throw new ApiError(

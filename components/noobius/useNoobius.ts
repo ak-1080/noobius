@@ -93,6 +93,8 @@ export async function api<T = GameData>(
   return data as T;
 }
 export function useNoobius() {
+  const worldController = useRef<{clientId: string; generation: number} | null>(null);
+  const setWorldController = useCallback((value: {clientId: string; generation: number} | null) => { worldController.current = value; }, []);
   const [notice, setNotice] = useState('');
   const [guestSaveState, setGuestSaveState] = useState<
     'saved' | 'unavailable' | 'checking'
@@ -696,6 +698,7 @@ export function useNoobius() {
         };
       } else {
         data = await api('facility', {
+          ...worldController.current,
           action: a,
           expectedWallet: p.wallet,
         });
@@ -725,6 +728,7 @@ export function useNoobius() {
       if (pending.current?.key !== key)
         pending.current = { key, id: crypto.randomUUID() };
       const data = await api(action, {
+        ...worldController.current,
         ...body,
         requestId: pending.current.id,
         expectedWallet: state.current.profile?.wallet,
@@ -735,6 +739,7 @@ export function useNoobius() {
       return true;
     });
   return {
+    setWorldController,
     guestSaveState,
     notice,
     setNotice,

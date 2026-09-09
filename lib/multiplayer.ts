@@ -41,6 +41,7 @@ export type SharedWorld = {
   serverNow: number;
   work: CrewWork[];
   claimed: boolean;
+  pending?: { room: string; event: number }[];
 };
 export function publicCampus() {
   const f = newFacility();

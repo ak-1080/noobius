@@ -14,8 +14,15 @@ import {
   type ZoneId,
   type WorldObject,
 } from '@/lib/facility';
+import {
+  CENTER_ENTRANCES,
+  REALMS,
+  type Neighbor,
+  type RealmId,
+} from '@/lib/neighborhoods';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
+import { floorClear } from '@/lib/world-navigation';
 export type CrewPerson = {
   id: string;
   name: string;
@@ -26,12 +33,16 @@ export type CrewPerson = {
 };
 type Props = {
   playerName?: string;
+  neighbors?: Neighbor[];
+  realm?: RealmId;
   sharedCampus?: boolean;
+  correction?: { x: number; z: number; revision: number } | null;
   facility: Facility;
   paused: boolean;
   people: CrewPerson[];
   onInteract: (object: WorldObject) => void;
   onPosition: (x: number, z: number) => void;
+  onLivePosition: (x: number, z: number) => void;
   zoomCommand: number;
   travelCommand: number;
   guideCommand: { id: string; revision: number } | null;
@@ -44,9 +55,14 @@ export default function Campus(props: Props) {
   const mount = useRef<HTMLDivElement>(null),
     live = useRef(props),
     travel = useRef<((zone: string) => void) | null>(null),
+    correct = useRef<((x: number, z: number) => void) | null>(null),
     zoom = useRef<((n: number) => void) | null>(null),
     guide = useRef<((id: string) => void) | null>(null);
   live.current = props;
+  useEffect(() => {
+    if (props.correction)
+      correct.current?.(props.correction.x, props.correction.z);
+  }, [props.correction]);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     travel.current?.(props.facility.zone);
@@ -60,6 +76,19 @@ export default function Campus(props: Props) {
   useEffect(() => {
     const host = mount.current!;
     if (!host) return;
+    const sceneObjects: WorldObject[] = [
+      ...OBJECTS,
+      ...(live.current.sharedCampus
+        ? CENTER_ENTRANCES.map((point, slot) => ({
+            ...point,
+            id: 'neighbor-' + slot,
+            kind: 'terminal' as const,
+            zone: 'commons' as const,
+            name: 'Center 0' + (slot + 1),
+            panel: 'neighbor',
+          }))
+        : []),
+    ];
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let renderer: T.WebGLRenderer;
     try {
@@ -305,7 +334,11 @@ export default function Campus(props: Props) {
         box(2, 0.08, 0.08, accent, g, x, 2, -7.55);
       }
       const title = label(
-        live.current.sharedCampus ? 'CREW CAMPUS' : zone.label,
+        live.current.sharedCampus
+          ? (REALMS.find(
+              (r) => r.id === live.current.realm,
+            )?.name.toUpperCase() ?? 'CREW COMMONS')
+          : zone.label,
         zone.color,
         6.3,
       );
@@ -645,7 +678,7 @@ export default function Campus(props: Props) {
       }
       return { root, body, arm };
     }
-    for (const obj of OBJECTS) {
+    for (const obj of sceneObjects) {
       const g = new T.Group();
       g.position.set(obj.x, 0, obj.z);
       scene.add(g);
@@ -717,7 +750,15 @@ export default function Campus(props: Props) {
           }
         }
       }
-      if (obj.kind === 'terminal') {
+      if (obj.panel === 'neighbor') {
+        box(2.2, 0.12, 1.7, steel, g, 0, 0.06, 0.25);
+        for (const x of [-1, 1]) box(0.2, 2.7, 0.5, steel, g, x, 1.35, 0);
+        box(2.2, 0.23, 0.5, steel, g, 0, 2.65, 0);
+        box(1.65, 2.4, 0.12, dark, g, 0, 1.2, 0);
+        box(0.08, 2.35, 0.08, mint, g, -0.78, 1.25, 0.15);
+        box(0.08, 2.35, 0.08, mint, g, 0.78, 1.25, 0.15);
+        box(0.35, 0.25, 0.1, amber, g, 0.5, 1.3, 0.14);
+      } else if (obj.kind === 'terminal') {
         box(1.7, 0.13, 0.8, steel, g, 0, 0.85, 0);
         box(0.12, 0.8, 0.12, silver, g, -0.65, 0.4, 0);
         box(0.12, 0.8, 0.12, silver, g, 0.65, 0.4, 0);
@@ -740,7 +781,11 @@ export default function Campus(props: Props) {
         ZONES.find((z) => z.id === obj.zone)!.color,
         obj.kind === 'gate' ? 4.6 : 3.5,
       );
-      badge.position.set(0, obj.kind === 'build' ? 2.95 : 2.6, 0);
+      badge.position.set(
+        0,
+        obj.panel === 'neighbor' ? 3.2 : obj.kind === 'build' ? 2.95 : 2.6,
+        0,
+      );
       g.add(badge);
       labels.set(obj.id, badge);
       g.traverse((child) => {
@@ -813,7 +858,7 @@ export default function Campus(props: Props) {
       spark.castShadow = false;
       return spark;
     });
-    const machineObjects = OBJECTS.filter((o) => o.kind === 'build');
+    const machineObjects = sceneObjects.filter((o) => o.kind === 'build');
     const coinTexture = new T.TextureLoader().load(
       '/assets/compute-currency.png',
     );
@@ -853,28 +898,20 @@ export default function Campus(props: Props) {
     fabricator.position.set(19, 1.8, 9);
     scene.add(fabricator);
     box(0.12, 0.28, 0.4, mint, fabricator);
+    const trophy = new T.Group();
+    trophy.position.set(6, 0, 19);
+    scene.add(trophy);
+    box(1.3, 0.25, 1.3, steel, trophy, 0, 0.12, 0);
+    box(0.8, 0.45, 0.8, dark, trophy, 0, 0.46, 0);
+    const trophyChip = box(0.85, 0.85, 0.25, amber, trophy, 0, 1.35, 0);
+    trophyChip.rotation.y = 0.55;
+    box(0.55, 0.55, 0.08, mint, trophy, 0, 1.35, 0.18);
+    for (const side of [-1, 1])
+      for (let y = 0; y < 3; y++)
+        box(0.2, 0.07, 0.1, silver, trophy, side * 0.5, 1.1 + y * 0.23, 0);
     const peers = new Map<string, T.Group>();
-    const clear = (x: number, z: number) => {
-      if (live.current.sharedCampus && (Math.abs(x) > 8 || z < 4 || z > 20))
-        return false;
-      if (Math.abs(x) > 32 || z > 21 || z < -40) return false;
-      const zone = ZONES.find(
-        (d) => Math.abs(x - d.x) < 9 && Math.abs(z - d.z) < 8,
-      );
-      if (zone && !live.current.facility.unlocked.includes(zone.id))
-        return false;
-      const inRoom = !!zone,
-        inHall =
-          ((Math.abs(z - 12) < 1.8 || Math.abs(z + 10) < 1.8) &&
-            Math.abs(x) < 32) ||
-          ([-22, 0, 22].some((a) => Math.abs(x - a) < 1.8) &&
-            z >= -32 &&
-            z <= 12);
-      if (!inRoom && !inHall) return false;
-      return !obstacles.some(
-        (o) => Math.abs(x - o.x) < o.w && Math.abs(z - o.z) < o.d,
-      );
-    };
+    const clear = (x: number, z: number) =>
+      floorClear(live.current.facility, !!live.current.sharedCampus, x, z);
     let target: T.Vector3 | null = null,
       waypoints: T.Vector3[] = [],
       targetObject: WorldObject | null = null,
@@ -916,6 +953,14 @@ export default function Campus(props: Props) {
       if (dest) go(dest[0], dest[1], obj);
       else live.current.onCancelGuide();
     };
+    correct.current = (x, z) => {
+      avatar.g.position.set(x, 0, z);
+      target = null;
+      waypoints = [];
+      targetObject = null;
+      live.current.onLivePosition(x, z);
+      live.current.onPosition(x, z);
+    };
     travel.current = (zoneId) => {
       const z = ZONES.find((z) => z.id === zoneId);
       if (z && live.current.facility.unlocked.includes(z.id)) {
@@ -932,12 +977,14 @@ export default function Campus(props: Props) {
         targetObject = null;
         return;
       }
-      const obj = OBJECTS.find((o) => o.id === id);
+      const obj = sceneObjects.find((o) => o.id === id);
       if (obj && live.current.facility.unlocked.includes(obj.zone)) {
         walkObject(obj);
       }
     };
-    travel.current(live.current.facility.zone);
+    if (live.current.correction)
+      correct.current(live.current.correction.x, live.current.correction.z);
+    else travel.current(live.current.facility.zone);
     if (live.current.guideCommand?.id)
       guide.current(live.current.guideCommand.id);
     const click = (e: PointerEvent) => {
@@ -1036,17 +1083,27 @@ export default function Campus(props: Props) {
         if (!e.repeat && (k === '+' || k === '=')) changeZoom(-0.2);
         if (!e.repeat && k === '-') changeZoom(0.2);
         if (!e.repeat && k === 'e') {
-          const n = OBJECTS.filter(
-            (o) =>
-              (live.current.facility.unlocked.includes(o.zone) ||
-                o.kind === 'gate') &&
-              Math.hypot(o.x - avatar.g.position.x, o.z - avatar.g.position.z) <
-                3,
-          ).sort(
-            (a, b) =>
-              Math.hypot(a.x - avatar.g.position.x, a.z - avatar.g.position.z) -
-              Math.hypot(b.x - avatar.g.position.x, b.z - avatar.g.position.z),
-          )[0];
+          const n = sceneObjects
+            .filter(
+              (o) =>
+                (live.current.facility.unlocked.includes(o.zone) ||
+                  o.kind === 'gate') &&
+                Math.hypot(
+                  o.x - avatar.g.position.x,
+                  o.z - avatar.g.position.z,
+                ) < 3,
+            )
+            .sort(
+              (a, b) =>
+                Math.hypot(
+                  a.x - avatar.g.position.x,
+                  a.z - avatar.g.position.z,
+                ) -
+                Math.hypot(
+                  b.x - avatar.g.position.x,
+                  b.z - avatar.g.position.z,
+                ),
+            )[0];
           if (n) live.current.onInteract(n);
         }
       }
@@ -1163,7 +1220,7 @@ export default function Campus(props: Props) {
         seenWork = p.workEvent.revision;
         workStarted = time;
         workObject = p.workEvent.id;
-        const obj = OBJECTS.find((o) => o.id === workObject);
+        const obj = sceneObjects.find((o) => o.id === workObject);
         const nearby =
           obj &&
           Math.hypot(obj.x - avatar.g.position.x, obj.z - avatar.g.position.z) <
@@ -1249,7 +1306,7 @@ export default function Campus(props: Props) {
         );
       for (const title of roomTitles) title.visible = targetScale > 11;
       marker.visible = !!p.objectiveId && !p.paused;
-      const objectiveObject = OBJECTS.find((o) => o.id === p.objectiveId);
+      const objectiveObject = sceneObjects.find((o) => o.id === p.objectiveId);
       if (objectiveObject) {
         marker.position.set(objectiveObject.x, 0, objectiveObject.z);
         markerArrow.position.y =
@@ -1279,7 +1336,7 @@ export default function Campus(props: Props) {
           segment++;
         }
       });
-      const workAt = OBJECTS.find((o) => o.id === workObject);
+      const workAt = sceneObjects.find((o) => o.id === workObject);
       const collecting = [
         'compute-harvest',
         'compute-collect',
@@ -1348,6 +1405,7 @@ export default function Campus(props: Props) {
       fabricator.position.x =
         19 + (f.craft && !motion.matches ? Math.sin(time * 0.005) * 0.6 : 0);
       fabricator.visible = !!f.craft;
+      p.onLivePosition(avatar.g.position.x, avatar.g.position.z);
       if (time - lastPosition > 600) {
         p.onPosition(avatar.g.position.x, avatar.g.position.z);
         lastPosition = time;
@@ -1359,8 +1417,12 @@ export default function Campus(props: Props) {
         f.accessory,
         p.playerName,
         f.cooldowns,
+        p.neighbors?.map((n) => [n.slot, n.name, n.online, n.level]),
+        f.career?.accent,
+        f.career?.trophy,
         activeIncident(f)?.rack,
       ]);
+      trophy.visible = !p.sharedCampus && !!f.career?.trophy;
       if (appearance !== lastAppearance) {
         const nameCanvas = you.material.map!.image as HTMLCanvasElement;
         const nameContext = nameCanvas.getContext('2d')!;
@@ -1382,7 +1444,7 @@ export default function Campus(props: Props) {
         shirt.color.set(
           OUTFITS.find((x) => x.id === f.outfit)?.color ?? '#d1d8c8',
         );
-        for (const obj of OBJECTS) {
+        for (const obj of sceneObjects) {
           const g = objects.get(obj.id)!,
             isOpen = f.unlocked.includes(obj.zone);
           g.visible =
@@ -1391,6 +1453,17 @@ export default function Campus(props: Props) {
               : obj.kind === 'gate'
                 ? !isOpen
                 : isOpen;
+          if (obj.panel === 'neighbor') {
+            const neighbor = p.neighbors?.find(
+              (n) => n.slot === Number(obj.id.slice(9)),
+            );
+            relabel(
+              labels.get(obj.id)!,
+              neighbor
+                ? `${neighbor.name} · Lv ${neighbor.level}`
+                : 'OPEN PLACE',
+            );
+          }
           if (obj.kind === 'build') {
             const level = p.sharedCampus
               ? Math.max(2, f.builds[obj.id] ?? 0)
@@ -1420,8 +1493,14 @@ export default function Campus(props: Props) {
           const open = f.unlocked.includes(zone.id);
           room.floor.color.set(open ? zone.color : '#52616d');
           if (open) room.floor.color.lerp(new T.Color('#d4e6ee'), 0.3);
-          room.accent.color.set(open ? zone.color : '#354651');
-          room.accent.emissive.set(open ? zone.color : '#000000');
+          const displayColor =
+            !p.sharedCampus && f.career?.accent === 'mint'
+              ? '#99edce'
+              : !p.sharedCampus && f.career?.accent === 'violet'
+                ? '#c6a3ff'
+                : zone.color;
+          room.accent.color.set(open ? displayColor : '#354651');
+          room.accent.emissive.set(open ? displayColor : '#000000');
           room.accent.emissiveIntensity = open ? 0.23 : 0;
           room.landmark.visible = open;
           room.stamp.opacity = open ? 0.28 : 0.1;
@@ -1429,7 +1508,7 @@ export default function Campus(props: Props) {
         }
         lastAppearance = appearance;
       }
-      for (const obj of OBJECTS) {
+      for (const obj of sceneObjects) {
         const l = labels.get(obj.id)!;
         l.material.opacity =
           obj.kind === 'node' && (f.cooldowns[obj.id] ?? 0) > Date.now()
@@ -1437,7 +1516,8 @@ export default function Campus(props: Props) {
             : 1;
         l.visible =
           objects.get(obj.id)!.visible &&
-          (obj.id === p.objectiveId ||
+          (obj.panel === 'neighbor' ||
+            obj.id === p.objectiveId ||
             (Math.hypot(
               obj.x - avatar.g.position.x,
               obj.z - avatar.g.position.z,

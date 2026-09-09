@@ -7,13 +7,13 @@ const slides = [
     image: '/assets/noobius.jpeg',
     alt: 'Noobius ready for his first shift',
     title: 'Never wonder what’s next.',
-    text: '“Next up” tells you what to do. Tap its action to collect, build, or follow the glowing path.',
+    text: '“Your next move” shows a path to useful work. Follow it, then click the object to act. Scroll to zoom.',
   },
   {
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'Your first server machine',
     title: 'Your first machine is free.',
-    text: 'Margo has a machine ready for you. Tap your next step to build it. No parts needed.',
+    text: 'Meet Margo, then open Center and build your free machine. Its green lights mean it is working.',
   },
   {
     image: '/assets/compute-currency.png',
@@ -24,8 +24,8 @@ const slides = [
   {
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'Server rack with green lights',
-    title: 'Small machine. Big plans.',
-    text: 'Spend Compute in Build. Buy faster machines, open new rooms, and make your data center bigger.',
+    title: 'Pick your kind of work.',
+    text: 'Open Jobs. Repair faults, deliver parts or run a client workload. Earn Compute and reputation, then try a different setup.',
   },
 ];
 export default function HowToSlides({
@@ -50,7 +50,7 @@ export default function HowToSlides({
             <div className="howto-next-example">
               <Navigation size={23} />
               <span>
-                <small>Next up</small>
+                <small>Your next move</small>
                 <strong>Meet Margo</strong>
                 <span className="howto-example-action">Show me Margo →</span>
               </span>

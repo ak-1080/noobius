@@ -12,7 +12,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'first-machine',
     title: 'Your first machine',
-    text: 'Meet Margo, the little green robot. Tap “Next up” and Noobius walks over. Your first machine is free. Build it and watch the lights turn green.',
+    text: 'Meet Margo, the little green robot. Tap “Your next move” and Noobius walks over. Your first machine is free. Build it and watch the lights turn green.',
     image: '/assets/guide/welcome.png',
     alt: 'Margo’s welcome: build your first machine for free',
     tip: 'You don’t need parts, a wallet, or tokens to try the game.',
@@ -28,7 +28,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'upgrade',
     title: 'Make more, faster',
-    text: 'Open Build. Collect what your machines have made, then choose an upgrade. Tap a machine in the world to see its own upgrade first.',
+    text: 'Open Center. Collect what your machines have made, then choose an upgrade. Tap a machine in the world to see its own upgrade first.',
     image: '/assets/guide/build-and-collect.png',
     alt: 'Build menu: collect machine earnings, then choose an upgrade with its price and income change',
     tip: 'The “Faster machines” upgrade speeds up every machine at once. Each machine also has three levels of its own.',
@@ -44,7 +44,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'growth',
     title: 'Watch your data center grow',
-    text: 'Open Goals, then “Your progress.” Each milestone checks itself off as you build. See your next big goal and the steps you’ve already finished.',
+    text: 'Open Jobs → Milestones, then “Your progress.” Each milestone checks itself off as you build. See your next big goal and the steps you’ve already finished.',
     image: '/assets/guide/growth-goals.png',
     alt: 'Goals showing completed milestones, room and machine counts, and the next growth milestone',
     tip: 'Your big finish: every room open, every machine at level 3, and top speed.',
@@ -84,7 +84,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'controls',
     title: 'Getting around',
-    text: 'Tap the floor to walk. Tap a machine to open it. “Next up” leads you to your next goal. Scroll to zoom in or out.',
+    text: 'Tap the floor to walk. Tap a machine to open it. “Your next move” leads you to your next goal. Scroll to zoom in or out.',
     image: '/assets/tutorial/tutorial-toolbox.png',
     alt: 'Tools for your next game action',
     tip: 'Keyboard: WASD or arrows to move · E to use · R to turn the view · M for rooms · Esc for the menu.',

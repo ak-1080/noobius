@@ -4,12 +4,14 @@ import {
   integer,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 export const players = sqliteTable(
   'players',
   {
     wallet: text('wallet').primaryKey(),
+    publicId: text('public_id'),
     name: text('name').notNull(),
     credits: integer('credits').notNull().default(0),
     xp: integer('xp').notNull().default(0),
@@ -22,7 +24,10 @@ export const players = sqliteTable(
     facilityVersion: integer('facility_version').notNull().default(0),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [index('idx_players_best_score').on(t.bestScore)],
+  (t) => [
+    index('idx_players_best_score').on(t.bestScore),
+    uniqueIndex('idx_players_public_id').on(t.publicId),
+  ],
 );
 export const sessions = sqliteTable(
   'sessions',
@@ -71,10 +76,27 @@ export const rateLimits = sqliteTable('rate_limits', {
   resetsAt: integer('resets_at').notNull(),
 });
 
+export const neighborhoods = sqliteTable(
+  'neighborhoods',
+  {
+    id: text('id').primaryKey(),
+    realm: text('realm').notNull(),
+    preferredBand: integer('preferred_band').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('idx_neighborhoods_realm_band').on(t.realm, t.preferredBand)],
+);
+
 export const presence = sqliteTable(
   'crew_presence',
   {
     room: text('room').notNull().default('campus-1'),
+    neighborhoodId: text('neighborhood_id').references(() => neighborhoods.id),
+    slot: integer('slot'),
+    clientId: text('client_id'),
+    generation: integer('generation').notNull().default(0),
+    sequence: integer('sequence').notNull().default(0),
+    leaseUntil: integer('lease_until').notNull().default(0),
     wallet: text('wallet')
       .primaryKey()
       .references(() => players.wallet),
@@ -85,19 +107,26 @@ export const presence = sqliteTable(
   (t) => [
     index('idx_presence_room_time').on(t.room, t.updatedAt),
     index('idx_presence_time').on(t.updatedAt),
+    uniqueIndex('idx_presence_neighborhood_slot').on(t.neighborhoodId, t.slot),
+    index('idx_presence_neighborhood_lease').on(t.neighborhoodId, t.leaseUntil),
+    check('valid_neighborhood_slot', sql`${t.slot} BETWEEN 0 AND 4`),
   ],
 );
 export const messages = sqliteTable(
   'crew_messages',
   {
     id: text('id').primaryKey(),
+    neighborhoodId: text('neighborhood_id').references(() => neighborhoods.id),
     wallet: text('wallet')
       .notNull()
       .references(() => players.wallet),
     text: text('message').notNull(),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [index('idx_messages_time').on(t.createdAt)],
+  (t) => [
+    index('idx_messages_time').on(t.createdAt),
+    index('idx_messages_neighborhood_time').on(t.neighborhoodId, t.createdAt),
+  ],
 );
 export const listings = sqliteTable(
   'market_listings',
@@ -133,4 +162,76 @@ export const campusRewards = sqliteTable('campus_rewards', {
   id: text('id').primaryKey(),
   wallet: text('wallet').notNull(),
   createdAt: integer('created_at').notNull(),
+});
+
+export const clusterProjects = sqliteTable(
+  'cluster_projects',
+  {
+    id: text('id').primaryKey(),
+    neighborhoodId: text('neighborhood_id')
+      .notNull()
+      .references(() => neighborhoods.id),
+    variant: text('variant').notNull(),
+    state: text('state').notNull(),
+    scale: integer('scale').notNull(),
+    required: text('required_json').notNull(),
+    progress: text('progress_json').notNull(),
+    version: integer('version').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    completedAt: integer('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('idx_cluster_open')
+      .on(t.neighborhoodId)
+      .where(sql`${t.state} = 'open'`),
+    index('idx_cluster_neighborhood_time').on(t.neighborhoodId, t.createdAt),
+  ],
+);
+export const clusterContributions = sqliteTable(
+  'cluster_contributions',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => clusterProjects.id),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    family: text('family').notNull(),
+    units: integer('units').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_cluster_contributions_project').on(t.projectId),
+    index('idx_cluster_contributions_wallet').on(t.wallet),
+  ],
+);
+export const clusterClaims = sqliteTable(
+  'cluster_claims',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => clusterProjects.id),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    compute: integer('compute').notNull(),
+    reputation: integer('reputation').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('idx_cluster_claim_once').on(t.projectId, t.wallet)],
+);
+
+export const realmEntitlements = sqliteTable('realm_entitlements', {
+  wallet: text('wallet')
+    .primaryKey()
+    .references(() => players.wallet),
+  policy: text('policy').notNull(),
+  amount: text('amount').notNull(),
+  block: text('block').notNull(),
+  status: text('status').notNull(),
+  checkedAt: integer('checked_at').notNull(),
+  nextCheckAt: integer('next_check_at').notNull(),
+  graceUntil: integer('grace_until').notNull(),
 });

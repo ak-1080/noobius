@@ -1,3 +1,5 @@
+import { applyContract, ContractError, newCareer, reservedProduction, type Career } from './contracts.ts';
+
 export type ItemId =
   | 'scrap'
   | 'copper'
@@ -21,6 +23,7 @@ export type ZoneId =
 export type SkillId = 'salvaging' | 'engineering' | 'operations';
 export type Bag = Partial<Record<ItemId, number>>;
 export type Facility = {
+  career?: Career;
   economyVersion?: number;
   tycoonVersion?: number;
   accessory?: string;
@@ -70,6 +73,7 @@ export type Facility = {
     startedAt: number | null;
   } | null;
 };
+export const SHOP_ITEMS: ItemId[] = ['scrap', 'copper', 'silicon', 'coolant', 'fiber', 'coffee'];
 export const ITEMS: Record<
   ItemId,
   { name: string; short: string; color: string; buy: number; sell: number }
@@ -755,6 +759,7 @@ export function normalizeFacility(
     f.computeAt = now;
     f.tycoonVersion = 1;
   }
+  f.career ??= newCareer(f);
   return f;
 }
 export const itemCount = (bag: Bag) =>
@@ -840,7 +845,7 @@ export function storedComputeNow(f: Facility, now = Date.now()) {
     computeTankCapacity(f),
     f.storedCompute +
       Math.max(0, Math.floor((until - f.computeAt) / 15000)) *
-        computePerTick(f),
+        computePerTick(f) - reservedProduction(f, until),
   );
 }
 export const INTRO_IDS = [
@@ -903,6 +908,7 @@ export type FacilityAction = {
   item?: ItemId;
   quantity?: number;
   direction?: string;
+  rack?: string;
   requestId: string;
 };
 export class FacilityError extends Error {}
@@ -922,7 +928,7 @@ export function applyFacility(
   f.storedCompute = storedComputeNow(f, now);
   const computeUntil = Math.max(f.computeAt, now);
   f.computeAt =
-    f.storedCompute >= computeTankCapacity(f) || !modules(f)
+    !modules(f)
       ? now
       : f.computeAt +
         Math.max(0, Math.floor((computeUntil - f.computeAt) / 15000)) * 15000;
@@ -954,7 +960,16 @@ export function applyFacility(
         'Storage is full. Bank or sell some parts first.',
       );
   };
-  switch (action.type) {
+  if (action.type.startsWith('contract-') || action.type.startsWith('module-')) {
+    try {
+      const result = applyContract(f, action, now);
+      message = result.message;
+      xp = result.xp;
+    } catch (error) {
+      if (error instanceof ContractError) throw new FacilityError(error.message);
+      throw error;
+    }
+  } else switch (action.type) {
     case 'intro-skip': {
       f.seen = [
         ...new Set([...f.seen, ...INTRO_IDS.map((id) => 'intro:' + id)]),
@@ -977,6 +992,8 @@ export function applyFacility(
       break;
     }
     case 'compute-upgrade': {
+      if (f.career?.active.some(r => r.rack && r.readyAt !== null && r.readyAt > now))
+        throw new FacilityError('Finish running client workloads before changing the facility speed.');
       if (!modules(f))
         throw new FacilityError(
           'Build your first machine before upgrading its speed.',
@@ -1157,6 +1174,8 @@ export function applyFacility(
       break;
     }
     case 'build': {
+      if (f.career?.active.some(r => r.rack === action.id && r.readyAt !== null && r.readyAt > now))
+        throw new FacilityError('This machine is reserved for a client. Upgrade it when the batch finishes.');
       const plot = OBJECTS.find(
         (o) => o.id === action.id && o.kind === 'build',
       );
@@ -1308,6 +1327,7 @@ export function applyFacility(
       )
         throw new FacilityError('Choose a valid item quantity.');
       if (action.type === 'buy') {
+        if (!SHOP_ITEMS.includes(id)) throw new FacilityError('Craft equipment at the workbench or buy it from another player.');
         space(n!);
         spend({}, ITEMS[id].buy * n!);
         add(id, n!);

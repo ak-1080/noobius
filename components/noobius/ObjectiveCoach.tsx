@@ -7,6 +7,7 @@ import {
   X,
 } from 'lucide-react';
 import type { NextStep, Objective } from '@/lib/objectives';
+import { guidanceFor } from '@/lib/guidance';
 import ComputeIcon from './ComputeIcon';
 
 export default function ObjectiveCoach({
@@ -37,7 +38,7 @@ export default function ObjectiveCoach({
           : step.action?.type === 'compute-upgrade'
             ? Sparkles
             : Navigation;
-  const action = busy ? 'Working…' : following ? 'Stop walking' : step.cta;
+  const action = busy ? 'Working…' : following ? 'Stop walking' : guidanceFor(step).cta;
 
   return (
     <button
@@ -50,7 +51,7 @@ export default function ObjectiveCoach({
         <Icon size={22} />
       </span>
       <span className="next-action-copy">
-        <small>{following ? 'On our way' : 'Next up'}</small>
+        <small>{following ? 'On our way' : 'Your next move'}</small>
         <strong>{step.title}</strong>
         <span className="next-action-detail">
           {following ? 'Noobius is following the glowing path.' : step.detail}

@@ -1,18 +1,52 @@
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from './api-client.mjs';
-import { execFileSync } from 'node:child_process';
 const ok = (r) => {
   assert.equal(r.status, 200, JSON.stringify(r.data));
   return r.data;
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-test('two players share a room, visit safely, repair together and cannot duplicate rewards', async () => {
-  if (
-    process.env.NOOBIUS_TEST_ORIGIN &&
-    !process.env.NOOBIUS_TEST_ORIGIN.startsWith('http://localhost:')
-  )
-    throw new Error('This fixture is local only.');
+
+test('five authenticated players keep private centers, share a neighborhood, and retain earned bonuses after leaving', async () => {
+  const origin = new URL(
+    process.env.NOOBIUS_TEST_ORIGIN ?? 'http://localhost:3000',
+  );
+  if (!['localhost', '127.0.0.1'].includes(origin.hostname))
+    throw new Error('Local fixtures only.');
+  const crew = Array.from({ length: 6 }, () => new Client());
+  for (const c of crew) {
+    c.publicId = ok(await c.login()).profile.id;
+    c.controller = { clientId: crypto.randomUUID(), generation: 0 };
+    c.command = (action, args = {}) =>
+      c.request(action, c.body({ ...c.controller, ...args }));
+    c.join = async (target) => {
+      const d = ok(
+        await c.command('neighborhood-join', { realm: 'commons', target }),
+      );
+      c.controller.generation = d.membership.generation;
+      c.membership = d.membership;
+      return d;
+    };
+    c.scene = async (scene) => {
+      const d = ok(await c.command('neighborhood-scene', { scene }));
+      c.controller.generation = d.membership.generation;
+      c.membership = d.membership;
+      return d;
+    };
+    c.sync = async (position) => {
+      const d = ok(
+        await c.command('neighborhood-sync', {
+          sequence: c.membership.sequence + 1,
+          position,
+        }),
+      );
+      c.membership = d.membership;
+      return d;
+    };
+  }
+  const [a, b, c, d, e, outside] = crew;
+  const isolated = crypto.randomUUID().replaceAll('-', '');
   execFileSync(
     'npx',
     [
@@ -26,111 +60,113 @@ test('two players share a room, visit safely, repair together and cannot duplica
       '--persist-to',
       '.wrangler/state',
       '--command',
-      "DELETE FROM campus_work WHERE room='campus-3'",
+      `INSERT INTO neighborhoods(id,realm,preferred_band,created_at) VALUES ('${isolated}','commons',0,${Date.now()})`,
     ],
     { stdio: 'pipe' },
   );
-  const a = new Client(),
-    b = new Client(),
-    outsider = new Client();
-  for (const c of [a, b, outsider]) ok(await c.login());
-  const room = 'campus-3';
-  const move = (c, x, z, r = room) =>
-    c.request('presence', c.body({ x, z, room: r }));
-  ok(await move(a, -4, 15));
-  ok(await move(b, 4, 15));
-  ok(await move(outsider, 0, 17, 'campus-2'));
-  const snapshot = ok(await a.request('campus?room=' + room));
-  assert.equal(snapshot.people.length, 2);
-  assert.ok(
-    !snapshot.people.some(
-      (p) => p.id === outsider.account.address.toLowerCase().slice(2, 18),
-    ),
+  let first = await a.join(isolated);
+  const room = first.membership.neighborhoodId;
+  for (const player of [b, c, d, e]) await player.join(room);
+  await outside.join();
+  assert.equal(
+    (
+      await outside.command('neighborhood-join', {
+        realm: 'commons',
+        target: room,
+      })
+    ).status,
+    409,
   );
-  let event = snapshot.world.event;
-  if (snapshot.world.endsAt - Date.now() < 15000) {
-    await wait(snapshot.world.endsAt - Date.now() + 100);
-    event = ok(await a.request('campus?room=' + room)).world.event;
-    ok(await move(a, -4, 15));
-    ok(await move(b, 4, 15));
-  }
-  const work = (c, station, finish = false) =>
-    c.request('crew-work', c.body({ room, event, station, finish }));
-  assert.equal((await work(outsider, 'power')).status, 400);
-  assert.equal((await work(a, 'network')).status, 400);
-  const race = await Promise.all([work(a, 'power'), work(a, 'power')]);
-  assert.equal(race.filter((r) => r.status === 200).length, 1);
+  const snapshot = await a.sync({ x: 0, z: 17 });
+  assert.equal(snapshot.neighbors.length, 5);
+  assert.ok(snapshot.neighbors.every((n) => /^[a-f0-9]{32}$/.test(n.id)));
+  assert.equal(
+    JSON.stringify(snapshot).includes(a.account.address.toLowerCase()),
+    false,
+  );
+  await b.scene('home-' + a.publicId);
+  const visiting = ok(await b.request('visit?owner=' + a.publicId));
+  assert.equal(visiting.facility.visiting, true);
+  assert.equal(visiting.facility.compute, 0);
+  assert.deepEqual(visiting.facility.inventory, {});
+  assert.equal(
+    (
+      await outside.command('neighborhood-scene', {
+        scene: 'home-' + a.publicId,
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await b.command('facility', {
+        action: { type: 'compute-harvest', requestId: crypto.randomUUID() },
+      })
+    ).status,
+    403,
+  );
+  await b.scene('commons');
+  assert.equal(
+    (await a.command('presence', { room: 'campus-1', x: 0, z: 0 })).status,
+    410,
+  );
+  const invalid = await a.sync({ x: 1000, z: 1000 });
+  assert.equal(invalid.corrected, true);
+  await wait(1600);
+  assert.equal((await a.sync({ x: -2, z: 17 })).corrected, false);
+  assert.equal((await b.sync({ x: 2, z: 17 })).corrected, false);
+  first = await a.sync({ x: -2, z: 17 });
+  const event = first.world.event;
+  assert.ok(
+    first.world.endsAt - Date.now() > 18000,
+    'Rerun away from event boundary.',
+  );
+  const work = (p, station, finish = false) =>
+    p.command('crew-work', { station, event, finish });
+  ok(await work(a, 'power'));
   ok(await work(b, 'cooling'));
   assert.equal((await work(a, 'power', true)).status, 409);
   await wait(6100);
-  const finished = await Promise.all([
+  const race = await Promise.all([
     work(a, 'power', true),
     work(a, 'power', true),
   ]);
-  assert.equal(finished.filter((r) => r.status === 200).length, 1);
+  assert.equal(race.filter((r) => r.status === 200).length, 1);
   ok(await work(b, 'cooling', true));
-  assert.equal(ok(await a.request('profile')).profile.credits, 20);
-  assert.equal(
-    (await a.request('crew-claim', a.body({ room, event }))).status,
-    409,
-  );
-  ok(await move(a, 0, 7));
-  ok(await work(a, 'network'));
+  // Walk through the clear center aisle with elapsed server time.
+  assert.equal((await c.sync({ x: 0, z: 12 })).corrected, false);
+  ok(await work(c, 'network'));
   await wait(6100);
-  ok(await move(a, 0, 7));
-  ok(await work(a, 'network', true));
+  ok(await work(c, 'network', true));
+  ok(await a.command('neighborhood-leave'));
   const claims = await Promise.all([
-    a.request('crew-claim', a.body({ room, event })),
-    a.request('crew-claim', a.body({ room, event })),
+    a.command('crew-claim', { room, event }),
+    a.command('crew-claim', { room, event }),
   ]);
   assert.equal(claims.filter((r) => r.status === 200).length, 1);
-  assert.equal(ok(await a.request('profile')).profile.credits, 70);
-  ok(await move(b, 4, 15));
-  ok(await b.request('crew-claim', b.body({ room, event })));
-  assert.equal(ok(await b.request('profile')).profile.credits, 50);
-  const owner = a.account.address.toLowerCase().slice(2, 18);
-  const visit = ok(await b.request('visit?owner=' + owner));
-  assert.equal(visit.facility.visiting, true);
-  assert.equal(visit.facility.compute, 0);
-  assert.deepEqual(visit.facility.inventory, {});
-  const before = ok(await a.request('profile')).profile;
-  ok(
-    await b.request(
-      'facility',
-      b.body({
-        owner,
-        action: {
-          type: 'accessory',
-          id: 'cap',
-          requestId: crypto.randomUUID(),
-        },
-      }),
-    ),
-  );
+  assert.equal(ok(await a.request('profile')).profile.credits, 50);
   assert.equal(
-    ok(await a.request('profile')).profile.facility.accessory,
-    before.facility.accessory,
-  );
-  assert.equal(
-    (
-      await b.request('facility', {
-        expectedWallet: a.account.address.toLowerCase(),
-        action: {
-          type: 'accessory',
-          id: 'cap',
-          requestId: crypto.randomUUID(),
-        },
-      })
-    ).status,
-    401,
-  );
-  assert.equal(
-    (
-      await a.request(
-        'crew-work',
-        a.body({ room, event: event - 1, station: 'network', finish: true }),
-      )
-    ).status,
+    (await outside.command('crew-claim', { room, event })).status,
     409,
   );
+  // Wrong client cannot control a player's active character.
+  const stale = { ...b.controller };
+  const replacement = crypto.randomUUID();
+  const moved = ok(
+    await b.request(
+      'neighborhood-join',
+      b.body({ realm: 'commons', clientId: replacement, takeover: true }),
+    ),
+  );
+  assert.notEqual(moved.membership.generation, stale.generation);
+  assert.equal(
+    (await b.command('crew-work', { event, station: 'cooling' })).status,
+    409,
+  );
+  b.controller = {
+    clientId: replacement,
+    generation: moved.membership.generation,
+  };
+  for (const player of [b, c, d, e, outside])
+    ok(await player.command('neighborhood-leave'));
 });

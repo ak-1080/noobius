@@ -1,3 +1,4 @@
+import { isolatedNeighborhood, attachWorld, walkTo } from './world-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from './api-client.mjs';
@@ -6,25 +7,35 @@ const ok = (r) => {
   assert.equal(r.status, 200, JSON.stringify(r.data));
   return r.data;
 };
-const facility = (c, type, extras = {}, requestId = crypto.randomUUID()) =>
-  c.request('facility', c.body({ action: { type, ...extras, requestId } }));
+const facility = async (
+  c,
+  type,
+  extras = {},
+  requestId = crypto.randomUUID(),
+) => {
+  if (type === 'gather') await walkTo(c, extras.id);
+  if (type === 'craft' || type === 'collect') await walkTo(c, 'workbench');
+  return c.request(
+    'facility',
+    c.body({ ...c.world, action: { type, ...extras, requestId } }),
+  );
+};
 test('D1 campus progression, escrow, competing buyers, cancellation, and claim idempotency', async () => {
   const seller = new Client(),
     a = new Client(),
     b = new Client();
+  const room = isolatedNeighborhood();
   for (const c of [seller, a, b]) {
     ok(await c.login());
+    await attachWorld(c, room);
     assert.deepEqual(
       ok(await c.request('profile')).profile.facility.inventory,
       {},
     );
     ok(await facility(c, 'gather', { id: 'scrap-a' }));
+    assert.equal((await facility(c, 'gather', { id: 'scrap-a' })).status, 400);
     ok(await facility(c, 'claim', { id: 'welcome' }));
   }
-  assert.equal(
-    (await facility(seller, 'gather', { id: 'scrap-a' })).status,
-    400,
-  );
   assert.equal(
     (await facility(seller, 'buy', { item: 'core', quantity: 50 })).status,
     400,
@@ -161,28 +172,29 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
     ok(await reload.request('profile')).profile.facility,
     banked,
   );
-  ok(await seller.request('presence', seller.body({ x: 1.5, z: 17 })));
-  assert.ok(
-    ok(await a.request('campus')).people.some(
-      (p) =>
-        p.id === seller.account.address.toLowerCase().slice(2, 18) &&
-        p.x === 1.5,
-    ),
+  assert.equal(
+    (await seller.request('presence', seller.body({ x: 1.5, z: 17 }))).status,
+    410,
   );
   assert.equal(
-    (await seller.request('presence', seller.body({ x: 9999, z: 0 }))).status,
+    (
+      await seller.request(
+        'message',
+        seller.body({ ...seller.world, message: 'x'.repeat(181) }),
+      )
+    ).status,
     400,
   );
-  assert.equal(
-    (await seller.request('message', seller.body({ message: 'x'.repeat(181) })))
-      .status,
-    400,
-  );
+  await a.request('neighborhood-leave', a.body({ ...a.world }));
+  await attachWorld(a, room);
   const messages = await Promise.all(
     Array.from({ length: 8 }, () =>
       a.request(
         'message',
-        a.body({ message: 'Local test: ready for the night shift.' }),
+        a.body({
+          ...a.world,
+          message: 'Local test: ready for the night shift.',
+        }),
       ),
     ),
   );

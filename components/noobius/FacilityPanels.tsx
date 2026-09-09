@@ -1,6 +1,7 @@
 'use client';
 import TycoonBuildPanel from './TycoonBuildPanel';
 import GoalsPanel from './GoalsPanel';
+import JobsPanel from './JobsPanel';
 import RoomProgressPanel from './RoomProgressPanel';
 import ItemIcon from './ItemIcon';
 import { useEffect, useState } from 'react';
@@ -21,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import {
   ITEMS,
+  SHOP_ITEMS,
   ZONES,
   OBJECTS,
   RECIPES,
@@ -62,8 +64,8 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   map: ['Expand', 'Choose a room.'],
   inventory: ['Your parts', 'Carry or store parts.'],
   crafting: ['Workbench', 'Make what you need.'],
-  contracts: ['Goals', 'A little win every day.'],
-  facility: ['Build', 'More machines. More Compute.'],
+  contracts: ['Jobs', 'Choose what your next shift looks like.'],
+  facility: ['Your center', 'Build, configure and put your machines to work.'],
   market: ['Shop', 'Buy parts or trade with players.'],
   skills: ['Your progress', 'Earn new skills.'],
   social: ['Crew chat', 'Say hello.'],
@@ -73,6 +75,7 @@ type Props = {
   panel: ExpansionPanel;
   profile: Profile;
   selected: WorldObject | null;
+  position: { x: number; z: number };
   busy: boolean;
   onAction: (a: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
   onMarket: (a: string, b: Record<string, unknown>) => Promise<unknown>;
@@ -106,6 +109,7 @@ export default function FacilityPanels({
   panel,
   profile,
   selected,
+  position,
   busy,
   onAction,
   onMarket,
@@ -342,9 +346,7 @@ export default function FacilityPanels({
           </div>
         )}
         <div className="recipe-list">
-          {RECIPES.filter(
-            (r) => f.claims.includes('first-light') || r.id === 'kit',
-          ).map((r) => {
+          {RECIPES.map((r) => {
             const open =
               f.unlocked.includes(r.zone) &&
               skillLevel(f.skills.engineering) >= r.skill;
@@ -397,7 +399,8 @@ export default function FacilityPanels({
     );
   if (panel === 'contracts')
     return (
-      <GoalsPanel
+      <JobsPanel
+        position={position}
         facility={f}
         now={now}
         busy={busy}
@@ -405,6 +408,8 @@ export default function FacilityPanels({
         onBuild={() => onPanel('facility')}
         onGold={() => onLocker(true)}
         onLocker={() => onLocker()}
+        onParts={(items) => onHelp({ items })}
+        onGuide={(id) => { const object = OBJECTS.find(o => o.id === id); if (object) onGuide({ ...object, panel: 'contracts' }); }}
       />
     );
   if (panel === 'facility')
@@ -454,10 +459,10 @@ export default function FacilityPanels({
                   <small>{f.inventory[id] ?? 0} in backpack</small>
                 </span>
                 <button
-                  disabled={busy || profile.credits < ITEMS[id].buy * quantity}
+                  disabled={busy || !SHOP_ITEMS.includes(id) || profile.credits < ITEMS[id].buy * quantity}
                   onClick={() => action({ type: 'buy', item: id, quantity })}
                 >
-                  Buy {ITEMS[id].buy * quantity}
+                  {SHOP_ITEMS.includes(id) ? `Buy ${ITEMS[id].buy * quantity}` : 'Craft or trade'}
                 </button>
                 <button
                   disabled={busy || (f.inventory[id] ?? 0) < quantity}
@@ -495,14 +500,14 @@ export default function FacilityPanels({
                   disabled={busy || remoteBusy || profile.wallet === 'practice'}
                   onClick={() =>
                     market(
-                      l.owner === profile.wallet.slice(2, 18)
+                      !!l.mine
                         ? 'listing-cancel'
                         : 'listing-buy',
                       { id: l.id },
                     )
                   }
                 >
-                  {l.owner === profile.wallet.slice(2, 18) ? 'Cancel' : 'Buy'}
+                  {!!l.mine ? 'Cancel' : 'Buy'}
                 </Button>
               </div>
             ))

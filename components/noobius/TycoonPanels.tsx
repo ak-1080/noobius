@@ -16,12 +16,12 @@ import {
   Wallet,
 } from 'lucide-react';
 import { ACCESSORIES, OUTFITS, type Facility } from '@/lib/facility';
+import { EMERGENCY_STATIONS, type SharedWorld } from '@/lib/multiplayer';
 import {
-  CAMPUS_ROOMS,
-  EMERGENCY_STATIONS,
-  type SharedWorld,
-} from '@/lib/multiplayer';
-import { api } from './useNoobius';
+  REALMS,
+  type NeighborhoodSnapshot,
+  type RealmId,
+} from '@/lib/neighborhoods';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from './AvatarPreview';
 import ComputeIcon from './ComputeIcon';
@@ -214,83 +214,140 @@ export function WorldPanel({
   practice,
   onGo,
   onVisit,
+  snapshot,
+  ownId,
+  error,
+  needsTakeover,
+  onTakeover,
+  onRealm,
 }: {
   room: string;
   practice: boolean;
   onGo: (r: string) => void;
   onVisit: (id: string) => void;
   onConnect: () => void;
+  snapshot: NeighborhoodSnapshot | null;
+  ownId?: string;
+  error: string;
+  needsTakeover: boolean;
+  onTakeover: () => void;
+  onRealm: (id: RealmId) => void;
 }) {
-  const [facilities, setFacilities] = useState<
-      { id: string; name: string; racks: number }[]
-    >([]),
-    [error, setError] = useState('');
-  useEffect(() => {
-    let alive = true;
-    api<{ facilities: typeof facilities }>('directory')
-      .then((d) => {
-        if (alive) setFacilities(d.facilities);
-      })
-      .catch(() => {
-        if (alive)
-          setError('Could not load visits. Reopen this panel to retry.');
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const neighbors = snapshot?.neighbors ?? [];
   return (
-    <div className="tycoon-panel">
-      <button className="world-destination" onClick={() => onGo('home')}>
+    <div className="tycoon-panel neighborhood-panel">
+      <button
+        className="world-destination"
+        onClick={() => onGo('home')}
+        disabled={room === 'home'}
+      >
         <Home />
         <span>
           <strong>Your data center</strong>
-          <small>Build & upgrade</small>
+          <small>Your machines, your layout, your progress.</small>
         </span>
         <ArrowRight />
       </button>
-      <h3>Campuses</h3>
-      {practice && (
-        <Button className="primary-action" onClick={onConnect}>
-          <Wallet size={18} /> Connect to play together <ArrowRight size={18} />
-        </Button>
-      )}
-      {CAMPUS_ROOMS.map((r, i) => (
-        <button
-          className="world-destination"
-          key={r}
-          disabled={practice || room === r}
-          onClick={() => onGo(r)}
-        >
+      {practice ? (
+        <div className="neighborhood-invite">
           <Users />
-          <span>
-            <strong>Campus {i + 1}</strong>
-            <small>
-              {room === r ? 'You are here' : 'Jobs · chat · market'}
-            </small>
-          </span>
-          <ArrowRight />
-        </button>
-      ))}
-      <h3>Visit</h3>
-      <p className="tycoon-note">Visits are read-only.</p>
-      {error && <p role="alert">{error}</p>}
-      {!facilities.length && !error && <p>No facilities online.</p>}
-      {facilities.map((f) => (
-        <button
-          disabled={practice}
-          className="world-destination"
-          key={f.id}
-          onClick={() => onVisit(f.id)}
-        >
-          <Home />
-          <span>
-            <strong>{f.name}’s facility</strong>
-            <small>{f.racks} rack levels</small>
-          </span>
-          <ArrowRight />
-        </button>
-      ))}
+          <h3>A shift is better with neighbors.</h3>
+          <p>
+            Join a neighborhood of up to five players. Everyone keeps their own
+            center.
+          </p>
+          <Button className="primary-action" onClick={onConnect}>
+            Connect to play together <Wallet size={18} />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="neighborhood-heading">
+            <h3>Your neighborhood</h3>
+            <span>{neighbors.length}/5 places</span>
+          </div>
+          <button
+            className="world-destination"
+            onClick={() => onGo('commons')}
+            disabled={!snapshot || room === 'commons'}
+          >
+            <Users />
+            <span>
+              <strong>Meet in the plaza</strong>
+              <small>Shared repairs, neighbors and trading.</small>
+            </span>
+            <ArrowRight />
+          </button>
+          <div className="neighbor-slots">
+            {Array.from({ length: 5 }, (_, slot) => {
+              const neighbor = neighbors.find((n) => n.slot === slot),
+                mine = neighbor?.id === ownId;
+              return (
+                <button
+                  className={`neighbor-slot ${neighbor ? 'occupied' : ''}`}
+                  key={slot}
+                  disabled={!neighbor || mine || room === 'home-' + neighbor.id}
+                  onClick={() => neighbor && onVisit(neighbor.id)}
+                >
+                  <span className="neighbor-number">0{slot + 1}</span>
+                  <Home size={25} />
+                  <strong>
+                    {neighbor
+                      ? mine
+                        ? 'Your center'
+                        : neighbor.name
+                      : 'Open place'}
+                  </strong>
+                  <small>
+                    {neighbor
+                      ? `Level ${neighbor.level} · ${neighbor.online ? (neighbor.scene === 'commons' ? 'In the plaza' : 'Inside a center') : 'Away briefly'}`
+                      : 'A neighbor can join here'}
+                  </small>
+                  <span>
+                    {neighbor
+                      ? mine
+                        ? 'Home'
+                        : 'Visit →'
+                      : 'Waiting for a neighbor'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="tycoon-note">
+            Visit and look around. Only a center’s owner can change its machines
+            or spend its resources.
+          </p>
+          <h3>Realms</h3>
+          {REALMS.map((realm) => (
+            <button
+              className="world-destination"
+              key={realm.id}
+              disabled={snapshot?.membership.realm === realm.id}
+              onClick={() => onRealm(realm.id)}
+            >
+              <Radio />
+              <span>
+                <strong>{realm.name}</strong>
+                <small>
+                  {snapshot?.membership.realm === realm.id
+                    ? 'Your current realm'
+                    : realm.holderOnly
+                      ? 'Operator license + holder access'
+                      : 'Free to play'}
+                </small>
+              </span>
+              <ArrowRight />
+            </button>
+          ))}
+          {error && <p role="alert">{error}</p>}
+          {needsTakeover && (
+            <Button className="primary-action" onClick={onTakeover}>
+              Continue here
+            </Button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -307,12 +364,23 @@ export function CrewJobPanel({
   busy: boolean;
   onWalk: (id: string) => void;
   onWork: (station: string, finish: boolean) => void;
-  onClaim: () => void;
+  onClaim: (bonus?: { room: string; event: number }) => void;
 }) {
   if (!world) return <p>Connecting to the campus…</p>;
   const done = world.work.filter((w) => w.completedAt).length;
   return (
     <div className="tycoon-panel">
+      {world.pending
+        ?.filter((b) => b.room !== world.room || b.event !== world.event)
+        .map((b) => (
+          <div className="crew-station" key={b.room + b.event}>
+            <strong>A crew bonus is waiting</strong>
+            <p>Your completed repair earned 30 Compute.</p>
+            <Button disabled={busy} onClick={() => onClaim(b)}>
+              Collect 30 Compute
+            </Button>
+          </div>
+        ))}
       <div className="crew-job-banner">
         <Radio />
         <div>
@@ -381,7 +449,7 @@ export function CrewJobPanel({
           world.claimed ||
           !world.work.some((w) => w.mine && w.completedAt)
         }
-        onClick={onClaim}
+        onClick={() => onClaim()}
       >
         {world.claimed ? 'Bonus collected' : 'Collect bonus · 30'}
       </Button>
