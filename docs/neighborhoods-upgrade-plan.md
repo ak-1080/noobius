@@ -1,6 +1,6 @@
 # Noobius Neighborhoods — proposed major upgrade
 
-Status: design for review; not implemented. Prepared September 8, 2026. Baseline inspected: `a732ec1`. This plan supersedes the adventure/combat emphasis in the earlier Kintara gameplay blueprint. No gameplay implementation, deployment, token launch or migration is authorized by this document itself.
+Status: authoritative upgrade scope; implementation in progress under the user’s subsequent build authorization. Prepared September 8, 2026; original baseline `a732ec1`. See [implementation evidence and remaining gates](neighborhoods-implementation-status.md). This plan supersedes the adventure/combat emphasis in the earlier Kintara gameplay blueprint. Its completion gates remain required; implementation of individual features does not establish the entire upgrade is complete.
 
 ## Product decision
 
@@ -16,11 +16,11 @@ Egg, Inc.'s developer description includes personal production, research, cooper
 
 ## 1. World organization
 
-| Concept | Meaning | Persistence |
-| --- | --- | --- |
-| Realm | A themed destination with its own activities and entry requirements | Content definition |
-| Neighborhood | A live instance of a realm, capped at five participants | Session membership; shared projects persisted separately |
-| Personal center | An account-owned facility, equipment, appearance and production state | Permanent account save |
+| Concept         | Meaning                                                               | Persistence                                              |
+| --------------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
+| Realm           | A themed destination with its own activities and entry requirements   | Content definition                                       |
+| Neighborhood    | A live instance of a realm, capped at five participants               | Session membership; shared projects persisted separately |
+| Personal center | An account-owned facility, equipment, appearance and production state | Permanent account save                                   |
 
 The player sees a compact campus plaza with a job board, shared worksite, resource stations and five entrance pads. Each occupied entrance displays its owner's character name and a small facility preview. Entering loads that interior rather than rendering five large factories simultaneously. The interior owner can build and configure equipment; visitors can tour, emote and participate in specifically designated cooperative work. Visiting never grants spending or building rights.
 
@@ -69,12 +69,12 @@ When the chain/token is unavailable, stage the feature using explicit test entit
 
 ## 3. Destinations and scope
 
-| Destination | Entry | Distinct play | Delivery |
-| --- | --- | --- | --- |
-| Crew Commons | Free; no token holdings | Salvage, ordinary client work, first crafting, center development, local cooperation and market | Complete in next upgrade |
-| GPU District | Holder access plus an earned Operator license | Configure equipment for different workloads; build useful modules; contribute to client surges | Complete in next upgrade |
-| Cooling Gardens | Same holder access plus later qualification | Efficiency, stability and cooling challenges with distinct modules and scenery | Later expansion after two-realm playtest |
-| Relay Heights | Same holder access plus later qualification | Networking and coordinated delivery chains | Later expansion |
+| Destination     | Entry                                         | Distinct play                                                                                   | Delivery                                 |
+| --------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Crew Commons    | Free; no token holdings                       | Salvage, ordinary client work, first crafting, center development, local cooperation and market | Complete in next upgrade                 |
+| GPU District    | Holder access plus an earned Operator license | Configure equipment for different workloads; build useful modules; contribute to client surges  | Complete in next upgrade                 |
+| Cooling Gardens | Same holder access plus later qualification   | Efficiency, stability and cooling challenges with distinct modules and scenery                  | Later expansion after two-realm playtest |
+| Relay Heights   | Same holder access plus later qualification   | Networking and coordinated delivery chains                                                      | Later expansion                          |
 
 Two complete destinations are the initial content target. They must differ in decisions and activities, not only floor color and reward size. Later ideas should not be presented as available content. All players retain a private center regardless of which destination they can currently enter.
 
@@ -86,11 +86,11 @@ An Operator license should involve demonstrated play: several contracts across a
 
 Launch with three visible offers and at most two accepted personal contracts. Offers are persistent server records; refreshing a browser or changing a neighborhood cannot freely reroll them. Completing a contract reveals another offer. Unaccepted offers can refresh on a published schedule; all three must include an achievable route for the player's present equipment and access.
 
-| Family | Player activity | Main decision |
-| --- | --- | --- |
-| Service job | Visit a worksite, diagnose an obvious fault and perform a short repair interaction | Quick income or progress toward a maintenance qualification |
-| Supply order | Gather/craft specified components or acquire them through trade | Spend time making goods or spend Compute buying them |
-| Client workload | Allocate facility slots and choose a module/loadout to process a job | Fast completion, material efficiency or stability |
+| Family          | Player activity                                                                    | Main decision                                               |
+| --------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Service job     | Visit a worksite, diagnose an obvious fault and perform a short repair interaction | Quick income or progress toward a maintenance qualification |
+| Supply order    | Gather/craft specified components or acquire them through trade                    | Spend time making goods or spend Compute buying them        |
+| Client workload | Allocate facility slots and choose a module/loadout to process a job               | Fast completion, material efficiency or stability           |
 
 Start with approximately 12 authored templates across the three families, with verified variations in ingredients, workload properties and optional challenges. Generating a larger number of identical quantities is not sufficient variety. All offers show expected active effort, production time, inputs and rewards. Ordinary accepted jobs do not expire while a player is asleep. Clearly labeled optional timed challenges can exist later.
 
@@ -114,8 +114,8 @@ No required prestige resets, destructive offline breakdowns, upkeep debt or dail
 
 Begin with three existing-compatible raw materials, such as scrap, wire and chips, plus three components mapped onto existing item IDs where practical. Every new component needs at least two meaningful uses among contracts, modules and shared projects. Introduce one material first; do not teach six inventory types before the first win.
 
-| Creates currency/items | Removes currency/items | Transfers only |
-| --- | --- | --- |
+| Creates currency/items                                                        | Removes currency/items                                                                                            | Transfers only                |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | Gather yields, client rewards, background production, bounded project rewards | Fabrication fees, NPC supply purchases, module fabrication, delivered components, optional tuning/decor purchases | Player item sales for Compute |
 
 Track sources and sinks by progression level. Trading does not remove inflation merely because ownership changes. Do not force losses to claim that the economy supports unlimited token withdrawals. Real Compute-to-$NOOBIUS conversion remains a distinct future system with funding, eligibility, settlement and abuse requirements.
@@ -160,15 +160,15 @@ For initial multiplayer, a free account can mean a signed-in wallet with zero re
 
 The present code has wallet-owned facilities, server sessions, guarded economy updates, three fixed shared campuses, polling-based presence, sanitized visits, cooperative station leases and an escrow item market. These are reusable foundations, not evidence that the proposed design is complete.
 
-| Current area | Required work |
-| --- | --- |
-| `lib/multiplayer.ts`, `Game.tsx` | Replace fixed three-room routing and 30-person cap with five-player admission, realm catalog, matchmaking and reconnect membership |
-| `lib/server.ts` | Keep authoritative ownership/economy; add eligibility, permanent contract records and durable reward ledger |
-| `Campus.tsx`, navigation helpers | Separate navigation from mutations; enforce plausible movement and interaction reach server-side |
-| `lib/facility.ts`, `FacilityPanels.tsx` | Repair advanced recipe reachability; replace obsolete story gating with new progression without awarding duplicate old claims |
-| `lib/tycoon.ts`, objectives | Introduce workloads, capacity allocation, specialization and player-selected objectives |
-| Market endpoints/UI | Preserve atomic escrow; add pagination, useful filters, progression rules and neighbor-addressed offers |
-| Wallet/session code | Add exact-token entitlement adapter; verify real supported wallet flows before launch |
+| Current area                            | Required work                                                                                                                      |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/multiplayer.ts`, `Game.tsx`        | Replace fixed three-room routing and 30-person cap with five-player admission, realm catalog, matchmaking and reconnect membership |
+| `lib/server.ts`                         | Keep authoritative ownership/economy; add eligibility, permanent contract records and durable reward ledger                        |
+| `Campus.tsx`, navigation helpers        | Separate navigation from mutations; enforce plausible movement and interaction reach server-side                                   |
+| `lib/facility.ts`, `FacilityPanels.tsx` | Repair advanced recipe reachability; replace obsolete story gating with new progression without awarding duplicate old claims      |
+| `lib/tycoon.ts`, objectives             | Introduce workloads, capacity allocation, specialization and player-selected objectives                                            |
+| Market endpoints/UI                     | Preserve atomic escrow; add pagination, useful filters, progression rules and neighbor-addressed offers                            |
+| Wallet/session code                     | Add exact-token entitlement adapter; verify real supported wallet flows before launch                                              |
 
 Current position reports are bounded but not sufficient proof of travel, and personal gathering does not establish server-verified proximity. These matter when activities produce shared-economy rewards. The existing last-100-request replay cache also cannot be the sole protection for permanent contract settlements.
 
@@ -196,14 +196,14 @@ Update strict guest-save parsing deliberately. A guest practice balance is not a
 
 ## 11. Build sequence and completion gates
 
-| Stage | Deliverable | Exit evidence |
-| --- | --- | --- |
-| A. Infrastructure proof | Five authenticated players, one neighborhood, durable centers, reconnect and one persisted shared action | Deployed staging transport works; sixth join handled atomically; restart/retry preserves one settlement |
-| B. Connected free loop | Direction-only guide, reachable crafting, three contract families, renewable offers, capacity choice | Fresh and maxed saves both complete useful 20-minute sessions without auto-play or a terminal purchase checklist |
-| C. Social economy | Center visits, one cooperative family, cross-neighborhood item market, friend join and basic moderation | Two-client ownership/escrow tests and five-person activity run; solo fallback works |
-| D. Advanced destination | GPU District with distinct workload/module decisions and earned license | Clearly different decisions and useful return travel, not only higher prices |
-| E. Holder verification | Configurable access policy, real supported wallet/chain adapter, safe expiration/retry | Boundary balances and account changes tested; no forged access; test entitlements isolated from production |
-| F. Public-readiness review | Migration rehearsal, backups/restore, monitoring, admin controls, performance and user testing | Agreed technical and gameplay acceptance passes; deliberate public rollout decision |
+| Stage                      | Deliverable                                                                                              | Exit evidence                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| A. Infrastructure proof    | Five authenticated players, one neighborhood, durable centers, reconnect and one persisted shared action | Deployed staging transport works; sixth join handled atomically; restart/retry preserves one settlement          |
+| B. Connected free loop     | Direction-only guide, reachable crafting, three contract families, renewable offers, capacity choice     | Fresh and maxed saves both complete useful 20-minute sessions without auto-play or a terminal purchase checklist |
+| C. Social economy          | Center visits, one cooperative family, cross-neighborhood item market, friend join and basic moderation  | Two-client ownership/escrow tests and five-person activity run; solo fallback works                              |
+| D. Advanced destination    | GPU District with distinct workload/module decisions and earned license                                  | Clearly different decisions and useful return travel, not only higher prices                                     |
+| E. Holder verification     | Configurable access policy, real supported wallet/chain adapter, safe expiration/retry                   | Boundary balances and account changes tested; no forged access; test entitlements isolated from production       |
+| F. Public-readiness review | Migration rehearsal, backups/restore, monitoring, admin controls, performance and user testing           | Agreed technical and gameplay acceptance passes; deliberate public rollout decision                              |
 
 GitHub branches/PRs should correspond to these coherent stages. Check cloud setup work before making incompatible infrastructure changes. Do not have cloud and desktop tasks edit the same branch simultaneously. This planning task makes no game changes and does not start the prior proposed cloud migration.
 

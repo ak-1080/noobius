@@ -60,6 +60,7 @@ export function shiftObjective(
       current.state === 'ready' ||
       (current.readyAt !== null && current.readyAt <= now);
     return wrap({
+      view: { jobsTab: 'board', jobId: current.id },
       title: ready ? 'Your work paid off' : template.name,
       detail: ready
         ? 'Review the completed job and collect your payment.'

@@ -11,6 +11,7 @@ import {
   facilityReceipt,
   returnSummary,
   dailyRewardReady,
+  returnWorldReady,
 } from '../lib/game-feedback.ts';
 
 const act = (f, type, balance, now, fields = {}) => {
@@ -115,4 +116,109 @@ test('either final machine purchase celebrates equipment without declaring the g
       /Compute spent · .* → 476 Compute \/ min/,
     );
   }
+});
+
+void test('return recap includes ready client work and a craft when assigned capacity left no idle Compute', () => {
+  let f = starter(0);
+  f.inventory = { scrap: 20, copper: 20, silicon: 10 };
+  const offer = f.career.offers[2];
+  offer.template = 'tiny-model';
+  assert.ok(offer);
+  f = act(f, 'contract-accept', 1000, 0, { id: offer.id }).facility;
+  f = act(f, 'contract-start', 1000, 0, {
+    id: offer.id,
+    rack: 'rack-a',
+    quantity: 1,
+  }).facility;
+  f = act(f, 'craft', 1000, 0, { id: 'kit', quantity: 1 }).facility;
+  const saved = structuredClone(f);
+  const recap = returnSummary(f, 60000);
+  assert.equal(recap.ready, 0);
+  assert.deepEqual(
+    recap.work.map((w) => w.phase),
+    ['ready', 'ready'],
+  );
+  assert.equal(recap.work[0].view.jobId, offer.id);
+  assert.equal(recap.work[1].view.recipe, 'kit');
+  assert.deepEqual(f, saved);
+  assert.ok(!recap.work.some((w) => 'action' in w));
+  assert.equal(f.career.completed.workload, 0);
+});
+
+void test('return recap tracks unassigned jobs, repair steps, batch details and crew time without auto-completion', () => {
+  let f = starter(0);
+  const offer = f.career.offers[0];
+  offer.template = 'loose-link';
+  f = act(f, 'contract-accept', 1000, 0, { id: offer.id }).facility;
+  let recap = returnSummary(f, 0);
+  assert.equal(recap.work[0].phase, 'waiting');
+  assert.match(recap.work[0].detail, /begin/);
+  f.inventory = { copper: 10 };
+  f = act(f, 'contract-start', 1000, 0, { id: offer.id }).facility;
+  recap = returnSummary(f, 86400000);
+  assert.equal(recap.work[0].phase, 'waiting');
+  assert.doesNotMatch(recap.work[0].detail, /Payment ready/);
+  f.projectReservations = [
+    {
+      id: 'loan',
+      projectId: 'project',
+      rack: 'rack-a',
+      startedAt: 0,
+      readyAt: 120000,
+    },
+  ];
+  assert.ok(!returnSummary(f, 60000).work.some((w) => w.panel === 'project'));
+  assert.match(
+    returnSummary(f, 60000, true).work.find((w) => w.panel === 'project')
+      .detail,
+    /1 machine helping/,
+  );
+  assert.match(
+    returnSummary(f, 120000, true).work.find((w) => w.panel === 'project')
+      .detail,
+    /finished/,
+  );
+  assert.equal(f.projectReservations.length, 1);
+});
+
+void test('return recap keeps recovered batch navigation and prioritizes ready work over waiting', () => {
+  const f = starter(0);
+  f.craft = {
+    id: 'batch',
+    recipe: 'board',
+    quantity: 7,
+    variant: 'recovered',
+    startedAt: 0,
+    readyAt: 20000,
+  };
+  const offer = f.career.offers[2];
+  offer.template = 'tiny-model';
+  const accepted = act(f, 'contract-accept', 1000, 0, {
+    id: offer.id,
+  }).facility;
+  const recap = returnSummary(accepted, 20000);
+  assert.equal(recap.work[0].id, 'craft:batch');
+  assert.deepEqual(recap.work[0].view, {
+    recipe: 'board',
+    quantity: 7,
+    recipeVariant: 'recovered',
+  });
+  assert.equal(recap.work[1].view.jobId, offer.id);
+  accepted.seen = [];
+  assert.equal(returnSummary(accepted, 20000), null);
+});
+
+void test('return readiness belongs to the player occupying the membership slot, not another old neighbor snapshot', () => {
+  const snapshot = {
+    membership: { slot: 1 },
+    neighbors: [
+      { id: 'a', slot: 1 },
+      { id: 'b', slot: 2 },
+    ],
+  };
+  assert.equal(returnWorldReady(false, true, snapshot, 'a'), true);
+  assert.equal(returnWorldReady(false, true, snapshot, 'b'), false);
+  assert.equal(returnWorldReady(false, false, snapshot, 'a'), false);
+  assert.equal(returnWorldReady(false, true, null, 'a'), false);
+  assert.equal(returnWorldReady(true, false, null, 'practice'), true);
 });

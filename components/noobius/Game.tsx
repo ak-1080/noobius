@@ -9,6 +9,9 @@ import {
 } from '@/lib/parts-plan';
 import type { CraftVariant } from '@/lib/facility';
 import ProjectPanel from './ProjectPanel';
+import ReturnBriefing from './ReturnBriefing';
+import { useReturnBriefing } from './useReturnBriefing';
+import { careerSuggestions } from '@/lib/job-choices';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
 import ComputeIcon from './ComputeIcon';
@@ -21,6 +24,7 @@ import TokenExchange from './TokenExchange';
 import {
   dailyRewardReady,
   returnSummary,
+  returnWorldReady,
   type FacilityReceipt,
 } from '@/lib/game-feedback';
 import { LockerPanel, WorldPanel, CrewJobPanel } from './TycoonPanels';
@@ -163,7 +167,6 @@ export default function NoobiusGame() {
     revision: number;
   } | null>(null);
   const [celebration, setCelebration] = useState<FacilityReceipt | null>(null);
-  const summarizedWallets = useRef(new Set<string>());
   const worldGeneration = useRef(0);
   const afterTravel = useRef<(() => void) | null>(null);
   const travelPending = useRef(false);
@@ -340,7 +343,12 @@ export default function NoobiusGame() {
   const incident = activeIncident(facility, now);
   const storedCompute = storedComputeNow(facility, now);
   const readyDaily = dailyRewardReady(facility, now);
-  const returning = returnSummary(facility, now);
+  const returning = returnSummary(facility, now, mode === 'wallet');
+  const returnSuggestion = careerSuggestions(
+    facility,
+    profile?.credits ?? 0,
+    mode === 'wallet',
+  )[0];
   useEffect(() => {
     // A receipt stays readable for as long as its menu is open.
     if (!celebration || panel || activeJob) return;
@@ -406,13 +414,21 @@ export default function NoobiusGame() {
       current === 'badge' && profile?.wallet && !playing ? current : null,
     );
   }, [profile?.wallet, playing]);
-  useEffect(() => {
-    if (!playing || !profile || summarizedWallets.current.has(profile.wallet))
-      return;
-    summarizedWallets.current.add(profile.wallet);
-    if (profile.facility && returnSummary(profile.facility, Date.now()))
-      setPanel('welcome-back');
-  }, [profile?.wallet, playing]);
+  useReturnBriefing({
+    account: profile?.wallet,
+    playing,
+    eligible: !!returning,
+    ready:
+      !needsIdentity &&
+      returnWorldReady(
+        mode === 'practice',
+        neighborhood.canMove,
+        neighborhood.snapshot,
+        profile?.id,
+      ),
+    blocked: !!panel || !!activeJob || busy,
+    onOpen: () => setPanel('welcome-back'),
+  });
   useEffect(() => {
     return () => {
       void audio.current?.close();
@@ -1216,7 +1232,7 @@ export default function NoobiusGame() {
                         Object.entries(PANEL_COPY).map(([k, v]) => [k, v[1]]),
                       ),
                       'welcome-back':
-                        'Your machines have Compute ready to collect.',
+                        'Review your saved work and choose what to do next.',
                       world: 'Grow your own facility. Meet the crew next door.',
                       project:
                         'Completed jobs and crafted parts bring your neighborhood cluster online.',
@@ -1278,41 +1294,31 @@ export default function NoobiusGame() {
                 </p>
               )}
               {panel === 'welcome-back' && (
-                <div className="return-summary">
-                  <img src="/assets/compute-currency.png" alt="" />
-                  <strong className="return-total">
-                    {storedCompute.toLocaleString()} <span>Compute ready</span>
-                  </strong>
-                  <p>
-                    {returning?.full
-                      ? 'Storage is full. Collect to make room for more.'
-                      : 'Your machines kept busy. Pick up your Compute and keep growing.'}
-                  </p>
-                  <Button
-                    className="primary-action"
-                    disabled={busy || storedCompute < 1}
-                    onClick={async () => {
+                <ReturnBriefing
+                  summary={returning}
+                  stored={storedCompute}
+                  atHome={room === 'home'}
+                  busy={busy}
+                  suggestion={returnSuggestion}
+                  onReview={(work) => show(work.panel, undefined, work.view)}
+                  onSuggest={(suggestion) =>
+                    show(suggestion.panel as Panel, undefined, suggestion.view)
+                  }
+                  onCollect={() => {
+                    if (room !== 'home') {
+                      show('compute');
+                      return;
+                    }
+                    void (async () => {
                       if (await act({ type: 'compute-harvest' }))
                         setPanel(null);
-                    }}
-                  >
-                    Collect Compute <ArrowRight size={20} />
-                  </Button>
-                  {readyDaily && (
-                    <button
-                      className="text-action"
-                      onClick={() => show('contracts')}
-                    >
-                      Your daily bonus is ready <Trophy size={18} />
-                    </button>
-                  )}
-                  <button
-                    className="text-action"
-                    onClick={() => setPanel(null)}
-                  >
-                    Look around first
-                  </button>
-                </div>
+                    })();
+                  }}
+                  onDaily={() => {
+                    void act({ type: 'tycoon-daily' });
+                  }}
+                  onDismiss={() => setPanel(null)}
+                />
               )}
               {panel === 'world' && (
                 <>

@@ -6937,7 +6937,7 @@ a {
   color: #c6ec9f;
 }
 .return-modal {
-  max-width: 460px;
+  max-width: 540px;
 }
 .goals-panel {
   gap: 20px;
@@ -7517,35 +7517,137 @@ a {
     transition: none;
   }
 }
-.return-summary {
+.return-briefing {
   display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 18px;
+  gap: 20px;
 }
-.return-summary > img {
-  width: 110px;
-  height: 110px;
-  object-fit: contain;
+.return-intro {
+  margin: 0;
+  color: #b9cdca;
 }
-.return-total {
-  font-size: clamp(40px, 9vw, 58px);
-  line-height: 1;
-  color: #c3ed8d;
-  letter-spacing: -2px;
+.return-work {
+  display: grid;
+  gap: 8px;
 }
-.return-total span {
-  display: block;
-  font-size: 19px;
-  margin-top: 10px;
-  letter-spacing: 0;
+.return-work-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid #83a4a436;
+  border-radius: 14px;
+  background: #ffffff05;
   color: #e5ede5;
 }
-.return-summary > p {
-  max-width: 320px;
-  margin: 0;
+.return-work-row > span:nth-child(2) {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
-.return-summary > .primary-action {
+.return-work-row strong {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.return-work-row small {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #aec5c2;
+}
+.return-work-row:hover {
+  background: #c3ed8d0d;
+  border-color: #c3ed8d66;
+}
+.return-work-row:focus-visible,
+.return-more summary:focus-visible {
+  outline: 2px solid #c3ed8d;
+  outline-offset: 3px;
+}
+.return-work-row:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.return-work-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: #eac28d;
+  background: #eac28d12;
+}
+.return-work-icon.is-ready {
+  color: #c3ed8d;
+  background: #c3ed8d17;
+}
+.return-work-icon.is-running {
+  color: #9ed6ea;
+  background: #9ed6ea12;
+}
+.return-more summary {
+  padding: 12px 4px;
+  cursor: pointer;
+  color: #c3ed8d;
+  font-size: 0.875rem;
+}
+.return-more .return-work-row {
+  margin-top: 8px;
+}
+.return-production {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.return-production img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+.return-production > div {
+  display: grid;
+  gap: 4px;
+}
+.return-production strong {
+  font-size: 1.125rem;
+  color: #c3ed8d;
+  overflow-wrap: anywhere;
+}
+.return-production span {
+  font-size: 0.875rem;
+  color: #aec5c2;
+}
+.return-production > button {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.return-next {
+  display: grid;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid #83a4a436;
+}
+.return-next > small {
+  color: #aec5c2;
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+}
+.return-next > strong {
+  font-size: 1.0625rem;
+}
+.return-next > p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #b9cdca;
+}
+.return-next .text-action {
+  justify-self: start;
+  text-align: left;
+}
+.return-briefing > .primary-action {
   width: 100%;
 }
 .campus-hotbar button {
