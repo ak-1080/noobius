@@ -195,6 +195,7 @@ export default function NoobiusGame() {
     playing,
     () => livePosition.current,
     game.setWorldController,
+    game.setRoomWork,
   );
   const connection = neighborhood.status;
   const people = (neighborhood.snapshot?.people ?? []).filter(
@@ -527,11 +528,11 @@ export default function NoobiusGame() {
   const act = async (action: Omit<FacilityAction, 'requestId'>) => {
     const originWorld = worldGeneration.current;
     const effectTarget = workEffectTarget(facility, action);
-    if (mode !== 'practice' && !(await neighborhood.syncNow())) return;
-    const ok = await game.facilityAction(action);
+    const ok =
+      action.type === 'travel' && mode !== 'practice'
+        ? await neighborhood.travel(() => game.facilityAction(action))
+        : await game.facilityAction(action);
     if (!ok) return;
-    if (action.type === 'travel' && mode !== 'practice')
-      await neighborhood.join();
     if (originWorld !== worldGeneration.current) return ok;
     if (!ok.applied) return ok;
     // Source work has begun: stop preparing its old quote. Intermediate
@@ -848,7 +849,7 @@ export default function NoobiusGame() {
                 !!activeJob ||
                 busy ||
                 (mode !== 'practice' &&
-                  (!neighborhood.snapshot || neighborhood.needsTakeover)) ||
+                  (!neighborhood.canMove || neighborhood.needsTakeover)) ||
                 (room.startsWith('home-') && !visit)
               }
               people={people}

@@ -1,4 +1,6 @@
-# Room authentication foundation
+# Room authentication foundation — v41 record
+
+This file records the v41 authentication-only release. The current movement, browser integration and rollout design is in [Neighborhood room coordinator](room-coordinator.md). The historical verification below does not claim that the coordinator is deployed.
 
 September 9, 2026. This increment prepares the existing economy server to admit an independently hosted room coordinator. The game still uses its existing HTTP movement transport. No WebSocket server, movement checkpoint endpoint or browser transport switch is enabled by this change.
 

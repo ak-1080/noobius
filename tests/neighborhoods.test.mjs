@@ -13,6 +13,7 @@ import {
   neighborhoodSnapshot,
   ensurePublicId,
   syncNeighborhood,
+  readNeighborhoodState,
 } from '../lib/neighborhoods-server.ts';
 
 // Runs the actual SQL against SQLite. The deployed D1 API is separately tested;
@@ -294,4 +295,53 @@ test('owner departure returns a visiting player to the plaza without giving up t
   assert.equal(snap.membership.neighborhoodId, interior.neighborhoodId);
   assert.notEqual(snap.membership.generation, interior.generation);
   assert.equal(snap.corrected, true);
+});
+
+test('socket metadata recovery leaves inaccessible interiors and preserves the reserved slot', async (t) => {
+  for (const cause of ['departure', 'block']) {
+    const db = database();
+    t.after(() => db.sqlite.close());
+    const [host, visitor] = users(db, 2),
+      h = await join(db, host),
+      v = await join(db, visitor);
+    const id = await ensurePublicId(db, host.wallet);
+    const inside = await changeScene(
+      db,
+      visitor.wallet,
+      controller(visitor, v),
+      'home-' + id,
+      1000,
+    );
+    const before = await readNeighborhoodState(
+      db,
+      visitor.wallet,
+      controller(visitor, inside),
+      1500,
+    );
+    assert.equal(before.membership.scene, 'home-' + id);
+    assert.equal(
+      before.membership.sequence,
+      inside.sequence,
+      'Metadata must not advance movement',
+    );
+    if (cause === 'departure')
+      await leaveNeighborhood(db, host.wallet, controller(host, h));
+    else
+      db.sqlite
+        .prepare(
+          'INSERT INTO social_preferences(wallet,target_wallet,muted,blocked) VALUES (?,?,0,1)',
+        )
+        .run(host.wallet, visitor.wallet);
+    const recovered = await readNeighborhoodState(
+      db,
+      visitor.wallet,
+      controller(visitor, inside),
+      2000,
+    );
+    assert.equal(recovered.membership.scene, 'commons');
+    assert.equal(recovered.membership.slot, inside.slot);
+    assert.equal(recovered.membership.neighborhoodId, inside.neighborhoodId);
+    assert.equal(recovered.corrected, true);
+    assert.notEqual(recovered.membership.generation, inside.generation);
+  }
 });

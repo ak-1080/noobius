@@ -4,7 +4,7 @@ September 9, 2026. Read-only specialist reviews informed these next steps. Nothi
 
 ## Multiplayer transport
 
-Five-slot admission, controller generations, 45-second membership leases, scene/proximity checks and durable projects already exist. The missing Stage A milestone is a deployed authoritative WebSocket coordinator. Current movement POSTs every 1.5 seconds and writes positions to D1.
+Five-slot admission, controller generations, 45-second membership leases, scene/proximity checks and durable projects already exist. The missing Stage A milestone is a deployed authoritative WebSocket coordinator. The hosted game still POSTs movement every 1.5 seconds. The new optional browser/Worker transport has passed local integration; see [coordinator implementation](room-coordinator.md).
 
 Use one NeighborhoodRoom Durable Object per neighborhood. Keep permanent saves and economic settlement in the existing D1 authority. Authenticated admission issues a short-lived single-use ticket bound to player, room, realm, controller generation and expiry. The coordinator validates movement intentions, filters broadcasts by scene and enforces one controller and five occupants including visitors inside centers. Durable reconnect reservations must survive coordinator restarts; socket attachments alone cannot preserve disconnected occupants. Fence reward-affecting commands and keep unique durable intent IDs so retries cannot duplicate settlement.
 
@@ -16,7 +16,7 @@ Follow-up evidence: the managed proof deployed, but reported no room binding and
 
 Authorization audit: `crew_presence` is checked inside facility, shared work, projects, chat and targeted-trade writes. Generations are random identifiers, not monotonic counters. `syncNow()` currently gates physical commands; a future socket barrier must await an authoritative durable checkpoint, or commands must be routed through one fenced coordinator. Facility travel writes a new position/sequence directly and must be reconciled before subsequent movement. Never broadcast whole personalized snapshots: membership credentials, claimed/pending/mine fields and private center details are recipient-specific. Earned project/crew claims and escrow cancellations must remain available after leaving a room.
 
-The narrow server authentication foundation is implemented but disabled: single-use tickets, exact-login grants, HMAC request authentication and refresh fencing. No movement checkpoint or browser socket is enabled. See [protocol and checks](room-authentication.md). The hosted transport and private machine-ingress requirements above still apply.
+The authentication foundation, exclusive writer leases, durable movement checkpoints, action proofs, standalone coordinator and browser adapter are implemented. Local integration passes; hosted activation remains disabled. See [protocol and checks](room-coordinator.md). The hosted transport and private machine-ingress requirements above still apply.
 
 ## Recurring uses for neglected materials
 

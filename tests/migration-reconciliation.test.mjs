@@ -232,6 +232,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0007_nappy_red_wolf',
       '0008_foamy_sersi',
       '0009_bouncy_lilith',
+      '0010_red_piledriver',
     ],
   );
   assert.ok(
@@ -253,6 +254,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
     'room_tickets',
     'room_grants',
     'room_service_nonces',
+    'room_checkpoints',
   ]) {
     assert.ok(
       sqlite
@@ -370,7 +372,10 @@ test('migrated accounts reconnect into five valid slots without changing their c
     assert.ok(current.lease_until > 1000);
     joined.push(membership);
   }
-  assert.deepEqual(joined.map((m) => m.slot).sort(), [0, 1, 2, 3, 4]);
+  assert.deepEqual(
+    joined.map((m) => m.slot).sort((a, b) => a - b),
+    [0, 1, 2, 3, 4],
+  );
   assert.equal(new Set(joined.map((m) => m.neighborhoodId)).size, 1);
   await assert.rejects(
     joinNeighborhood(
@@ -501,7 +506,7 @@ function schemaSemantics(sqlite) {
       columns: sqlite
         .prepare(`PRAGMA table_info(${name})`)
         .all()
-        .map(({ cid, ...column }) => ({
+        .map(({ cid: _cid, ...column }) => ({
           ...column,
           type: column.type.toLowerCase(),
         }))
@@ -509,7 +514,7 @@ function schemaSemantics(sqlite) {
       foreignKeys: sqlite
         .prepare(`PRAGMA foreign_key_list(${name})`)
         .all()
-        .map(({ id, seq, ...foreignKey }) => foreignKey)
+        .map(({ id: _id, seq: _seq, ...foreignKey }) => foreignKey)
         .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
       indexes: sqlite
         .prepare(`PRAGMA index_list(${name})`)
@@ -611,4 +616,42 @@ test('room authentication migration adds empty credentials without touching save
       0,
     );
   assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('checkpoint migration preserves existing saves and retires old writers without minting rewards', (t) => {
+  const sqlite = database(t, journal.slice(0, 5));
+  seedDeployed(sqlite);
+  for (const entry of journal.slice(5, 10)) sqlite.exec(migration(entry.tag));
+  const before = snapshot(sqlite);
+  sqlite
+    .prepare(
+      `INSERT INTO room_grants(grant_hash,wallet,session_hash,neighborhood_id,client_id,generation,scene,audience,key_id,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(
+      'saved-grant',
+      evm,
+      'session-0',
+      'previous-room',
+      'previous-tab',
+      17,
+      'commons',
+      'https://game.example',
+      'old-key',
+      9000000,
+      1000,
+    );
+  const grant = sqlite.prepare('SELECT * FROM room_grants').get();
+  sqlite.exec(migration('0010_red_piledriver'));
+  assertPreserved(sqlite, before);
+  const { writer_until, frozen_until, frozen_checkpoint, ...saved } = sqlite
+    .prepare('SELECT * FROM room_grants')
+    .get();
+  assert.deepEqual(saved, { ...grant });
+  assert.equal(writer_until, 0);
+  assert.equal(frozen_until, 0);
+  assert.equal(frozen_checkpoint, null);
+  assert.equal(
+    sqlite.prepare('SELECT count(*) AS n FROM room_checkpoints').get().n,
+    0,
+  );
 });

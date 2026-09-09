@@ -15,6 +15,7 @@ import {
   type NeighborhoodSnapshot,
 } from './neighborhoods.ts';
 import { legalMovement } from './world-navigation.ts';
+import { httpMovementGuard } from './room-writer.ts';
 
 export class NeighborhoodError extends Error {
   status: number;
@@ -346,7 +347,7 @@ export async function neighborhoodSnapshot(
   return {
     membership: membership(self),
     serverNow: now,
-    neighbors: publicRows.map(({ x, z, ...neighbor }) => neighbor),
+    neighbors: publicRows.map(({ x: _x, z: _z, ...neighbor }) => neighbor),
     people: publicRows
       .filter((r) => r.online && r.scene === self.room)
       .map(({ id, name, x, z, outfit, accessory }) => ({
@@ -443,6 +444,43 @@ export async function leaveNeighborhood(
     .run();
 }
 
+export async function readNeighborhoodState(
+  db: D1Database,
+  wallet: string,
+  controller: Controller,
+  now = Date.now(),
+  permit?: RealmPermit,
+) {
+  const self = await requireMembership(db, wallet, controller, now);
+  if (self.room !== 'commons') {
+    const host = await db
+      .prepare(`SELECT 1 FROM players p JOIN crew_presence c ON c.wallet=p.wallet JOIN players viewer ON viewer.wallet=?
+      WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>? AND ${noBlockSql('viewer.wallet', 'p.wallet')}`)
+      .bind(wallet, self.room.slice(5), self.neighborhood_id, now)
+      .first();
+    if (!host) {
+      const moved = await changeScene(
+        db,
+        wallet,
+        controller,
+        'commons',
+        now,
+        permit,
+      );
+      return {
+        ...(await neighborhoodSnapshot(
+          db,
+          wallet,
+          { ...controller, generation: moved.generation },
+          now,
+        )),
+        corrected: true,
+      };
+    }
+  }
+  return neighborhoodSnapshot(db, wallet, controller, now);
+}
+
 export async function syncNeighborhood(
   db: D1Database,
   wallet: string,
@@ -453,6 +491,17 @@ export async function syncNeighborhood(
   permit?: RealmPermit,
 ) {
   const self = await requireMembership(db, wallet, controller, now);
+  const available = await db
+    .prepare(
+      `SELECT 1 FROM crew_presence c WHERE c.wallet=? AND ${httpMovementGuard('c', now)}`,
+    )
+    .bind(wallet)
+    .first();
+  if (!available)
+    throw new NeighborhoodError(
+      409,
+      'Your room connection owns movement. Reconnect to resync.',
+    );
   if (
     !Number.isSafeInteger(sequence) ||
     sequence < 1 ||
@@ -508,7 +557,7 @@ export async function syncNeighborhood(
   );
   const updated = await db
     .prepare(`UPDATE crew_presence SET x=?,z=?,sequence=?,updated_at=?,lease_until=MAX(lease_until,?)
-    WHERE wallet=? AND client_id=? AND generation=? AND sequence=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)} RETURNING wallet`)
+    WHERE wallet=? AND client_id=? AND generation=? AND sequence=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)} AND ${httpMovementGuard('crew_presence', now)} RETURNING wallet`)
     .bind(
       moved ? position.x : self.x,
       moved ? position.z : self.z,

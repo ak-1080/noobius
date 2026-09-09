@@ -53,10 +53,28 @@ export const roomGrants = sqliteTable(
     keyId: text('key_id').notNull(),
     createdAt: integer('created_at').notNull(),
     expiresAt: integer('expires_at').notNull(),
+    writerUntil: integer('writer_until').notNull().default(0),
+    frozenUntil: integer('frozen_until').notNull().default(0),
+    frozenCheckpoint: text('frozen_checkpoint'),
   },
   (t) => [
     uniqueIndex('idx_room_grant_controller').on(t.wallet),
     index('idx_room_grant_expiry').on(t.expiresAt),
+  ],
+);
+export const roomCheckpoints = sqliteTable(
+  'room_checkpoints',
+  {
+    grantHash: text('grant_hash').notNull(),
+    id: text('id').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    receipt: text('receipt').notNull(),
+    intent: text('intent'),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_room_checkpoint_once').on(t.grantHash, t.id),
+    index('idx_room_checkpoint_expiry').on(t.expiresAt),
   ],
 );
 export const players = sqliteTable(

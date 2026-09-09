@@ -1,3 +1,4 @@
+import { roomWorkGuard, type RoomWorkProof } from './room-writer.ts';
 import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
 import {
   decodeDispatchBenefit,
@@ -267,6 +268,7 @@ export async function contributeProject(
   now = Date.now(),
   permit?: RealmPermit,
   work?: { rack?: string; serviceId?: string; serviceVersion?: number },
+  roomProof?: RoomWorkProof,
 ) {
   if (!uuid(id) || !uuid(requestId) || !PROJECT_FAMILIES.includes(family))
     return fail('Choose a contribution.', 400);
@@ -407,7 +409,7 @@ export async function contributeProject(
       AND NOT EXISTS(SELECT 1 FROM cluster_contributions WHERE id=?)
       AND EXISTS(SELECT 1 FROM players WHERE wallet=? AND facility_version=?)
       ${service ? "AND EXISTS(SELECT 1 FROM cluster_service_sessions WHERE id=? AND version=? AND stage='test' AND next_at<=?)" : ''}
-      AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)})`)
+      AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)} AND ${roomWorkGuard('crew_presence', now, roomProof)})`)
       .bind(
         JSON.stringify(project.progress),
         complete ? 'completed' : 'open',
@@ -469,6 +471,7 @@ export async function startProjectService(
   requestId: string,
   now = Date.now(),
   permit?: RealmPermit,
+  roomProof?: RoomWorkProof,
 ) {
   if (!uuid(id) || !uuid(requestId))
     return fail('Choose a cluster inspection.', 400);
@@ -508,7 +511,7 @@ export async function startProjectService(
   const result = await db
     .prepare(`INSERT OR IGNORE INTO cluster_service_sessions(id,project_id,wallet,stage,fault,next_at,version)
     SELECT ?,?,?,'reading',?,?,0 WHERE EXISTS(SELECT 1 FROM cluster_projects WHERE id=? AND version=? AND state='open')
-    AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)})`)
+    AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)} AND ${roomWorkGuard('crew_presence', now, roomProof)})`)
     .bind(
       requestId,
       id,
@@ -547,6 +550,7 @@ export async function advanceProjectService(
   choice: unknown,
   now = Date.now(),
   permit?: RealmPermit,
+  roomProof?: RoomWorkProof,
 ) {
   if (
     !uuid(id) ||
@@ -576,6 +580,7 @@ export async function advanceProjectService(
       now,
       permit,
       { serviceId: id, serviceVersion: version },
+      roomProof,
     );
     return;
   }
@@ -589,7 +594,7 @@ export async function advanceProjectService(
   const result = await db
     .prepare(`UPDATE cluster_service_sessions SET stage=?,next_at=?,version=version+1 WHERE id=? AND version=?
     AND EXISTS(SELECT 1 FROM cluster_projects WHERE id=? AND neighborhood_id=? AND state='open' AND CAST(json_extract(progress_json,'$.service') AS INTEGER)<CAST(json_extract(required_json,'$.service') AS INTEGER))
-    AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)})`)
+    AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)} AND ${roomWorkGuard('crew_presence', now, roomProof)})`)
     .bind(
       next,
       now + (next === 'test' ? 6000 : 3000),

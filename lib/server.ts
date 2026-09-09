@@ -1,3 +1,9 @@
+import {
+  httpMovementGuard,
+  roomActionIntent,
+  roomWorkGuard,
+  type RoomWorkProof,
+} from './room-writer';
 import { listingsPage, escrowListing } from './market-server';
 import { roomAuthConfig, RoomAuthError } from './room-auth';
 import { issueRoomTicket, handleRoomService } from './room-auth-server';
@@ -32,6 +38,7 @@ import {
   ensurePublicId,
   joinNeighborhood,
   neighborhoodSnapshot,
+  readNeighborhoodState,
   controllerFrom,
   changeScene,
   leaveNeighborhood,
@@ -427,8 +434,19 @@ async function withShared(
       (total, n) => total + n,
       0,
     );
+  const writer = await db()
+    .prepare(
+      `SELECT 1 FROM crew_presence c WHERE c.wallet=? AND NOT (${httpMovementGuard('c', Date.now())})`,
+    )
+    .bind(wallet)
+    .first();
   return {
     ...snapshot,
+    roomTransport:
+      realmValues().NOOBIUS_ROOM_AUTH_ENABLED === 'true'
+        ? ('socket' as const)
+        : ('poll' as const),
+    writerActive: !!writer,
     world,
     cluster: project
       ? {
@@ -809,12 +827,21 @@ export async function handleGame(request: Request, action: string) {
 
   await rate(
     request,
-    action === 'neighborhood-sync' ? 'presence' : 'actions',
-    action === 'neighborhood-sync' ? 150 : 120,
+    ['neighborhood-sync', 'neighborhood-state'].includes(action)
+      ? 'presence'
+      : 'actions',
+    ['neighborhood-sync', 'neighborhood-state'].includes(action) ? 150 : 120,
     wallet,
   );
 
   const permit = permitFor(request);
+  const roomProof: RoomWorkProof | undefined =
+    typeof body.roomCheckpoint === 'string'
+      ? {
+          id: body.roomCheckpoint,
+          intent: await roomActionIntent(action, body),
+        }
+      : undefined;
   if (action === 'moderation-review') {
     await rate(request, 'moderation', 30, wallet);
     return result(await reviewReport(db(), wallet, realmValues(), body));
@@ -825,6 +852,7 @@ export async function handleGame(request: Request, action: string) {
   const realmBound =
     [
       'neighborhood-sync',
+      'neighborhood-state',
       'neighborhood-scene',
       'room-ticket',
       'project-start',
@@ -841,7 +869,13 @@ export async function handleGame(request: Request, action: string) {
   if (realmBound) {
     const recovered = await recoverRealm(request, wallet, body);
     if (recovered) {
-      if (action === 'neighborhood-sync' || action === 'neighborhood-scene')
+      if (
+        [
+          'neighborhood-sync',
+          'neighborhood-state',
+          'neighborhood-scene',
+        ].includes(action)
+      )
         return result(recovered);
       throw new ApiError(
         409,
@@ -896,6 +930,7 @@ export async function handleGame(request: Request, action: string) {
       Date.now(),
       permit,
       { rack: typeof body.rack === 'string' ? body.rack : undefined },
+      roomProof,
     );
     return result({
       ...(await responseFor(wallet)),
@@ -914,6 +949,7 @@ export async function handleGame(request: Request, action: string) {
       String(body.requestId),
       Date.now(),
       permit,
+      roomProof,
     );
     return result({
       ...(await responseFor(wallet)),
@@ -932,6 +968,7 @@ export async function handleGame(request: Request, action: string) {
       body.choice,
       Date.now(),
       permit,
+      roomProof,
     );
     return result({
       ...(await responseFor(wallet)),
@@ -1000,6 +1037,19 @@ export async function handleGame(request: Request, action: string) {
       ),
     );
   }
+  if (action === 'neighborhood-state')
+    return result(
+      await withShared(
+        wallet,
+        await readNeighborhoodState(
+          db(),
+          wallet,
+          controllerFrom(body),
+          Date.now(),
+          permit,
+        ),
+      ),
+    );
   if (action === 'neighborhood-sync')
     return result(
       await withShared(
@@ -1066,7 +1116,7 @@ export async function handleGame(request: Request, action: string) {
     if (updated.facility.version !== previous.version) {
       const authority = controller
         ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room=?
-        AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16)))`
+        AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16 AND ${roomWorkGuard('c', now, roomProof)})))`
         : '';
       const bindings: (string | number)[] = [
         JSON.stringify(updated.facility),
@@ -1161,7 +1211,7 @@ export async function handleGame(request: Request, action: string) {
       )
         throw new ApiError(400, 'Walk to the highlighted station first.');
       const id = `${room}:${event}:${station.id}`;
-      const guard = `EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.neighborhood_id=? AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room='commons' AND c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=25)`;
+      const guard = `EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.neighborhood_id=? AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room='commons' AND c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=25 AND ${roomWorkGuard('c', now, roomProof)})`;
       const guardArgs = [
         wallet,
         room,

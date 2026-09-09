@@ -32,6 +32,7 @@ async function request(body, cfg = config, time = now, options = {}) {
 }
 async function fixture(t, count = 1, expiresAt = now + 600_000) {
   const db = database();
+  db.sqlite.function('julianday', (_value) => now / 86400000 + 2440587.5);
   t.after(() => db.sqlite.close());
   const crew = [];
   for (let i = 0; i < count; i++) {
@@ -254,11 +255,14 @@ test('tickets are hashed, single-use and return only limited room authority', as
   assert.deepEqual(Object.keys(a).sort(), [
     'authorizedUntil',
     'expiresAt',
+    'frozenCheckpoint',
+    'frozenUntil',
     'grant',
     'membership',
     'navigation',
     'player',
     'serverNow',
+    'writerUntil',
   ]);
   assert.deepEqual(Object.keys(a.player).sort(), [
     'accessory',

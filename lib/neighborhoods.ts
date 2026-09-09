@@ -57,6 +57,8 @@ export type Neighbor = {
   accessory: string;
 };
 export type NeighborhoodSnapshot = {
+  roomTransport?: 'poll' | 'socket';
+  writerActive?: boolean;
   cluster?: {
     id: string;
     variant: string;

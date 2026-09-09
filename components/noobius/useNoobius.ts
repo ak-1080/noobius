@@ -1,5 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { actionWorksite } from '@/lib/action-authority';
+import type { PrepareRoomWork } from '@/lib/room-protocol';
 import {
   applyFacility,
   newFacility,
@@ -115,6 +117,30 @@ export function useNoobius() {
     },
     [],
   );
+  const roomWork = useRef<PrepareRoomWork | null>(null);
+  const setRoomWork = useCallback((prepare: PrepareRoomWork | null) => {
+    roomWork.current = prepare;
+  }, []);
+  const workApi = async (
+    action: string,
+    body: Record<string, unknown>,
+    physical: boolean,
+  ) => {
+    if (!physical) return api(action, body);
+    if (!roomWork.current)
+      throw new ClientError(
+        'Your room is connecting. Please try again once you arrive.',
+      );
+    const lease = await roomWork.current(action, body);
+    try {
+      return await api(action, {
+        ...body,
+        ...(lease.checkpoint ? { roomCheckpoint: lease.checkpoint } : {}),
+      });
+    } finally {
+      await lease.complete();
+    }
+  };
   const [notice, setNotice] = useState('');
   const [guestSaveState, setGuestSaveState] = useState<
     'saved' | 'unavailable' | 'checking'
@@ -808,11 +834,15 @@ export function useNoobius() {
           message: next.message,
         };
       } else {
-        data = await api('facility', {
-          ...worldController.current,
-          action: a,
-          expectedWallet: p.wallet,
-        });
+        data = await workApi(
+          'facility',
+          {
+            ...worldController.current,
+            action: a,
+            expectedWallet: p.wallet,
+          },
+          !!actionWorksite(p.facility ?? newFacility(), a),
+        );
       }
       if (
         epoch !== generation.current ||
@@ -838,12 +868,21 @@ export function useNoobius() {
       const key = JSON.stringify([action, body]);
       if (pending.current?.key !== key)
         pending.current = { key, id: crypto.randomUUID() };
-      const data = await api(action, {
-        ...worldController.current,
-        ...body,
-        requestId: pending.current.id,
-        expectedWallet: state.current.profile?.wallet,
-      });
+      const data = await workApi(
+        action,
+        {
+          ...worldController.current,
+          ...body,
+          requestId: pending.current.id,
+          expectedWallet: state.current.profile?.wallet,
+        },
+        [
+          'crew-work',
+          'project-contribute',
+          'project-inspect',
+          'project-service',
+        ].includes(action),
+      );
       apply(data);
       pending.current = null;
       setNotice(data.message ?? 'Saved.');
@@ -851,6 +890,7 @@ export function useNoobius() {
     });
   return {
     setWorldController,
+    setRoomWork,
     guestSaveState,
     notice,
     setNotice,
