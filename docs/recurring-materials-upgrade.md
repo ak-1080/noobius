@@ -29,3 +29,9 @@ Ordinary board inputs cost 77 at NPC prices. Recovered board inputs cost 44 plus
 - Temporary browser fixture route and QA configuration are removed before the release build. The user's normal and hosted guest saves were not used as test fixtures.
 
 The hosted WebSocket coordinator, real multi-person sessions, return-session playtests and operational readiness remain separate open checkpoints in `next-upgrade-checkpoints.md`.
+
+## Publication
+
+Published owner-private as Site version 40 at 09:18:12 UTC on September 9, 2026, from source `58949e21f4663c71033cee70ca6ef0c60a212f97`. Build, TypeScript, all 207 default tests and the isolated authenticated Worker/D1 test passed. No migration or runtime environment change was made. Both GitHub main and the working branch contain the implementation.
+
+Hosted smoke check reopened the existing guest save with 880,287 spendable and 408,240 stored Compute. Nothing was collected or spent. No error-level browser messages appeared. The primary browser tab was returned to the published game. These checks do not substitute for real wallet, multi-person or return-session acceptance.
