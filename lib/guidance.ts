@@ -46,7 +46,13 @@ export function guidanceFor(step: NextStep): Guidance {
             inventoryTab: action.direction === 'withdraw' ? 'bank' : 'bag',
             item: action.item,
           }
-        : guide.view,
+        : action?.type === 'craft'
+          ? {
+              ...guide.view,
+              recipe: action.id as import('./facility.ts').ItemId,
+              quantity: action.quantity ?? 1,
+            }
+          : guide.view,
     panel:
       guide.panel ??
       (repair ? 'jobs' : action ? panels[action.type] : undefined),

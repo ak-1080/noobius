@@ -5,14 +5,11 @@ import {
   RECIPES,
   STORY,
   ZONES,
-  buildCost,
   rackPrice,
   machineGain,
-  coolingBudget,
   itemCount,
   modules,
   normalizeFacility,
-  powerBudget,
   skillLevel,
   storyValue,
   type Bag,
@@ -28,6 +25,17 @@ export type GuideView = {
   jobsTab?: 'board' | 'equipment' | 'progress';
   family?: import('./contracts.ts').ContractFamily;
   style?: import('./contracts.ts').ModuleStyle;
+  jobId?: string;
+  moduleId?: import('./contracts.ts').ModuleStyle;
+  recipe?: ItemId;
+  quantity?: number;
+};
+export type PartsRequest = {
+  items?: Bag;
+  build?: string;
+  recipe?: ItemId;
+  quantity?: number;
+  source?: { label: string; panel: 'contracts' | 'crafting'; view: GuideView };
 };
 export type NextStep = {
   title: string;
@@ -53,9 +61,10 @@ export function resolveObjective(
   previous: Facility,
   credits: number,
   now = Date.now(),
-  request?: { items?: Bag; build?: string; recipe?: ItemId },
+  request?: PartsRequest,
 ): Objective {
   const f = normalizeFacility(previous, now);
+  let neededParts: Bag = request?.items ?? {};
   const story = STORY.find((c) => !f.claims.includes(c.id));
   const repair = (): NextStep => ({
     title: 'Fix a broken system',
@@ -128,27 +137,11 @@ export function resolveObjective(
     };
   };
   const parts = (cost: Bag): NextStep | null => {
+    neededParts = cost;
     for (const [key, needed] of Object.entries(cost)) {
       const id = key as ItemId,
         missing = needed! - (f.inventory[id] ?? 0);
       if (missing <= 0) continue;
-      if (itemCount(f.inventory) >= 120 + f.storage * 40 - 5) {
-        const stack = Object.entries(f.inventory).sort(
-          (a, b) => b[1]! - a[1]!,
-        )[0];
-        return {
-          title: 'Make space in your backpack',
-          detail: 'Storage keeps parts safe for later.',
-          cta: 'Store a stack',
-          target: 'bank',
-          action: {
-            type: 'bank',
-            item: stack[0] as ItemId,
-            quantity: stack[1],
-            direction: 'deposit',
-          },
-        };
-      }
       if ((f.bank[id] ?? 0) > 0)
         return {
           title: `Take ${ITEMS[id].name.toLowerCase()} from storage`,
@@ -163,7 +156,7 @@ export function resolveObjective(
             direction: 'withdraw',
           },
         };
-      if (RECIPES.some((r) => r.id === id)) return make(id);
+      if (RECIPES.some((r) => r.id === id)) return make(id, missing);
       const step = gather(id);
       if (!step.wait)
         step.detail = `Need ${missing} more ${ITEMS[id].name.toLowerCase()}. ${step.detail}`;
@@ -171,18 +164,41 @@ export function resolveObjective(
     }
     return null;
   };
-  const make = (id: ItemId): NextStep => {
+  const make = (id: ItemId, requested = 1): NextStep => {
     if (f.craft) return bench();
     const r = RECIPES.find((r) => r.id === id)!;
     if (!f.unlocked.includes(r.zone)) return unlock(r.zone);
     if (skillLevel(f.skills.engineering) < r.skill) return make('kit');
+    // A large component goal may need several explicit bench visits. Keep
+    // the goal intact, while suggesting a batch whose inputs fit the bag.
+    const perPart = itemCount(r.cost);
+    const unrelated = Object.entries(f.inventory).reduce(
+      (sum, [key, n]) => sum + (r.cost[key as ItemId] ? 0 : (n ?? 0)),
+      0,
+    );
+    const quantity = Math.max(
+      1,
+      Math.min(
+        30,
+        requested,
+        Math.floor((120 + f.storage * 40 - unrelated) / perPart),
+      ),
+    );
+    const cost = Object.fromEntries(
+      Object.entries(r.cost).map(([key, n]) => [key, n! * quantity]),
+    ) as Bag;
+    const batchNote =
+      quantity < requested
+        ? `Make ${quantity} now toward ${requested} missing parts; this batch fits your backpack. `
+        : '';
     return (
-      parts(r.cost) ?? {
-        title: `Make a ${r.name.toLowerCase()}`,
-        detail: `Your parts are ready. Takes ${r.seconds} seconds at the workbench.`,
+      parts(cost) ?? {
+        title: `Make ${quantity} × ${r.name.toLowerCase()}`,
+        detail: `${batchNote}Your parts are ready. Takes ${r.seconds * quantity} seconds at the workbench.`,
         cta: 'Make this part',
         target: 'workbench',
-        action: { type: 'craft', id },
+        action: { type: 'craft', id, quantity },
+        view: { recipe: id, quantity },
       }
     );
   };
@@ -244,7 +260,7 @@ export function resolveObjective(
     step = request.build
       ? build(request.build)
       : request.recipe
-        ? make(request.recipe)
+        ? make(request.recipe, request.quantity ?? 1)
         : (parts(request.items ?? {}) ?? {
             title: 'All parts ready',
             detail: 'Your backpack has everything you need.',
@@ -335,7 +351,18 @@ export function resolveObjective(
             Math.min(2, Math.floor(skillLevel(f.skills.salvaging) / 3))
           : 0;
   if (pickup && itemCount(f.inventory) + pickup > 120 + f.storage * 40) {
-    const stack = Object.entries(f.inventory).sort((a, b) => b[1]! - a[1]!)[0];
+    // Store surplus first, so the next step does not immediately request
+    // the same required stack back from storage.
+    const surplus = Object.entries(f.inventory)
+      .map(
+        ([id, count]) =>
+          [id, count! - (neededParts[id as ItemId] ?? 0)] as const,
+      )
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1]);
+    const stack =
+      surplus[0] ??
+      Object.entries(f.inventory).sort((a, b) => b[1]! - a[1]!)[0];
     step = {
       title: 'Make space for your next pickup',
       detail:

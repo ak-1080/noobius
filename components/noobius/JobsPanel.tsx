@@ -79,7 +79,11 @@ type Props = {
   now: number;
   busy: boolean;
   onAction: Action;
-  onParts: (items: Bag) => void;
+  onParts: (
+    items: Bag,
+    source?: import('@/lib/objectives').PartsRequest['source'],
+  ) => void;
+  focusJobId?: string;
   onGuide: (id: string) => void;
   onBuild: () => void;
   onLocker: () => void;
@@ -281,6 +285,9 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     <article
       className={`client-job active-client-job ${ready ? 'is-ready' : ''}`}
     >
+      {props.focusJobId === run.id && (
+        <p className="job-note">Your prepared job · review the setup below.</p>
+      )}
       <div className="job-eyebrow">
         <span>
           <Icon size={16} />
@@ -467,7 +474,18 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
             ) : !canPay(f.inventory, quote.cost) ? (
               <Button
                 className="primary-action"
-                onClick={() => onParts(quote.cost)}
+                onClick={() => {
+                  props.onDraft?.(run.id, {
+                    style,
+                    rack: rack ?? '',
+                    quantity,
+                  });
+                  onParts(quote.cost, {
+                    label: t.name,
+                    panel: 'contracts',
+                    view: { jobsTab: 'board', jobId: run.id },
+                  });
+                }}
               >
                 Find missing parts <Navigation size={16} />
               </Button>
@@ -716,7 +734,13 @@ export function ModuleWorkshop({
                 <Button
                   className="outline-button"
                   disabled={busy}
-                  onClick={() => onParts(m.cost)}
+                  onClick={() =>
+                    onParts(m.cost, {
+                      label: m.name,
+                      panel: 'contracts',
+                      view: { jobsTab: 'equipment', moduleId: m.id },
+                    })
+                  }
                 >
                   Find module parts <Navigation size={16} />
                 </Button>
@@ -841,14 +865,20 @@ export default function JobsPanel(props: Props) {
           </div>
           {c.active.length ? (
             <div className="active-jobs">
-              {c.active.map((run) => (
-                <ActiveJob
-                  key={run.id}
-                  {...props}
-                  onEquipment={() => setTab('equipment')}
-                  run={run}
-                />
-              ))}
+              {[...c.active]
+                .sort(
+                  (a, b) =>
+                    Number(b.id === props.focusJobId) -
+                    Number(a.id === props.focusJobId),
+                )
+                .map((run) => (
+                  <ActiveJob
+                    key={run.id}
+                    {...props}
+                    onEquipment={() => setTab('equipment')}
+                    run={run}
+                  />
+                ))}
             </div>
           ) : (
             <div className="jobs-empty">

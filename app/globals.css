@@ -6487,7 +6487,47 @@ a {
 .home-guidance {
   display: contents;
 }
+.objective-coach-wrap {
+  position: absolute;
+  top: 84px;
+  left: 22px;
+  width: min(350px, calc(100vw - 44px));
+  z-index: 3;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+.objective-coach-wrap .objective-hud.next-action {
+  position: static;
+  width: 100%;
+  margin: 0;
+}
+.parts-plan-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #10272ff2;
+  color: #d2e8e4;
+  font-size: 14px;
+  pointer-events: auto;
+}
+.parts-plan-strip button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  color: #c5ef9c;
+}
+.recipe.is-focused { border-color: #c5ef9c; }
 @media (max-width: 600px) {
+  .home-guidance .objective-coach-wrap {
+    position: static;
+    width: 100%;
+    pointer-events: auto;
+  }
   .home-guidance {
     display: flex;
     flex-direction: column;

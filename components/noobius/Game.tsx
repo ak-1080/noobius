@@ -1,6 +1,7 @@
 'use client';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
+import { partsPlanObjective } from '@/lib/parts-plan';
 import ProjectPanel from './ProjectPanel';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
@@ -88,6 +89,7 @@ import {
   resolveObjective,
   type NextStep,
   type GuideView,
+  type PartsRequest,
 } from '@/lib/objectives';
 import {
   ZONES,
@@ -97,6 +99,7 @@ import {
   modules,
   type FacilityAction,
   type WorldObject,
+  type ItemId,
 } from '@/lib/facility';
 const ICONS = { cooling: Fan, boot: Cpu, network: Cable };
 type Panel =
@@ -135,6 +138,12 @@ export default function NoobiusGame() {
   }, [profile?.wallet]);
   const [jobDrafts, setJobDrafts] = useState<
     Record<string, Record<string, JobDraft>>
+  >({});
+  const [craftDrafts, setCraftDrafts] = useState<
+    Record<string, { recipe?: ItemId; quantity: number }>
+  >({});
+  const [partsPlans, setPartsPlans] = useState<
+    Record<string, PartsRequest | undefined>
   >({});
   const [initialReveal, setInitialReveal] = useState(false);
   const [now, setNow] = useState(Date.now);
@@ -306,12 +315,16 @@ export default function NoobiusGame() {
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
   const currentJob = shift?.jobs.find((j) => j.id === activeJob);
   const rankTarget = nextRank(profile?.xp ?? 0);
-  const objective = shiftObjective(
+  const partsPlan = profile ? partsPlans[profile.wallet] : undefined;
+  const partsObjective = partsPlanObjective(
     facility,
     profile?.credits ?? 0,
     now,
-    mode === 'wallet',
+    partsPlan,
   );
+  const objective =
+    partsObjective ??
+    shiftObjective(facility, profile?.credits ?? 0, now, mode === 'wallet');
   const briefing = nextBriefing(facility);
   const arrivedObject = OBJECTS.find((o) => o.id === arrivedStep?.target);
   const incident = activeIncident(facility, now);
@@ -437,6 +450,12 @@ export default function NoobiusGame() {
     if (p === 'facility' || p === 'map') setSelectedObject(selected ?? null);
     if (p === 'appearance') setLockerPreview(undefined);
     setPanelView(view);
+    if (p === 'crafting' && view?.recipe && profile) {
+      setCraftDrafts((previous) => ({
+        ...previous,
+        [profile.wallet]: { recipe: view.recipe, quantity: view.quantity ?? 1 },
+      }));
+    }
     if (p === 'contracts' && view) {
       setFocusFamily(view.family);
       setFocusStyle(view.style);
@@ -501,6 +520,22 @@ export default function NoobiusGame() {
       await neighborhood.join();
     if (originWorld !== worldGeneration.current) return ok;
     if (!ok.applied) return ok;
+    // Source work has begun: stop preparing its old quote. Intermediate
+    // component crafting keeps a contract's supply plan active.
+    if (
+      profile &&
+      partsPlan?.source &&
+      ((action.type === 'contract-start' &&
+        action.id === partsPlan.source.view.jobId) ||
+        (action.type === 'craft' &&
+          partsPlan.source.panel === 'crafting' &&
+          action.id === partsPlan.source.view.recipe))
+    )
+      setPartsPlans((previous) =>
+        previous[profile.wallet] === partsPlan
+          ? { ...previous, [profile.wallet]: undefined }
+          : previous,
+      );
     const target = action.type.startsWith('outage')
       ? (incident?.rack ?? 'margo')
       : action.type.startsWith('compute')
@@ -590,6 +625,7 @@ export default function NoobiusGame() {
       return;
     }
     if (object.kind === 'node') {
+      setArrivedStep(null);
       void act({ type: 'gather', id: object.id });
       return;
     }
@@ -871,27 +907,48 @@ export default function NoobiusGame() {
             </button>
           )}
           <div className="home-guidance">
-            {room === 'home' && (
-              <ObjectiveCoach
-                objective={objective}
-                following={followingStep}
-                arrived={
-                  arrivedStep
-                    ? arrivalGuidance(
-                        arrivedStep,
-                        arrivedObject?.item
-                          ? `the ${ITEMS[arrivedObject.item].name.toLowerCase()} pile`
-                          : arrivedObject?.name ?? 'the station',
-                        facility.cooldowns[arrivedStep.target ?? ''] ?? 0,
-                        now,
-                      )
-                    : null
-                }
-                busy={busy}
-                onFollow={followObjective}
-                onStop={stopFollowing}
-              />
-            )}
+            <div className="objective-coach-wrap">
+              {room === 'home' && partsObjective && partsPlan && (
+                <div className="parts-plan-strip">
+                  <span>
+                    Supplies for {partsPlan.source?.label ?? 'your next job'}
+                  </span>
+                  <button
+                    aria-label="Cancel parts plan"
+                    onClick={() => {
+                      stopFollowing();
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile!.wallet]: undefined,
+                      }));
+                    }}
+                  >
+                    <X size={16} /> Cancel
+                  </button>
+                </div>
+              )}
+              {room === 'home' && (
+                <ObjectiveCoach
+                  objective={objective}
+                  following={followingStep}
+                  arrived={
+                    arrivedStep
+                      ? arrivalGuidance(
+                          arrivedStep,
+                          arrivedObject?.item
+                            ? `the ${ITEMS[arrivedObject.item].name.toLowerCase()} pile`
+                            : (arrivedObject?.name ?? 'the station'),
+                          facility.cooldowns[arrivedStep.target ?? ''] ?? 0,
+                          now,
+                        )
+                      : null
+                  }
+                  busy={busy}
+                  onFollow={followObjective}
+                  onStop={stopFollowing}
+                />
+              )}
+            </div>
             {room === 'home' && modules(facility) > 0 && (
               <button
                 className={`compute-hud ${storedCompute > 0 ? 'is-ready' : ''}`}
@@ -1391,15 +1448,32 @@ export default function NoobiusGame() {
                     show(mode === 'practice' ? 'world' : 'project')
                   }
                   drafts={jobDrafts[profile.wallet] ?? {}}
-                  onDraft={(id, draft) =>
+                  craftDraft={craftDrafts[profile.wallet]}
+                  onCraftDraft={(draft) => {
+                    setCraftDrafts((previous) => ({
+                      ...previous,
+                      [profile.wallet]: draft,
+                    }));
+                    if (partsPlan?.source?.panel === 'crafting')
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: undefined,
+                      }));
+                  }}
+                  onDraft={(id, draft) => {
+                    if (partsPlan?.source?.view.jobId === id)
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: undefined,
+                      }));
                     setJobDrafts((previous) => ({
                       ...previous,
                       [profile.wallet]: {
                         ...previous[profile.wallet],
                         [id]: draft,
                       },
-                    }))
-                  }
+                    }));
+                  }}
                   panel={panel as ExpansionPanel}
                   profile={profile}
                   selected={selectedObject}
@@ -1418,11 +1492,28 @@ export default function NoobiusGame() {
                     show('appearance');
                     if (previewGold) setLockerPreview('afterhours');
                   }}
-                  onHelp={(request) =>
+                  onHelp={(request) => {
+                    if (busy) return;
+                    // Nested recipe trips retain the originating client job.
+                    const plan =
+                      partsObjective &&
+                      partsPlan?.source?.panel === 'contracts' &&
+                      request.source?.panel === 'crafting'
+                        ? partsPlan
+                        : request;
+                    setPartsPlans((previous) => ({
+                      ...previous,
+                      [profile.wallet]: plan,
+                    }));
                     executeStep(
-                      resolveObjective(facility, profile.credits, now, request),
-                    )
-                  }
+                      partsPlanObjective(
+                        facility,
+                        profile.credits,
+                        now,
+                        plan,
+                      ) ?? objective,
+                    );
+                  }}
                   onGuide={(object) =>
                     executeStep({
                       title: object.name,

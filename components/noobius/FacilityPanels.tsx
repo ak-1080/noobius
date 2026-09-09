@@ -22,7 +22,10 @@ import {
   ArrowUpFromLine,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from '@/components/ui/native-select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -55,7 +58,12 @@ import {
 } from '@/lib/facility';
 import type { Profile } from '@/lib/game';
 import { api } from './useNoobius';
-import type { Objective, GuideView, NextStep } from '@/lib/objectives';
+import type {
+  Objective,
+  GuideView,
+  NextStep,
+  PartsRequest,
+} from '@/lib/objectives';
 export type ExpansionPanel =
   | 'map'
   | 'inventory'
@@ -93,7 +101,7 @@ type Props = {
   objective: Objective;
   onFollow: () => void;
   onRepair: () => void;
-  onHelp: (request: { items?: Bag; build?: string; recipe?: ItemId }) => void;
+  onHelp: (request: PartsRequest) => void;
   onGuide: (object: WorldObject) => void;
   jobTab?: string;
   focusFamily?: ContractFamily;
@@ -105,6 +113,8 @@ type Props = {
   onConnect?: () => void;
   drafts?: Record<string, JobDraft>;
   onDraft?: (id: string, draft: JobDraft) => void;
+  craftDraft?: { recipe?: ItemId; quantity: number };
+  onCraftDraft?: (draft: { recipe?: ItemId; quantity: number }) => void;
 };
 function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   return (
@@ -149,6 +159,8 @@ export default function FacilityPanels({
   onConnect,
   drafts,
   onDraft,
+  craftDraft,
+  onCraftDraft,
 }: Props) {
   const workbench = OBJECTS.find((object) => object.id === 'workbench')!;
   const atWorkbench =
@@ -156,7 +168,6 @@ export default function FacilityPanels({
   const f = profile.facility!,
     [now, setNow] = useState(Date.now),
     [quantity, setQuantity] = useState(1),
-    [craftQuantity, setCraftQuantity] = useState(1),
     [item, setItem] = useState<ItemId>('scrap'),
     [price, setPrice] = useState(10),
     [listings, setListings] = useState<MarketPage['listings']>([]),
@@ -178,6 +189,7 @@ export default function FacilityPanels({
     }),
     [reporting, setReporting] = useState<string | null>(null),
     [reportReason, setReportReason] = useState('Spam');
+  const craftQuantity = craftDraft?.quantity ?? 1;
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -416,8 +428,21 @@ export default function FacilityPanels({
         {!f.craft && (
           <label className="dispatch-picker">
             How many parts?
-            <NativeSelect aria-label="Craft batch size" value={craftQuantity} onChange={e => setCraftQuantity(Number(e.target.value))}>
-              {Array.from({ length: 30 }, (_, i) => i + 1).map(n => <NativeSelectOption key={n} value={n}>{n} part{n === 1 ? '' : 's'}</NativeSelectOption>)}
+            <NativeSelect
+              aria-label="Craft batch size"
+              value={craftQuantity}
+              onChange={(e) =>
+                onCraftDraft?.({
+                  ...craftDraft,
+                  quantity: Number(e.target.value),
+                })
+              }
+            >
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
+                <NativeSelectOption key={n} value={n}>
+                  {n} part{n === 1 ? '' : 's'}
+                </NativeSelectOption>
+              ))}
             </NativeSelect>
           </label>
         )}
@@ -425,7 +450,9 @@ export default function FacilityPanels({
           <div className="fabrication-active">
             <Wrench size={24} />
             <span>
-              <strong>{f.craft.quantity ?? 1} × {ITEMS[f.craft.recipe as ItemId].name}</strong>
+              <strong>
+                {f.craft.quantity ?? 1} × {ITEMS[f.craft.recipe as ItemId].name}
+              </strong>
               <small>
                 {now < f.craft.readyAt
                   ? `${Math.ceil((f.craft.readyAt - now) / 1000)} seconds remaining`
@@ -434,73 +461,125 @@ export default function FacilityPanels({
             </span>
             <Button
               className="outline-button"
-              disabled={busy || now < f.craft.readyAt || !atWorkbench || itemCount(f.inventory) + (f.craft.quantity ?? 1) > 120 + f.storage * 40}
+              disabled={
+                busy ||
+                now < f.craft.readyAt ||
+                !atWorkbench ||
+                itemCount(f.inventory) + (f.craft.quantity ?? 1) >
+                  120 + f.storage * 40
+              }
               onClick={() => action({ type: 'collect', id: f.craft?.id })}
             >
               Collect
             </Button>
-            {itemCount(f.inventory) + (f.craft.quantity ?? 1) > 120 + f.storage * 40 && (
+            {itemCount(f.inventory) + (f.craft.quantity ?? 1) >
+              120 + f.storage * 40 && (
               <div className="muted-small">
-                <p>Free {itemCount(f.inventory) + (f.craft.quantity ?? 1) - (120 + f.storage * 40)} backpack spaces to collect. Your finished parts stay here.</p>
-                <Button className="outline-button" onClick={() => onPanel('inventory')}>Manage parts</Button>
+                <p>
+                  Free{' '}
+                  {itemCount(f.inventory) +
+                    (f.craft.quantity ?? 1) -
+                    (120 + f.storage * 40)}{' '}
+                  backpack spaces to collect. Your finished parts stay here.
+                </p>
+                <Button
+                  className="outline-button"
+                  onClick={() => onPanel('inventory')}
+                >
+                  Manage parts
+                </Button>
               </div>
             )}
           </div>
         )}
         <div className="recipe-list">
-          {RECIPES.map((r) => {
-            const quote = craftQuote(r, craftQuantity);
-            const open =
-              f.unlocked.includes(r.zone) &&
-              skillLevel(f.skills.engineering) >= r.skill;
-            return (
-              <div className="recipe" key={r.id}>
-                <div className="recipe-title">
-                  <span
-                    className="item-icon"
-                    style={{ color: ITEMS[r.id].color }}
-                  >
-                    {ITEMS[r.id].short}
-                  </span>
-                  <div>
-                    <h3>{r.name}</h3>
-                    <p>{r.description}</p>
+          {[...RECIPES]
+            .sort(
+              (a, b) =>
+                Number(b.id === craftDraft?.recipe) -
+                Number(a.id === craftDraft?.recipe),
+            )
+            .map((r) => {
+              const quote = craftQuote(r, craftQuantity);
+              const open =
+                f.unlocked.includes(r.zone) &&
+                skillLevel(f.skills.engineering) >= r.skill;
+              return (
+                <div
+                  className={`recipe ${r.id === craftDraft?.recipe ? 'is-focused' : ''}`}
+                  key={r.id}
+                >
+                  {r.id === craftDraft?.recipe && (
+                    <p className="muted-small">
+                      Your selected recipe · {craftQuantity} parts
+                    </p>
+                  )}
+                  <div className="recipe-title">
+                    <span
+                      className="item-icon"
+                      style={{ color: ITEMS[r.id].color }}
+                    >
+                      {ITEMS[r.id].short}
+                    </span>
+                    <div>
+                      <h3>{r.name}</h3>
+                      <p>{r.description}</p>
+                    </div>
+                  </div>
+                  <Parts cost={quote.cost} bag={f.inventory} />
+                  {open && !canPay(f.inventory, quote.cost) && !f.craft && (
+                    <button
+                      className="find-parts-button"
+                      onClick={() => {
+                        onCraftDraft?.({
+                          recipe: r.id,
+                          quantity: craftQuantity,
+                        });
+                        onHelp({
+                          items: quote.cost,
+                          source: {
+                            label: `${craftQuantity} × ${r.name}`,
+                            panel: 'crafting',
+                            view: { recipe: r.id, quantity: craftQuantity },
+                          },
+                        });
+                      }}
+                    >
+                      Find the missing parts <ArrowRight size={14} />
+                    </button>
+                  )}
+                  <div className="recipe-bottom">
+                    <small>
+                      {quote.seconds}s · Engineering {r.skill}
+                      {!f.unlocked.includes(r.zone)
+                        ? ` · Open ${ZONES.find((z) => z.id === r.zone)?.name}`
+                        : ''}
+                    </small>
+                    <Button
+                      disabled={
+                        busy ||
+                        !!f.craft ||
+                        !open ||
+                        !atWorkbench ||
+                        !canPay(f.inventory, quote.cost)
+                      }
+                      className="outline-button"
+                      onClick={() =>
+                        action({
+                          type: 'craft',
+                          id: r.id,
+                          quantity: craftQuantity,
+                        })
+                      }
+                    >
+                      {!open ? <Lock size={14} /> : <Wrench size={14} />} Make{' '}
+                      {craftQuantity} × {r.name.toLowerCase()} · {quote.seconds}
+                      s
+                    </Button>
                   </div>
                 </div>
-                <Parts cost={quote.cost} bag={f.inventory} />
-                {open && !canPay(f.inventory, quote.cost) && !f.craft && (
-                  <button
-                    className="find-parts-button"
-                    onClick={() => onHelp({ items: quote.cost })}
-                  >
-                    Find the missing parts <ArrowRight size={14} />
-                  </button>
-                )}
-                <div className="recipe-bottom">
-                  <small>
-                    {quote.seconds}s · Engineering {r.skill}
-                    {!f.unlocked.includes(r.zone)
-                      ? ` · Open ${ZONES.find((z) => z.id === r.zone)?.name}`
-                      : ''}
-                  </small>
-                  <Button
-                    disabled={
-                      busy ||
-                      !!f.craft ||
-                      !open ||
-                      !atWorkbench ||
-                      !canPay(f.inventory, quote.cost)
-                    }
-                    className="outline-button"
-                    onClick={() => action({ type: 'craft', id: r.id, quantity: craftQuantity })}
-                  >
-                    {!open ? <Lock size={14} /> : <Wrench size={14} />} Make{' '}
-                    {craftQuantity} × {r.name.toLowerCase()} · {quote.seconds}s
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
     );
@@ -508,6 +587,7 @@ export default function FacilityPanels({
     return (
       <JobsPanel
         initialTab={view?.jobsTab}
+        focusJobId={view?.jobId}
         practice={profile.wallet === 'practice'}
         focusReason={focusReason}
         onPlan={onPlan}
@@ -525,7 +605,16 @@ export default function FacilityPanels({
         onBuild={() => onPanel('facility')}
         onGold={() => onLocker(true)}
         onLocker={() => onLocker()}
-        onParts={(items) => onHelp({ items })}
+        onParts={(items, source) =>
+          onHelp({
+            items,
+            source: source ?? {
+              label: 'equipment',
+              panel: 'contracts',
+              view: { jobsTab: 'equipment' },
+            },
+          })
+        }
         onGuide={(id) => {
           const object = OBJECTS.find((o) => o.id === id);
           if (object) onGuide({ ...object, panel: 'contracts' });
