@@ -48,3 +48,11 @@ The load fixture requires the exact isolated QA origin `http://127.0.0.1:3003`, 
 The hosted game still uses HTTP transport. Activating the standalone coordinator requires an owner-controlled host and supported machine authentication to the private economy service. Hosted multi-browser acceptance, longer load/reconnect testing, cost measurements, real wallet/mobile checks, operational alerts, staffed moderation, and a recovery rehearsal remain open. Human first-session and return-session tests remain necessary.
 
 The scoped dependency overrides reduce npm's report to two high affected packages, image-size and vinext; the underlying parser vulnerabilities remain unresolved. See the dependency review. No live holder asset policy, token payout or NBIS settlement is configured.
+
+## Private publication
+
+Site version 44 succeeded at `2026-09-09T11:15:09Z`, from source `ad5a0fecf07494dcef9abe7a8f14349cfb2ca574`. Saved version: `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_45165cc08b5c8191b85788f744541708`; deployment: `appgdep_6aa13fb0628c8191a58d4a0b3cc7b147`. Archive hash: `sha256:91b16fb4b2a4fe7308d65044b8b1782fe3ed02e4178efe376abf9adf7911f912` (165 files, 33,474,560 uncompressed bytes). Access remained owner-private, environment revision zero; no new SQL migration was applied.
+
+Local guest verification retained 20,267 spendable and 206,640 stored Compute, with no browser error logs. No collection or spending was performed.
+
+Hosted guest verification retained 880,287 spendable and 408,240 stored Compute, with no browser error logs. No collection or spending was performed.

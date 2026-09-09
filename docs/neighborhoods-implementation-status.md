@@ -2,9 +2,11 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The latest private release is **Site version 43**, deployed September 9, 2026 at 10:52:43 UTC. Source: `6037cbca686cc2d3a374a66b31166040e82f7ff8`. It preserves room sessions through planned grant renewal, bounds recovery work and fences stale browser responses. The standalone coordinator is validated locally; production activation remains off, with environment revision zero and owner-private access. See [room coordinator](room-coordinator.md).
+The latest private release is **Site version 44**, deployed September 9, 2026 at 11:15:09 UTC. Source: `ad5a0fecf07494dcef9abe7a8f14349cfb2ca574`, pushed to GitHub main, the work branch and Sites main. Deployment `appgdep_6aa13fb0628c8191a58d4a0b3cc7b147` succeeded with environment revision zero and owner-private access. No migration, holder policy or transport activation changed.
 
-The next validated source increment adds paginated build history, prioritizing unclaimed rewards and unfinished work, and avoids per-project finalization reads when no work is due. It retains existing claims, project terms and saved progress without a migration. The default suite passes 294 tests; a final focused rerun passes all 26 project/panel tests. Three tooling compatibility checks and the local Worker/D1 API scenarios also pass. TypeScript and the production build also pass. Packaging and publication are recorded separately below when completed.
+This release adds paginated build history, prioritizing unclaimed rewards and unfinished work, and avoids per-project finalization reads when no work is due. It retains existing claims, project terms and saved progress. The default suite passes 294 tests; a final focused rerun passes all 26 project/panel tests. Three tooling compatibility checks and two actual local economy/coordinator API scenarios also pass. TypeScript, scoped changed-logic lint and production build passed; the locally packaged artifact was saved against the exact pushed source.
+
+Version 43's planned grant renewal and bounded recovery remain included. The standalone coordinator is validated locally; production activation remains off. See [room coordinator](room-coordinator.md).
 
 A new 60-second local WebSocket experiment passed with 50 synthetic clients across ten five-player neighborhoods, including separate plaza and private-center peers. It accepted 18,446 moves, retained all 50 final positions and detected no room/interior leakage. This is local integration evidence, not hosted capacity or human playtesting. See [build history and load verification](project-history-and-room-load.md) for measurements and limits.
 
