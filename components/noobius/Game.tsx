@@ -1,4 +1,6 @@
 'use client';
+import type { ContractFamily } from '@/lib/contracts';
+import type { JobDraft } from './JobsPanel';
 import ProjectPanel from './ProjectPanel';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
@@ -115,6 +117,10 @@ type CrewEntry = { name: string; score: number; shifts: number; xp: number };
 export default function NoobiusGame() {
   const game = useNoobius(),
     { profile, shift, mode, busy, error } = game;
+  const [focusFamily, setFocusFamily] = useState<ContractFamily | undefined>();
+  const [jobDrafts, setJobDrafts] = useState<
+    Record<string, Record<string, JobDraft>>
+  >({});
   const [initialReveal, setInitialReveal] = useState(false);
   const [now, setNow] = useState(Date.now);
   const [worldUnavailable, setWorldUnavailable] = useState(false);
@@ -127,6 +133,7 @@ export default function NoobiusGame() {
   const summarizedWallets = useRef(new Set<string>());
   const worldGeneration = useRef(0);
   const afterTravel = useRef<(() => void) | null>(null);
+  const travelPending = useRef(false);
   const pendingStep = useRef<Guidance | null>(null);
   const [followingStep, setFollowingStep] = useState<Guidance | null>(null);
   const updatePendingStep = (step: Guidance | null) => {
@@ -199,13 +206,39 @@ export default function NoobiusGame() {
       if (next !== 'home') show('wallet');
       return;
     }
+    if (travelPending.current) return;
+    if (next === room) {
+      arrived?.();
+      return;
+    }
+    travelPending.current = true;
     afterTravel.current = arrived ?? null;
-    if (
-      !(await neighborhood.enter(
-        next === 'home' ? 'home-' + profile?.id : next,
-      ))
-    )
-      afterTravel.current = null;
+    try {
+      if (
+        !(await neighborhood.enter(
+          next === 'home' ? 'home-' + profile?.id : next,
+        ))
+      )
+        afterTravel.current = null;
+    } finally {
+      travelPending.current = false;
+    }
+  };
+  const joinRealm = async (
+    realm: 'commons' | 'gpu',
+    target?: string,
+    arrived?: () => void,
+  ) => {
+    if (travelPending.current) return false;
+    travelPending.current = true;
+    afterTravel.current = arrived ?? null;
+    try {
+      const ok = await neighborhood.join(realm, false, target);
+      if (!ok) afterTravel.current = null;
+      return ok;
+    } finally {
+      travelPending.current = false;
+    }
   };
   const visitFacility = (owner: string) => goWorld('home-' + owner);
   useEffect(() => {
@@ -299,17 +332,17 @@ export default function NoobiusGame() {
       if (e.key.toLowerCase() === 'm') {
         e.preventDefault();
         stopFollowing();
-        setPanel((p) => (p === 'map' ? null : 'map'));
+        show(panel === 'map' ? null : 'map');
       }
       if (e.key.toLowerCase() === 'i') {
         e.preventDefault();
         stopFollowing();
-        setPanel((p) => (p === 'inventory' ? null : 'inventory'));
+        show(panel === 'inventory' ? null : 'inventory');
       }
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, [playing, activeJob, needsIdentity, panel]);
+  }, [playing, activeJob, needsIdentity, panel, room]);
 
   useEffect(() => {
     if ((panel === 'badge' || panel === 'profile') && profile)
@@ -368,7 +401,7 @@ export default function NoobiusGame() {
     updatePendingStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
   };
-  const show = (p: Panel, selected?: WorldObject) => {
+  const openPanel = (p: Panel, selected?: WorldObject) => {
     if (pendingStep.current) stopFollowing();
     game.setError('');
     if (p !== panel) {
@@ -379,6 +412,27 @@ export default function NoobiusGame() {
     if (p === 'facility' || p === 'map') setSelectedObject(selected ?? null);
     if (p === 'appearance') setLockerPreview(undefined);
     setPanel(p);
+  };
+  const show = (p: Panel, selected?: WorldObject) => {
+    if (
+      room !== 'home' &&
+      p &&
+      [
+        'facility',
+        'map',
+        'contracts',
+        'crafting',
+        'inventory',
+        'jobs',
+        'locker',
+        'compute',
+        'outage',
+      ].includes(p)
+    ) {
+      void goWorld('home', () => openPanel(p, selected));
+      return;
+    }
+    openPanel(p, selected);
   };
   const play = async () => {
     game.setError('');
@@ -440,9 +494,12 @@ export default function NoobiusGame() {
   const executeStep = (step: NextStep) => {
     if (step.wait || busy) return;
     if (room !== 'home') {
-      void goWorld('home');
+      void goWorld('home', () => runGuidance(step));
       return;
     }
+    runGuidance(step);
+  };
+  const runGuidance = (step: NextStep) => {
     updatePendingStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
     setPanel(null);
@@ -663,6 +720,7 @@ export default function NoobiusGame() {
               sharedCampus={inCampus}
               neighbors={neighborhood.snapshot?.neighbors}
               realm={neighborhood.snapshot?.membership.realm}
+              cluster={neighborhood.snapshot?.cluster}
               correction={neighborhood.correction}
               paused={
                 needsIdentity ||
@@ -737,21 +795,21 @@ export default function NoobiusGame() {
           {room !== 'home' && (
             <button
               className="objective-hud"
-              onClick={() => (inCampus ? show('crewjob') : goWorld('home'))}
+              onClick={() => (inCampus ? show('project') : goWorld('home'))}
             >
-              <span>{inCampus ? 'SHARED JOB' : 'VISITING'}</span>
+              <span>{inCampus ? 'NEIGHBORHOOD PROJECT' : 'VISITING'}</span>
               <strong>
                 {inCampus
-                  ? 'Bring the cluster back online'
+                  ? 'Build something together'
                   : `${visit?.name}’s facility`}
               </strong>
               <small>
                 {inCampus
-                  ? 'Restore three stations with your crew.'
+                  ? 'Completed jobs + useful parts = your next cluster.'
                   : 'Look around. Your own equipment is safe at home.'}
               </small>
               <span className="objective-action">
-                {inCampus ? 'Join the repair' : 'Return home'}{' '}
+                {inCampus ? 'Open the project' : 'Return home'}{' '}
                 <ArrowRight size={15} />
               </span>
             </button>
@@ -830,8 +888,8 @@ export default function NoobiusGame() {
           <div className="campus-hotbar" aria-label="Campus tools">
             {[
               {
-                id: inCampus ? 'crewjob' : 'facility',
-                name: inCampus ? 'Team job' : 'Center',
+                id: 'facility',
+                name: 'Center',
                 Icon: Hammer,
               },
               { id: 'contracts', name: 'Jobs', Icon: Trophy },
@@ -846,7 +904,10 @@ export default function NoobiusGame() {
                 <button
                   key={id}
                   className={`dock-${id}`}
-                  onClick={() => show(id as Panel)}
+                  onClick={() => {
+                    if (id === 'contracts') setFocusFamily(undefined);
+                    show(id as Panel);
+                  }}
                 >
                   <Icon size={19} />
                   <span>{name}</span>
@@ -880,6 +941,17 @@ export default function NoobiusGame() {
           >
             <CircleHelp size={20} />
           </button>
+          {neighborhood.notice && (
+            <div className="campus-notice" role="status">
+              {neighborhood.notice}
+              <button
+                aria-label="Dismiss realm notice"
+                onClick={neighborhood.dismissNotice}
+              >
+                ×
+              </button>
+            </div>
+          )}
           {game.notice && !celebration && !panel && (
             <div className="game-toast" role="status">
               <Check size={17} />
@@ -905,14 +977,19 @@ export default function NoobiusGame() {
           }}
         />
       )}
-      {((error && panel !== 'wallet') || soundError) && (
+      {((error && panel !== 'wallet') ||
+        soundError ||
+        (playing && neighborhood.error)) && (
         <div className="error-notice" role="alert">
-          <span>{panel === 'wallet' ? soundError : error || soundError}</span>
+          <span>
+            {(panel !== 'wallet' && error) || soundError || neighborhood.error}
+          </span>
           <button
             aria-label="Dismiss message"
             onClick={() => {
               game.setError('');
               setSoundError('');
+              neighborhood.dismissError();
             }}
           >
             <X size={16} />
@@ -1079,6 +1156,7 @@ export default function NoobiusGame() {
                 <>
                   <WorldPanel
                     onConnect={() => show('wallet')}
+                    onChat={() => show('social')}
                     room={room}
                     practice={mode === 'practice'}
                     onGo={goWorld}
@@ -1088,7 +1166,7 @@ export default function NoobiusGame() {
                     error={neighborhood.error}
                     needsTakeover={neighborhood.needsTakeover}
                     onTakeover={() => void neighborhood.join(undefined, true)}
-                    onRealm={(id) => void neighborhood.join(id)}
+                    onRealm={(id, target) => joinRealm(id, target)}
                   />
                   {mode !== 'practice' && (
                     <Button
@@ -1125,7 +1203,9 @@ export default function NoobiusGame() {
                       action === 'project-contribute' &&
                       !(await neighborhood.syncNow())
                     )
-                      return;
+                      throw new Error(
+                        'Your position is syncing. Try again once you arrive.',
+                      );
                     return game.marketAction(action, body);
                   }}
                   onWalk={() => {
@@ -1136,10 +1216,23 @@ export default function NoobiusGame() {
                     if (inCampus) walk();
                     else void goWorld('commons', walk);
                   }}
-                  onJobs={() => {
-                    if (room !== 'home')
-                      void goWorld('home', () => show('contracts'));
-                    else show('contracts');
+                  atMargo={
+                    inCampus && Math.hypot(position.x + 4, position.z - 9) <= 4
+                  }
+                  onParts={(items) =>
+                    executeStep(
+                      resolveObjective(facility, profile?.credits ?? 0, now, {
+                        items,
+                      }),
+                    )
+                  }
+                  onResume={(realm, id) => {
+                    void joinRealm(realm, id, () => show('project'));
+                  }}
+                  onOutage={() => show('crewjob')}
+                  onJobs={(family) => {
+                    setFocusFamily(family);
+                    show('contracts');
                   }}
                 />
               )}
@@ -1211,6 +1304,22 @@ export default function NoobiusGame() {
               )}
               {profile?.facility && panel && panel in PANEL_COPY && (
                 <FacilityPanels
+                  focusFamily={focusFamily}
+                  onClearFocus={() => setFocusFamily(undefined)}
+                  onConnect={() => show('wallet')}
+                  onProject={() =>
+                    show(mode === 'practice' ? 'world' : 'project')
+                  }
+                  drafts={jobDrafts[profile.wallet] ?? {}}
+                  onDraft={(id, draft) =>
+                    setJobDrafts((previous) => ({
+                      ...previous,
+                      [profile.wallet]: {
+                        ...previous[profile.wallet],
+                        [id]: draft,
+                      },
+                    }))
+                  }
                   panel={panel as ExpansionPanel}
                   profile={profile}
                   selected={selectedObject}
@@ -1284,10 +1393,10 @@ export default function NoobiusGame() {
                   </Button>
                   <div className="pause-options">
                     <button onClick={() => show('facility')}>
-                      <Hammer size={18} /> Build
+                      <Hammer size={18} /> Center
                     </button>
                     <button onClick={() => show('contracts')}>
-                      <Trophy size={18} /> Goals
+                      <Trophy size={18} /> Jobs
                     </button>
                     <button onClick={() => show('guide')}>
                       <BookOpen size={18} /> How to play

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   ArrowRight,
   Check,
@@ -43,6 +42,7 @@ import {
   SERVICE_REPAIRS,
   serviceChallenge,
   type ContractRun,
+  type ContractFamily,
   type ModuleStyle,
 } from '@/lib/contracts';
 import ItemIcon from './ItemIcon';
@@ -50,7 +50,13 @@ import ComputeIcon from './ComputeIcon';
 import GoalsPanel from './GoalsPanel';
 
 type Action = (action: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
+export type JobDraft = { style: ModuleStyle; rack: string };
 type Props = {
+  focusFamily?: ContractFamily;
+  onClearFocus?: () => void;
+  onProject?: () => void;
+  drafts?: Record<string, JobDraft>;
+  onDraft?: (id: string, draft: JobDraft) => void;
   position: { x: number; z: number };
   facility: Facility;
   now: number;
@@ -95,8 +101,15 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
   const c = careerFor(f),
     t = contractTemplate(run.template),
     { Icon } = familyCopy[t.family];
-  const [chosenStyle, setStyle] = useState<ModuleStyle>('standard');
-  const [chosenRack, setRack] = useState('');
+  const draft = props.drafts?.[run.id] ?? {
+    style: 'standard' as ModuleStyle,
+    rack: '',
+  };
+  const chosenStyle = draft.style,
+    chosenRack = draft.rack;
+  const setStyle = (style: ModuleStyle) =>
+    props.onDraft?.(run.id, { ...draft, style });
+  const setRack = (rack: string) => props.onDraft?.(run.id, { ...draft, rack });
   const style = c.loadout.includes(chosenStyle) ? chosenStyle : 'standard';
   const racks = availableRacks(f),
     rack = racks.includes(chosenRack) ? chosenRack : racks[0];
@@ -469,6 +482,15 @@ export default function JobsPanel(props: Props) {
     licensed = operatorLicense(c);
   return (
     <div className="jobs-board">
+      {props.focusFamily && (
+        <div className="job-focus">
+          <strong>Your cluster needs a {props.focusFamily} job.</strong>
+          <p>Complete one, then return to the project with its parts.</p>
+          <button className="text-action" onClick={props.onClearFocus}>
+            Show all jobs
+          </button>
+        </div>
+      )}
       <div className="career-strip">
         <span className="career-badge">
           <ShieldCheck size={24} />
@@ -499,9 +521,15 @@ export default function JobsPanel(props: Props) {
           </div>
           {c.active.length ? (
             <div className="active-jobs">
-              {c.active.map((run) => (
-                <ActiveJob key={run.id} {...props} run={run} />
-              ))}
+              {c.active
+                .filter(
+                  (run) =>
+                    !props.focusFamily ||
+                    contractTemplate(run.template).family === props.focusFamily,
+                )
+                .map((run) => (
+                  <ActiveJob key={run.id} {...props} run={run} />
+                ))}
             </div>
           ) : (
             <div className="jobs-empty">
@@ -520,53 +548,59 @@ export default function JobsPanel(props: Props) {
             <span>Fresh offers after each completed job</span>
           </div>
           <div className="job-offers">
-            {c.offers.map((o) => {
-              const t = contractTemplate(o.template),
-                { Icon, title } = familyCopy[t.family];
-              return (
-                <article className="client-job" key={o.id}>
-                  <div className="job-eyebrow">
-                    <span>
-                      <Icon size={16} />
-                      {title}
-                    </span>
-                    <span>
-                      {t.seconds ? `${t.seconds}s work` : 'Craft & deliver'}
-                    </span>
-                  </div>
-                  <small className="job-client">{t.client}</small>
-                  <h3>{t.name}</h3>
-                  <p>{t.description}</p>
-                  <Materials cost={t.cost} f={f} />
-                  <div className="job-payout">
-                    <span>
-                      <ComputeIcon size={20} />
-                      {t.reward}
-                      {t.family === 'workload' ? '+' : ''}
-                    </span>
-                    <span>+{t.reputation} reputation</span>
-                  </div>
-                  <Button
-                    className="outline-button"
-                    disabled={
-                      busy ||
-                      c.active.some((r) => r.id === o.id) ||
-                      c.active.length >= 2 ||
-                      (t.family === 'workload' &&
-                        !Object.values(f.builds).some((v) => v > 0))
-                    }
-                    onClick={() =>
-                      void onAction({ type: 'contract-accept', id: o.id })
-                    }
-                  >
-                    {c.active.some((r) => r.id === o.id)
-                      ? 'Accepted'
-                      : 'Accept job'}{' '}
-                    <ArrowRight size={16} />
-                  </Button>
-                </article>
-              );
-            })}
+            {c.offers
+              .filter(
+                (o) =>
+                  !props.focusFamily ||
+                  contractTemplate(o.template).family === props.focusFamily,
+              )
+              .map((o) => {
+                const t = contractTemplate(o.template),
+                  { Icon, title } = familyCopy[t.family];
+                return (
+                  <article className="client-job" key={o.id}>
+                    <div className="job-eyebrow">
+                      <span>
+                        <Icon size={16} />
+                        {title}
+                      </span>
+                      <span>
+                        {t.seconds ? `${t.seconds}s work` : 'Craft & deliver'}
+                      </span>
+                    </div>
+                    <small className="job-client">{t.client}</small>
+                    <h3>{t.name}</h3>
+                    <p>{t.description}</p>
+                    <Materials cost={t.cost} f={f} />
+                    <div className="job-payout">
+                      <span>
+                        <ComputeIcon size={20} />
+                        {t.reward}
+                        {t.family === 'workload' ? '+' : ''}
+                      </span>
+                      <span>+{t.reputation} reputation</span>
+                    </div>
+                    <Button
+                      className="outline-button"
+                      disabled={
+                        busy ||
+                        c.active.some((r) => r.id === o.id) ||
+                        c.active.length >= 2 ||
+                        (t.family === 'workload' &&
+                          !Object.values(f.builds).some((v) => v > 0))
+                      }
+                      onClick={() =>
+                        void onAction({ type: 'contract-accept', id: o.id })
+                      }
+                    >
+                      {c.active.some((r) => r.id === o.id)
+                        ? 'Accepted'
+                        : 'Accept job'}{' '}
+                      <ArrowRight size={16} />
+                    </Button>
+                  </article>
+                );
+              })}
           </div>
           <div className="license-progress">
             <strong>
@@ -592,7 +626,13 @@ export default function JobsPanel(props: Props) {
               <span className={c.modules.length ? 'done' : ''}>
                 {Math.min(1, c.modules.length)}/1 module built
               </span>
+              <span className={(c.commissioned ?? 0) > 0 ? 'done' : ''}>
+                {Math.min(1, c.commissioned ?? 0)}/1 cluster commissioned
+              </span>
             </div>
+            <button className="text-action" onClick={props.onProject}>
+              Open neighborhood project <ArrowRight size={16} />
+            </button>
           </div>
         </TabsContent>
         <TabsContent value="equipment">

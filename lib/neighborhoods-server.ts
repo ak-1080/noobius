@@ -1,3 +1,9 @@
+import { noBlockSql } from './social.ts';
+import {
+  realmWriteGuard,
+  walletHoldingGuard,
+  type RealmPermit,
+} from './realm-authority.ts';
 import { careerFor, careerLevel, newCareer } from './contracts.ts';
 import { newFacility, normalizeFacility, type Facility } from './facility.ts';
 import {
@@ -116,7 +122,14 @@ export async function joinNeighborhood(
   realm: RealmId,
   band: number,
   clientId: string,
-  options: { target?: string; takeover?: boolean } = {},
+  options: {
+    target?: string;
+    takeover?: boolean;
+    permit?: RealmPermit;
+    expectedGeneration?: number;
+    maxActive?: number;
+    admissionPaused?: boolean;
+  } = {},
   now = Date.now(),
 ): Promise<Membership> {
   if (!realmExists(realm) || !/^[a-f0-9-]{36}$/.test(clientId))
@@ -125,6 +138,16 @@ export async function joinNeighborhood(
     throw new NeighborhoodError(400, 'That neighborhood code is not valid.');
   await ensurePublicId(db, wallet);
   const old = await presenceFor(db, wallet);
+  if (
+    options.expectedGeneration !== undefined &&
+    old?.generation !== options.expectedGeneration
+  )
+    throw new NeighborhoodError(
+      409,
+      'Your connection changed. Rejoin to resync.',
+    );
+  const admissionGuard =
+    realm === 'commons' ? '1' : walletHoldingGuard(wallet, options.permit);
   if (old?.neighborhood_id && old.lease_until > now) {
     if (old.client_id !== clientId && !options.takeover)
       throw new NeighborhoodError(
@@ -138,7 +161,7 @@ export async function joinNeighborhood(
     ) {
       const renewed = await db
         .prepare(
-          'UPDATE crew_presence SET lease_until=MAX(lease_until,?) WHERE wallet=? AND generation=? AND client_id=? AND lease_until>? RETURNING *',
+          `UPDATE crew_presence SET lease_until=MAX(lease_until,?) WHERE wallet=? AND generation=? AND client_id=? AND lease_until>? AND ${admissionGuard} RETURNING *`,
         )
         .bind(now + MEMBERSHIP_LEASE_MS, wallet, old.generation, clientId, now)
         .first<PresenceRow>();
@@ -150,7 +173,26 @@ export async function joinNeighborhood(
       return membership({ ...renewed, realm });
     }
   }
-  const expected = old?.generation ?? 0,
+  if (
+    options.admissionPaused &&
+    !(
+      old &&
+      old.lease_until > now &&
+      old.realm === realm &&
+      (!options.target || options.target === old.neighborhood_id)
+    )
+  )
+    throw new NeighborhoodError(
+      503,
+      'New neighborhood arrivals are paused. Your center and saved progress are safe. Try again shortly.',
+    );
+  const maxActive = options.maxActive ?? 50;
+  if (!Number.isSafeInteger(maxActive) || maxActive < 1 || maxActive > 10000)
+    throw new NeighborhoodError(
+      503,
+      'Neighborhood capacity is being configured. Try again shortly.',
+    );
+  const expected = options.expectedGeneration ?? old?.generation ?? 0,
     generation = freshGeneration();
   const vacancies = async () =>
     (
@@ -196,7 +238,8 @@ export async function joinNeighborhood(
         db
           .prepare(`WITH slots(slot) AS (VALUES(0),(1),(2),(3),(4))
           INSERT INTO crew_presence(wallet,neighborhood_id,slot,client_id,generation,sequence,room,x,z,updated_at,lease_until)
-          SELECT ?,?,slot,?,?,0,'commons',0,17,?,? FROM slots WHERE NOT EXISTS(
+          SELECT ?,?,slot,?,?,0,'commons',0,17,?,? FROM slots WHERE ${admissionGuard}
+          AND (SELECT count(*) FROM crew_presence active WHERE active.lease_until>? AND active.wallet<>?)<? AND NOT EXISTS(
             SELECT 1 FROM crew_presence p WHERE p.neighborhood_id=? AND p.slot=slots.slot AND p.wallet<>?) ORDER BY slot LIMIT 1
           ON CONFLICT(wallet) DO UPDATE SET neighborhood_id=excluded.neighborhood_id,slot=excluded.slot,client_id=excluded.client_id,
           generation=excluded.generation,sequence=0,room=excluded.room,x=excluded.x,z=excluded.z,updated_at=excluded.updated_at,lease_until=excluded.lease_until
@@ -209,6 +252,9 @@ export async function joinNeighborhood(
             generation,
             now,
             now + MEMBERSHIP_LEASE_MS,
+            now,
+            wallet,
+            maxActive,
             target.id,
             wallet,
             expected,
@@ -219,6 +265,17 @@ export async function joinNeighborhood(
       ]);
       const saved = results[1].results[0] as PresenceRow | undefined;
       if (saved) return membership({ ...saved, realm });
+      const occupied = await db
+        .prepare(
+          'SELECT count(*) AS n FROM crew_presence WHERE lease_until>? AND wallet<>?',
+        )
+        .bind(now, wallet)
+        .first<{ n: number }>();
+      if ((occupied?.n ?? 0) >= maxActive)
+        throw new NeighborhoodError(
+          503,
+          'The facility is at its player limit. Your progress is safe; try joining again shortly.',
+        );
       const current = await presenceFor(db, wallet);
       if (
         current &&
@@ -309,6 +366,7 @@ export async function changeScene(
   controller: Controller,
   scene: string,
   now = Date.now(),
+  permit?: RealmPermit,
 ) {
   const self = await requireMembership(db, wallet, controller, now);
   if (scene !== 'commons') {
@@ -327,12 +385,28 @@ export async function changeScene(
         403,
         'That center is no longer in your neighborhood. Your own center is safe.',
       );
+    const blocked = await db
+      .prepare(
+        'SELECT 1 FROM social_preferences WHERE blocked=1 AND ((wallet=? AND target_wallet=?) OR (wallet=? AND target_wallet=?))',
+      )
+      .bind(
+        wallet,
+        (owner as { wallet: string }).wallet,
+        (owner as { wallet: string }).wallet,
+        wallet,
+      )
+      .first();
+    if (blocked)
+      throw new NeighborhoodError(
+        403,
+        'Your player controls prevent visits between these centers.',
+      );
   }
   const generation = freshGeneration();
   const updated = await db
     .prepare(`UPDATE crew_presence SET room=?,x=0,z=17,sequence=0,generation=?,updated_at=?,lease_until=?
-    WHERE wallet=? AND client_id=? AND generation=? AND lease_until>? AND (?='commons' OR EXISTS(
-      SELECT 1 FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>?)) RETURNING *`)
+    WHERE wallet=? AND client_id=? AND generation=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)} AND (?='commons' OR EXISTS(
+      SELECT 1 FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>? AND ${noBlockSql('crew_presence.wallet', 'p.wallet')})) RETURNING *`)
     .bind(
       scene,
       generation,
@@ -376,6 +450,7 @@ export async function syncNeighborhood(
   sequence: number,
   position: { x: number; z: number },
   now = Date.now(),
+  permit?: RealmPermit,
 ) {
   const self = await requireMembership(db, wallet, controller, now);
   if (
@@ -396,9 +471,9 @@ export async function syncNeighborhood(
   let f = newFacility(now);
   if (self.room !== 'commons') {
     const owner = await db
-      .prepare(`SELECT p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet
-      WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>?`)
-      .bind(self.room.slice(5), self.neighborhood_id, now)
+      .prepare(`SELECT p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet JOIN players viewer ON viewer.wallet=?
+      WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>? AND ${noBlockSql('viewer.wallet', 'p.wallet')}`)
+      .bind(wallet, self.room.slice(5), self.neighborhood_id, now)
       .first<{ facility_state: string }>();
     if (!owner) {
       const relocated = await changeScene(
@@ -407,6 +482,7 @@ export async function syncNeighborhood(
         controller,
         'commons',
         now,
+        permit,
       );
       return {
         ...(await neighborhoodSnapshot(
@@ -432,7 +508,7 @@ export async function syncNeighborhood(
   );
   const updated = await db
     .prepare(`UPDATE crew_presence SET x=?,z=?,sequence=?,updated_at=?,lease_until=MAX(lease_until,?)
-    WHERE wallet=? AND client_id=? AND generation=? AND sequence=? AND lease_until>? RETURNING wallet`)
+    WHERE wallet=? AND client_id=? AND generation=? AND sequence=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)} RETURNING wallet`)
     .bind(
       moved ? position.x : self.x,
       moved ? position.z : self.z,
@@ -467,9 +543,9 @@ export async function visitCenter(
     throw new NeighborhoodError(400, 'Choose a neighbor’s center.');
   const self = await requireMembership(db, wallet, undefined, now);
   const row = await db
-    .prepare(`SELECT p.name,p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet
-    WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>?`)
-    .bind(owner, self.neighborhood_id, now)
+    .prepare(`SELECT p.name,p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet JOIN players viewer ON viewer.wallet=?
+    WHERE p.public_id=? AND c.neighborhood_id=? AND c.lease_until>? AND ${noBlockSql('viewer.wallet', 'p.wallet')}`)
+    .bind(wallet, owner, self.neighborhood_id, now)
     .first<{ name: string; facility_state: string }>();
   if (!row)
     throw new NeighborhoodError(

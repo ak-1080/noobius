@@ -35,7 +35,7 @@ export function isolatedNeighborhood() {
   return id;
 }
 export async function attachWorld(c, target) {
-  c.world = { clientId: crypto.randomUUID(), generation: 0 };
+  c.world ??= { clientId: crypto.randomUUID(), generation: 0 };
   c.moveQueue = Promise.resolve();
   const profile = ok(await c.request('profile')).profile;
   let data = ok(

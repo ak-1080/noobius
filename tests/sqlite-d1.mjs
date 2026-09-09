@@ -10,6 +10,9 @@ export function database() {
     '0004_typical_puck',
     '0005_careful_reavers',
     '0006_daffy_changeling',
+    '0007_oval_malcolm_colcord',
+    '0008_jazzy_marten_broadcloak',
+    '0009_sharp_malice',
   ])
     sqlite.exec(
       readFileSync(new URL(`../drizzle/${name}.sql`, import.meta.url), 'utf8'),

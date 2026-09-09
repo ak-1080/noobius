@@ -138,6 +138,51 @@ test('five authenticated players keep private centers, share a neighborhood, and
   ok(await work(c, 'network'));
   await wait(6100);
   ok(await work(c, 'network', true));
+  ok(await d.command('message', { ping: 'wave' }));
+  const wave = ok(await e.request('messages')).messages.find(
+    (m) => m.author === d.publicId,
+  );
+  assert.ok(wave.message.includes('Hey, crew'));
+  ok(
+    await e.command('social-preference', {
+      target: d.publicId,
+      kind: 'mute',
+      enabled: true,
+    }),
+  );
+  ok(await d.command('name', { name: 'New shift name' }));
+  assert.ok(
+    !ok(await e.request('messages')).messages.some(
+      (m) => m.author === d.publicId,
+    ),
+  );
+  ok(
+    await e.command('social-preference', {
+      target: d.publicId,
+      kind: 'mute',
+      enabled: false,
+    }),
+  );
+  ok(await e.command('report', { messageId: wave.id, reason: 'Spam' }));
+  ok(
+    await e.command('social-preference', {
+      target: d.publicId,
+      kind: 'block',
+      enabled: true,
+    }),
+  );
+  assert.notEqual(
+    (await e.command('neighborhood-scene', { scene: 'home-' + d.publicId }))
+      .status,
+    200,
+  );
+  ok(
+    await e.command('social-preference', {
+      target: d.publicId,
+      kind: 'block',
+      enabled: false,
+    }),
+  );
   ok(await a.command('neighborhood-leave'));
   const claims = await Promise.all([
     a.command('crew-claim', { room, event }),

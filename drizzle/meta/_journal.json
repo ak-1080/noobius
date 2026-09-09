@@ -50,6 +50,27 @@
       "when": 1788928729330,
       "tag": "0006_daffy_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788929832879,
+      "tag": "0007_oval_malcolm_colcord",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788930092643,
+      "tag": "0008_jazzy_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788931179993,
+      "tag": "0009_sharp_malice",
+      "breakpoints": true
     }
   ]
 }

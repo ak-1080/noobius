@@ -1,0 +1,1 @@
+ALTER TABLE `market_listings` ADD `recipient_wallet` text REFERENCES players(wallet);

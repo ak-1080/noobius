@@ -54,6 +54,8 @@ export type ProjectSnapshot = {
   }[];
   history: {
     id: string;
+    neighborhoodId: string;
+    realm: 'commons' | 'gpu';
     variant: string;
     state: string;
     units: number;

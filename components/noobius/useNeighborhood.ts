@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Profile } from '@/lib/game';
 import type { NeighborhoodSnapshot, RealmId } from '@/lib/neighborhoods';
+import { retryDelay } from '@/lib/operations';
 import { api, ClientError } from './useNoobius';
 
 type Controller = { clientId: string; generation: number };
@@ -17,6 +18,7 @@ export function useNeighborhood(
   const [snapshot, setSnapshot] = useState<NeighborhoodSnapshot | null>(null);
   const [status, setStatus] = useState('Connecting');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [needsTakeover, setNeedsTakeover] = useState(false);
   const [correction, setCorrection] = useState<{
     x: number;
@@ -33,6 +35,8 @@ export function useNeighborhood(
     serial = useRef(0),
     revision = useRef(0),
     stopped = useRef(false);
+  const failures = useRef(0),
+    retryAt = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve()),
     syncing = useRef(false),
     preferredRealm = useRef<RealmId>('commons');
@@ -55,8 +59,11 @@ export function useNeighborhood(
       generation: data.membership.generation,
     });
     stopped.current = false;
+    failures.current = 0;
+    retryAt.current = 0;
     setStatus('Connected');
     setError('');
+    if (data.notice) setNotice(data.notice);
     setNeedsTakeover(false);
     if (changed || resetPosition || data.corrected) {
       point.current = { x: data.membership.x, z: data.membership.z };
@@ -69,7 +76,11 @@ export function useNeighborhood(
         ? e.message
         : 'Could not connect to your neighborhood.';
     setError(message);
-    if (message.includes('another tab')) {
+    if (e instanceof ClientError && e.status === 401) {
+      stopped.current = true;
+      onController(null);
+      setStatus('Reconnect your wallet');
+    } else if (message.includes('another tab')) {
       stopped.current = true;
       onController(null);
       setNeedsTakeover(true);
@@ -80,8 +91,13 @@ export function useNeighborhood(
       /expired|changed|resync/.test(message)
     ) {
       reset();
+      preferredRealm.current = 'commons';
       setStatus('Reconnecting…');
-    } else setStatus(current.current ? 'Connected' : 'Reconnecting…');
+    } else {
+      if (!(e instanceof ClientError) || e.status === 429 || e.status >= 500)
+        retryAt.current = Date.now() + retryDelay(++failures.current);
+      setStatus(current.current ? 'Connection interrupted' : 'Reconnecting…');
+    }
   };
   const enqueue = (operation: () => Promise<boolean>) => {
     const version = epoch.current;
@@ -176,15 +192,24 @@ export function useNeighborhood(
     stopped.current = false;
     preferredRealm.current = 'commons';
     setError('');
+    setNotice('');
     setNeedsTakeover(false);
     setCorrection(null);
+    failures.current = 0;
+    retryAt.current = 0;
     if (!playing || !profile || profile.wallet === 'practice') {
       setStatus('Solo practice');
       return;
     }
     setStatus('Connecting');
     const refresh = async () => {
-      if (syncing.current || stopped.current || document.hidden) return;
+      if (
+        syncing.current ||
+        stopped.current ||
+        document.hidden ||
+        Date.now() < retryAt.current
+      )
+        return;
       syncing.current = true;
       try {
         await syncNow();
@@ -204,9 +229,12 @@ export function useNeighborhood(
     };
   }, [playing, profile?.wallet, onController]);
   return {
+    dismissError: () => setError(''),
     snapshot,
     status,
     error,
+    notice,
+    dismissNotice: () => setNotice(''),
     needsTakeover,
     correction,
     join,

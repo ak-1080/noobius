@@ -1,10 +1,14 @@
 'use client';
+import { canTrade, TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
+import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
+import type { ContractFamily } from '@/lib/contracts';
+import type { JobDraft } from './JobsPanel';
 import TycoonBuildPanel from './TycoonBuildPanel';
 import GoalsPanel from './GoalsPanel';
 import JobsPanel from './JobsPanel';
 import RoomProgressPanel from './RoomProgressPanel';
 import ItemIcon from './ItemIcon';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   ArrowRight,
   Check,
@@ -89,6 +93,12 @@ type Props = {
   onHelp: (request: { items?: Bag; build?: string; recipe?: ItemId }) => void;
   onGuide: (object: WorldObject) => void;
   jobTab?: string;
+  focusFamily?: ContractFamily;
+  onClearFocus?: () => void;
+  onProject?: () => void;
+  onConnect?: () => void;
+  drafts?: Record<string, JobDraft>;
+  onDraft?: (id: string, draft: JobDraft) => void;
 };
 function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   return (
@@ -123,13 +133,27 @@ export default function FacilityPanels({
   onHelp,
   onGuide,
   jobTab = 'story',
+  focusFamily,
+  onClearFocus,
+  onProject,
+  onConnect,
+  drafts,
+  onDraft,
 }: Props) {
+  const workbench = OBJECTS.find((object) => object.id === 'workbench')!;
+  const atWorkbench =
+    Math.hypot(position.x - workbench.x, position.z - workbench.z) <= 3.5;
   const f = profile.facility!,
     [now, setNow] = useState(Date.now),
     [quantity, setQuantity] = useState(1),
     [item, setItem] = useState<ItemId>('scrap'),
     [price, setPrice] = useState(10),
-    [listings, setListings] = useState<any[]>([]),
+    [listings, setListings] = useState<MarketPage['listings']>([]),
+    [marketSearch, setMarketSearch] = useState(''),
+    [marketScope, setMarketScope] = useState('all'),
+    [nextCursor, setNextCursor] = useState<string | null>(null),
+    [recipients, setRecipients] = useState<MarketPage['recipients']>([]),
+    [recipient, setRecipient] = useState(''),
     [messages, setMessages] = useState<any[]>([]),
     [chat, setChat] = useState(''),
     [online, setOnline] = useState(0),
@@ -137,27 +161,56 @@ export default function FacilityPanels({
     [remoteBusy, setRemoteBusy] = useState(false),
     [tab, setTab] = useState('merchant'),
     [allContracts, setAllContracts] = useState(false),
-    [muted, setMuted] = useState<string[]>([]);
+    [social, setSocial] = useState<SocialSnapshot>({
+      preferences: [],
+      recent: [],
+    }),
+    [reporting, setReporting] = useState<string | null>(null),
+    [reportReason, setReportReason] = useState('Spam');
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  const load = async () => {
+  const remoteVersion = useRef(0);
+  const tradeReady = profile.wallet !== 'practice' && canTrade(f);
+  const load = async (append = false) => {
+    const version = ++remoteVersion.current;
     try {
       if (panel === 'market') {
-        const d = await api<{ listings: any[] }>('listings');
-        setListings(d.listings);
+        const params = new URLSearchParams({
+          q: marketSearch,
+          scope: marketScope,
+        });
+        if (append && nextCursor) params.set('cursor', nextCursor);
+        const d = await api<MarketPage>('listings?' + params);
+        if (version !== remoteVersion.current) return;
+        setListings((previous) =>
+          append
+            ? [
+                ...previous,
+                ...d.listings.filter(
+                  (next) => !previous.some((old) => old.id === next.id),
+                ),
+              ]
+            : d.listings,
+        );
+        setNextCursor(d.nextCursor);
+        setRecipients(d.recipients);
       }
-      if (panel === 'social') {
-        const [d, p] = await Promise.all([
+      if (panel === 'social' && profile.wallet !== 'practice') {
+        const [d, p, settings] = await Promise.all([
           api<{ messages: any[] }>('messages'),
-          api<{ people: any[] }>('campus'),
+          api<{ facilities: any[] }>('directory'),
+          api<SocialSnapshot>('social'),
         ]);
+        if (version !== remoteVersion.current) return;
         setMessages(d.messages);
-        setOnline(p.people.length);
+        setOnline(p.facilities.length);
+        setSocial(settings);
       }
       setRemoteError('');
     } catch (e) {
+      if (version !== remoteVersion.current) return;
       setRemoteError(
         e instanceof Error ? e.message : 'Connection interrupted.',
       );
@@ -165,18 +218,27 @@ export default function FacilityPanels({
   };
   useEffect(() => {
     if (!['market', 'social'].includes(panel)) return;
-    void load();
-    const t = setInterval(load, 10000);
-    return () => clearInterval(t);
-  }, [panel]);
+    const start = setTimeout(() => void load(), panel === 'market' ? 200 : 0);
+    const timer =
+      panel === 'social' && profile.wallet !== 'practice'
+        ? setInterval(() => void load(), 10000)
+        : null;
+    return () => {
+      clearTimeout(start);
+      if (timer) clearInterval(timer);
+      remoteVersion.current++;
+    };
+  }, [panel, marketSearch, marketScope]);
   const action = async (a: Omit<FacilityAction, 'requestId'>) => {
     await onAction(a);
   };
   const market = async (a: string, b: Record<string, unknown>) => {
     setRemoteBusy(true);
     try {
-      await onMarket(a, b);
+      const result = await onMarket(a, b);
+      if (!result) return false;
       await load();
+      return true;
     } finally {
       setRemoteBusy(false);
     }
@@ -313,6 +375,11 @@ export default function FacilityPanels({
   if (panel === 'crafting')
     return (
       <div className="crafting-panel">
+        {!atWorkbench && (
+          <Button className="primary-action" onClick={() => onGuide(workbench)}>
+            Go to workbench <ArrowRight size={18} />
+          </Button>
+        )}
         {!f.claims.includes('first-light') && (
           <p className="muted-small">Start with a repair kit.</p>
         )}
@@ -338,7 +405,7 @@ export default function FacilityPanels({
             </span>
             <Button
               className="outline-button"
-              disabled={busy || now < f.craft.readyAt}
+              disabled={busy || now < f.craft.readyAt || !atWorkbench}
               onClick={() => action({ type: 'collect' })}
             >
               Collect
@@ -382,7 +449,11 @@ export default function FacilityPanels({
                   </small>
                   <Button
                     disabled={
-                      busy || !!f.craft || !open || !canPay(f.inventory, r.cost)
+                      busy ||
+                      !!f.craft ||
+                      !open ||
+                      !atWorkbench ||
+                      !canPay(f.inventory, r.cost)
                     }
                     className="outline-button"
                     onClick={() => action({ type: 'craft', id: r.id })}
@@ -400,6 +471,11 @@ export default function FacilityPanels({
   if (panel === 'contracts')
     return (
       <JobsPanel
+        focusFamily={focusFamily}
+        onClearFocus={onClearFocus}
+        onProject={onProject}
+        drafts={drafts}
+        onDraft={onDraft}
         position={position}
         facility={f}
         now={now}
@@ -409,7 +485,10 @@ export default function FacilityPanels({
         onGold={() => onLocker(true)}
         onLocker={() => onLocker()}
         onParts={(items) => onHelp({ items })}
-        onGuide={(id) => { const object = OBJECTS.find(o => o.id === id); if (object) onGuide({ ...object, panel: 'contracts' }); }}
+        onGuide={(id) => {
+          const object = OBJECTS.find((o) => o.id === id);
+          if (object) onGuide({ ...object, panel: 'contracts' });
+        }}
       />
     );
   if (panel === 'facility')
@@ -459,10 +538,20 @@ export default function FacilityPanels({
                   <small>{f.inventory[id] ?? 0} in backpack</small>
                 </span>
                 <button
-                  disabled={busy || !SHOP_ITEMS.includes(id) || profile.credits < ITEMS[id].buy * quantity}
-                  onClick={() => action({ type: 'buy', item: id, quantity })}
+                  disabled={
+                    busy ||
+                    (SHOP_ITEMS.includes(id) &&
+                      profile.credits < ITEMS[id].buy * quantity)
+                  }
+                  onClick={() =>
+                    SHOP_ITEMS.includes(id)
+                      ? action({ type: 'buy', item: id, quantity })
+                      : onHelp({ items: { [id]: quantity } })
+                  }
                 >
-                  {SHOP_ITEMS.includes(id) ? `Buy ${ITEMS[id].buy * quantity}` : 'Craft or trade'}
+                  {SHOP_ITEMS.includes(id)
+                    ? `Buy ${ITEMS[id].buy * quantity}`
+                    : 'Craft or trade'}
                 </button>
                 <button
                   disabled={busy || (f.inventory[id] ?? 0) < quantity}
@@ -484,6 +573,37 @@ export default function FacilityPanels({
               Connect a wallet to list or buy from another technician.
             </p>
           )}
+          {!tradeReady && profile.wallet !== 'practice' && (
+            <p className="token-note">{TRADE_QUALIFICATION}</p>
+          )}
+          <div className="market-filters">
+            <label>
+              Search items or players
+              <input
+                value={marketSearch}
+                onChange={(e) => setMarketSearch(e.target.value)}
+                placeholder="Copper, boards, a neighbor…"
+              />
+            </label>
+            <label>
+              Show
+              <select
+                value={marketScope}
+                onChange={(e) => setMarketScope(e.target.value)}
+              >
+                <option value="all">All offers</option>
+                <option value="mine">My listings</option>
+                <option value="direct">Offers for me</option>
+              </select>
+            </label>
+            <Button
+              variant="outline"
+              disabled={remoteBusy}
+              onClick={() => void load()}
+            >
+              Refresh
+            </Button>
+          </div>
           {listings.length ? (
             listings.map((l) => (
               <div className="player-listing" key={l.id}>
@@ -492,19 +612,22 @@ export default function FacilityPanels({
                     {l.quantity} × {ITEMS[l.item as ItemId]?.name ?? l.item}
                   </strong>
                   <small>
-                    Listed by {l.name} · {l.price} Compute total
+                    {l.direct ? 'Direct offer from' : 'Listed by'} {l.name} ·{' '}
+                    {l.price} Compute total
                   </small>
                 </div>
                 <Button
                   className="outline-button"
-                  disabled={busy || remoteBusy || profile.wallet === 'practice'}
+                  disabled={
+                    busy ||
+                    remoteBusy ||
+                    profile.wallet === 'practice' ||
+                    (!l.mine && !tradeReady)
+                  }
                   onClick={() =>
-                    market(
-                      !!l.mine
-                        ? 'listing-cancel'
-                        : 'listing-buy',
-                      { id: l.id },
-                    )
+                    market(!!l.mine ? 'listing-cancel' : 'listing-buy', {
+                      id: l.id,
+                    })
                   }
                 >
                   {!!l.mine ? 'Cancel' : 'Buy'}
@@ -517,9 +640,52 @@ export default function FacilityPanels({
               <p>No player listings yet. The parts merchant is always open.</p>
             </div>
           )}
+          {nextCursor && (
+            <Button
+              variant="outline"
+              disabled={remoteBusy}
+              onClick={async () => {
+                setRemoteBusy(true);
+                try {
+                  await load(true);
+                } finally {
+                  setRemoteBusy(false);
+                }
+              }}
+            >
+              Load more offers
+            </Button>
+          )}
+          <button
+            className="text-action"
+            onClick={() => onGuide(OBJECTS.find((o) => o.id === 'bank')!)}
+          >
+            Open parts storage <ArrowRight size={16} />
+          </button>
         </TabsContent>
         <TabsContent value="sell">
+          {!tradeReady && (
+            <p className="token-note">
+              {profile.wallet === 'practice'
+                ? 'Connect to trade with players.'
+                : TRADE_QUALIFICATION}
+            </p>
+          )}
           <div className="listing-form">
+            <label>
+              Offer to
+              <select
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+              >
+                <option value="">Everyone</option>
+                {recipients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} only
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Item
               <select
@@ -566,19 +732,26 @@ export default function FacilityPanels({
               disabled={
                 busy ||
                 remoteBusy ||
-                profile.wallet === 'practice' ||
+                !tradeReady ||
                 (f.inventory[item] ?? 0) < quantity
               }
               onClick={async () => {
-                await market('listing-create', { item, quantity, price });
-                setTab('players');
+                if (
+                  await market('listing-create', {
+                    item,
+                    quantity,
+                    price,
+                    recipient,
+                  })
+                )
+                  setTab('players');
               }}
             >
               List items <ArrowRight size={16} />
             </Button>
             <p className="muted-small">
-              Up to 10 open listings. Cancelled items return to your locker.
-              Sales transfer existing Compute between players.
+              Up to 10 open listings. Cancelled items return to your parts
+              storage. Sales transfer existing Compute between players.
             </p>
           </div>
         </TabsContent>
@@ -661,51 +834,120 @@ export default function FacilityPanels({
         </div>
         {profile.wallet === 'practice' && (
           <p className="muted-small">
-            Practice players can read the crew channel. Connect a wallet to join
-            it.
+            Connect to join a neighborhood and chat with your crew.
           </p>
         )}
         <div className="chat-messages" role="log" aria-label="Crew messages">
-          {messages
-            .filter((m) => !muted.includes(m.name))
-            .map((m) => (
-              <div className="chat-message" key={m.id}>
-                <div>
-                  <strong>{m.name}</strong>
-                  <small>
-                    {new Date(m.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </small>
-                  <button
-                    onClick={() => setMuted([...muted, m.name])}
-                    aria-label={'Mute ' + m.name}
-                  >
-                    Mute
-                  </button>
-                </div>
-                <p>{m.message}</p>
+          {messages.map((m) => (
+            <div className="chat-message" key={m.id}>
+              <div>
+                <strong>{m.name}</strong>
+                <small>
+                  {new Date(m.created_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </small>
+                {!m.mine && (
+                  <>
+                    <button
+                      disabled={remoteBusy}
+                      onClick={() =>
+                        void market('social-preference', {
+                          target: m.author,
+                          kind: 'mute',
+                          enabled: true,
+                        })
+                      }
+                    >
+                      Mute
+                    </button>
+                    <button
+                      disabled={remoteBusy}
+                      onClick={() =>
+                        void market('social-preference', {
+                          target: m.author,
+                          kind: 'block',
+                          enabled: true,
+                        })
+                      }
+                    >
+                      Block
+                    </button>
+                    <button
+                      onClick={() =>
+                        setReporting(reporting === m.id ? null : m.id)
+                      }
+                    >
+                      Report
+                    </button>
+                  </>
+                )}
               </div>
-            ))}
+              <p>{m.message}</p>
+              {reporting === m.id && (
+                <div className="chat-report">
+                  <label>
+                    Reason{' '}
+                    <select
+                      value={reportReason}
+                      onChange={(e) => setReportReason(e.target.value)}
+                    >
+                      {REPORT_REASONS.map((reason) => (
+                        <option key={reason}>{reason}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    disabled={remoteBusy}
+                    onClick={async () => {
+                      if (
+                        await market('report', {
+                          messageId: m.id,
+                          reason: reportReason,
+                        })
+                      )
+                        setReporting(null);
+                    }}
+                  >
+                    Send report
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
           {!messages.length && (
             <p className="empty-state">
               Quiet on the night shift. Say hello to the next technician.
             </p>
           )}
         </div>
+        {profile.wallet === 'practice' ? (
+          <Button className="primary-action" onClick={onConnect}>
+            Connect to chat
+          </Button>
+        ) : (
+          <div className="chat-pings">
+            {Object.entries(QUICK_PINGS).map(([id, message]) => (
+              <Button
+                key={id}
+                variant="outline"
+                disabled={remoteBusy || busy}
+                onClick={() => void market('message', { ping: id })}
+              >
+                {message}
+              </Button>
+            ))}
+          </div>
+        )}
         <form
           onSubmit={async (e) => {
             e.preventDefault();
             if (!chat.trim() || remoteBusy) return;
             setRemoteBusy(true);
             try {
-              await api('message', {
-                message: chat.trim(),
-                expectedWallet: profile.wallet,
-              });
-              setChat('');
-              await load();
+              if (await market('message', { message: chat.trim() }))
+                setChat('');
             } catch (e) {
               setRemoteError(
                 e instanceof Error ? e.message : 'Message failed.',
@@ -733,9 +975,47 @@ export default function FacilityPanels({
           </button>
         </form>
         <p className="muted-small">
-          Never share seed phrases or private information. Mutes last for this
-          visit. Public moderation and reporting are launch requirements.
+          Mute hides messages. Block also stops visits between your centers.
+          These choices are saved to your account.
         </p>
+        {social.preferences.length > 0 && (
+          <details className="chat-controls">
+            <summary>Muted and blocked players</summary>
+            {social.preferences.map((p) => (
+              <div key={p.id}>
+                <strong>{p.name}</strong>
+                {p.muted && (
+                  <button
+                    disabled={remoteBusy}
+                    onClick={() =>
+                      void market('social-preference', {
+                        target: p.id,
+                        kind: 'mute',
+                        enabled: false,
+                      })
+                    }
+                  >
+                    Unmute
+                  </button>
+                )}
+                {p.blocked && (
+                  <button
+                    disabled={remoteBusy}
+                    onClick={() =>
+                      void market('social-preference', {
+                        target: p.id,
+                        kind: 'block',
+                        enabled: false,
+                      })
+                    }
+                  >
+                    Unblock
+                  </button>
+                )}
+              </div>
+            ))}
+          </details>
+        )}
         {remoteError && (
           <p className="modal-error" role="alert">
             {remoteError}

@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { database } from './sqlite-d1.mjs';
+import { localRealmTest } from '../lib/realm-authority.ts';
+import {
+  joinNeighborhood,
+  changeScene,
+  syncNeighborhood,
+} from '../lib/neighborhoods-server.ts';
+import { startProject, contributeProject } from '../lib/projects-server.ts';
+import { newFacility } from '../lib/facility.ts';
+import { careerFor } from '../lib/contracts.ts';
 import {
   tokenPolicy,
   readTokenHolding,
@@ -134,4 +143,208 @@ test('a changed asset policy cannot reuse another asset holdings', async () => {
     },
   );
   assert.equal(unavailable.allowed, false);
+});
+
+test('local holder testing requires an explicit flag, development build and loopback host', () => {
+  const enabled = { NOOBIUS_LOCAL_REALM_TEST: 'true' };
+  assert.equal(localRealmTest(enabled, 'http://localhost:3000/', true), true);
+  assert.equal(localRealmTest(enabled, 'https://example.com/', true), false);
+  assert.equal(localRealmTest(enabled, 'http://localhost:3000/', false), false);
+  assert.equal(localRealmTest({}, 'http://localhost:3000/', true), false);
+});
+
+test('a delayed eligible response cannot reverse a same-time confirmed loss or a newer block', async () => {
+  const db = fixture();
+  let release;
+  const delay = new Promise((resolve) => {
+    release = resolve;
+  });
+  const rpc = transport();
+  const slow = async (...args) => {
+    await delay;
+    return rpc.fetcher(...args);
+  };
+  const old = realmAccess(db, wallet, values, false, 1000, slow);
+  const latest = await realmAccess(
+    db,
+    wallet,
+    values,
+    false,
+    1000,
+    transport('0').fetcher,
+  );
+  assert.equal(latest.allowed, false);
+  release();
+  assert.equal((await old).allowed, false);
+  const staleBlock = async (url, options) => {
+    const request = JSON.parse(options.body);
+    if (request.method === 'eth_blockNumber')
+      return Response.json({ result: '0xff' });
+    return rpc.fetcher(url, options);
+  };
+  assert.equal(
+    (await realmAccess(db, wallet, values, false, 62000, staleBlock)).allowed,
+    false,
+  );
+});
+
+test('GPU writes reject revoked holdings at commit and safe return preserves the center', async () => {
+  const db = fixture(),
+    now = Date.now(),
+    clientId = crypto.randomUUID();
+  const f = newFacility(now);
+  f.inventory = { kit: 2, board: 2, copper: 6, silicon: 4 };
+  f.career = careerFor(f);
+  f.career.completed = { service: 2, supply: 2, workload: 2 };
+  f.career.modules = ['fast'];
+  f.career.commissioned = 1;
+  db.sqlite
+    .prepare('UPDATE players SET facility_state=? WHERE wallet=?')
+    .run(JSON.stringify(f), wallet);
+  await realmAccess(db, wallet, values, false, now, transport().fetcher);
+  const permit = { policy: tokenPolicy(values).key, localTest: false };
+  const joined = await joinNeighborhood(
+    db,
+    wallet,
+    'gpu',
+    0,
+    clientId,
+    { permit },
+    now,
+  );
+  const controller = { clientId, generation: joined.generation };
+  db.sqlite
+    .prepare('UPDATE crew_presence SET x=-4,z=9 WHERE wallet=?')
+    .run(wallet);
+  const started = await startProject(
+    db,
+    wallet,
+    controller,
+    'rapid',
+    now,
+    permit,
+  );
+  assert.equal(started.project.required.workload, 2);
+  const before = db.sqlite
+    .prepare('SELECT facility_state FROM players WHERE wallet=?')
+    .get(wallet).facility_state;
+  const originalBatch = db.batch.bind(db);
+  db.batch = async (statements) => {
+    db.sqlite
+      .prepare(
+        "UPDATE realm_entitlements SET status='ineligible',grace_until=0 WHERE wallet=?",
+      )
+      .run(wallet);
+    return originalBatch(statements);
+  };
+  await assert.rejects(
+    contributeProject(
+      db,
+      wallet,
+      controller,
+      started.project.id,
+      'service',
+      crypto.randomUUID(),
+      now,
+      permit,
+    ),
+  );
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT facility_state FROM players WHERE wallet=?')
+      .get(wallet).facility_state,
+    before,
+  );
+  assert.equal(
+    db.sqlite.prepare('SELECT count(*) n FROM cluster_contributions').get().n,
+    0,
+  );
+  await assert.rejects(
+    syncNeighborhood(db, wallet, controller, 1, { x: -4, z: 9 }, now, permit),
+  );
+  await assert.rejects(
+    changeScene(db, wallet, controller, 'commons', now, permit),
+  );
+  await assert.rejects(
+    joinNeighborhood(db, wallet, 'gpu', 0, clientId, { permit }, now),
+  );
+  db.batch = originalBatch;
+  const returned = await joinNeighborhood(
+    db,
+    wallet,
+    'commons',
+    0,
+    clientId,
+    { expectedGeneration: joined.generation },
+    now,
+  );
+  assert.notEqual(returned.generation, joined.generation);
+  assert.equal(returned.realm, 'commons');
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT facility_state FROM players WHERE wallet=?')
+      .get(wallet).facility_state,
+    before,
+  );
+  await assert.rejects(
+    joinNeighborhood(
+      db,
+      wallet,
+      'commons',
+      0,
+      clientId,
+      { expectedGeneration: joined.generation },
+      now,
+    ),
+    /connection changed/,
+  );
+});
+
+test('RPC failure preserves confirmed denial at the same block', async () => {
+  const db = fixture();
+  await realmAccess(db, wallet, values, false, 1000, transport('0').fetcher);
+  const failed = await realmAccess(
+    db,
+    wallet,
+    values,
+    false,
+    62000,
+    async () => {
+      throw new Error('offline');
+    },
+  );
+  assert.equal(failed.allowed, false);
+  assert.equal(
+    (await realmAccess(db, wallet, values, false, 78000, transport().fetcher))
+      .allowed,
+    false,
+  );
+});
+
+test('newer confirmed chain evidence wins even if its request began earlier', async () => {
+  const db = fixture();
+  let release;
+  const delay = new Promise((resolve) => {
+    release = resolve;
+  });
+  const deny = transport('0').fetcher;
+  const laterBlock = async (url, options) => {
+    await delay;
+    const request = JSON.parse(options.body);
+    if (request.method === 'eth_blockNumber')
+      return Response.json({ result: '0x101' });
+    return deny(url, options);
+  };
+  const oldRequest = realmAccess(db, wallet, values, false, 1000, laterBlock);
+  assert.equal(
+    (await realmAccess(db, wallet, values, false, 1001, transport().fetcher))
+      .allowed,
+    true,
+  );
+  release();
+  assert.equal((await oldRequest).allowed, false);
+  assert.equal(
+    db.sqlite.prepare('SELECT block FROM realm_entitlements').get().block,
+    '0xf5',
+  );
 });

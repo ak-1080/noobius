@@ -57,8 +57,16 @@ export type Neighbor = {
   accessory: string;
 };
 export type NeighborhoodSnapshot = {
+  cluster?: {
+    id: string;
+    variant: string;
+    online: boolean;
+    progress: number;
+    total: number;
+  } | null;
   world?: SharedWorld;
   corrected?: boolean;
+  notice?: string;
   membership: Membership;
   neighbors: Neighbor[];
   serverNow: number;

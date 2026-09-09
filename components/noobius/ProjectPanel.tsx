@@ -4,7 +4,7 @@ import { ArrowRight, Check, Cpu, Package, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { careerFor, type ContractFamily } from '@/lib/contracts';
-import { ITEMS, type Facility, type ItemId } from '@/lib/facility';
+import { ITEMS, type Facility, type ItemId, type Bag } from '@/lib/facility';
 import {
   PROJECT_FAMILIES,
   PROJECT_INPUTS,
@@ -25,6 +25,10 @@ export default function ProjectPanel({
   onAction,
   onWalk,
   onJobs,
+  atMargo,
+  onParts,
+  onResume,
+  onOutage,
 }: {
   facility: Facility;
   realm: RealmId;
@@ -34,6 +38,10 @@ export default function ProjectPanel({
   onAction: (action: string, body: Record<string, unknown>) => Promise<unknown>;
   onWalk: () => void;
   onJobs: (family: ContractFamily) => void;
+  atMargo: boolean;
+  onParts: (parts: Bag) => void;
+  onResume: (realm: RealmId, neighborhoodId: string) => void;
+  onOutage: () => void;
 }) {
   const [data, setData] = useState<ProjectSnapshot | null>(null),
     [error, setError] = useState(''),
@@ -74,7 +82,8 @@ export default function ProjectPanel({
     setSaving(true);
     setError('');
     try {
-      await onAction(action, body);
+      const result = await onAction(action, body);
+      if (!result) return;
       setData(await api<ProjectSnapshot>('projects'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Try again.');
@@ -180,7 +189,10 @@ export default function ProjectPanel({
                     : 'Finish a ' + family + ' job'}{' '}
                   ·{' '}
                   {Object.entries(cost)
-                    .map(([id, n]) => `${n} ${ITEMS[id as ItemId].name}`)
+                    .map(
+                      ([id, n]) =>
+                        `${Math.min(n!, facility.inventory[id as ItemId] ?? 0)}/${n} ${ITEMS[id as ItemId].name}`,
+                    )
                     .join(' + ')}
                 </p>
                 {data.contributions.filter((c) => c.family === family).length >
@@ -198,9 +210,17 @@ export default function ProjectPanel({
                       <Button variant="outline" onClick={() => onJobs(family)}>
                         Choose a {family} job
                       </Button>
+                    ) : !hasParts ? (
+                      <Button variant="outline" onClick={() => onParts(cost)}>
+                        Find missing parts
+                      </Button>
+                    ) : !atMargo ? (
+                      <Button onClick={onWalk}>
+                        Meet Margo <ArrowRight size={16} />
+                      </Button>
                     ) : (
                       <Button
-                        disabled={disabled || !hasParts}
+                        disabled={disabled}
                         onClick={() =>
                           void perform('project-contribute', {
                             projectId: project.id,
@@ -212,9 +232,6 @@ export default function ProjectPanel({
                         Contribute <ArrowRight size={16} />
                       </Button>
                     )}
-                    <button className="text-action" onClick={onWalk}>
-                      Meet Margo
-                    </button>
                   </div>
                 )}
               </article>
@@ -244,6 +261,15 @@ export default function ProjectPanel({
                       : 'Your crew is still building'}
                 </small>
               </span>
+              {p.state === 'open' && p.neighborhoodId !== neighborhoodId && (
+                <Button
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onResume(p.realm, p.neighborhoodId)}
+                >
+                  Resume project
+                </Button>
+              )}
               {!p.claimed && p.state === 'completed' && (
                 <Button
                   disabled={disabled}
@@ -258,6 +284,9 @@ export default function ProjectPanel({
           ))}
         </div>
       )}
+      <button className="text-action" onClick={onOutage}>
+        Looking for a quick team repair? <ArrowRight size={16} />
+      </button>
       {error && <p role="alert">{error}</p>}
     </section>
   );

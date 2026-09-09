@@ -1,3 +1,4 @@
+import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
 import { careerFor, type ContractFamily } from './contracts.ts';
 import { newFacility, normalizeFacility, type ItemId } from './facility.ts';
 import {
@@ -95,11 +96,13 @@ export async function projectSnapshot(
     : [];
   const history = (
     await db
-      .prepare(`SELECT p.id,p.variant,p.state,sum(c.units) AS units,EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed
-    FROM cluster_contributions c JOIN cluster_projects p ON p.id=c.project_id WHERE c.wallet=? GROUP BY p.id ORDER BY (p.state='completed' AND NOT EXISTS(SELECT 1 FROM cluster_claims done WHERE done.project_id=p.id AND done.wallet=c.wallet)) DESC,p.created_at ASC,p.id ASC LIMIT 30`)
+      .prepare(`SELECT p.id,p.neighborhood_id AS neighborhoodId,n.realm,p.variant,p.state,sum(c.units) AS units,EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed
+    FROM cluster_contributions c JOIN cluster_projects p ON p.id=c.project_id JOIN neighborhoods n ON n.id=p.neighborhood_id WHERE c.wallet=? GROUP BY p.id ORDER BY (p.state='completed' AND NOT EXISTS(SELECT 1 FROM cluster_claims done WHERE done.project_id=p.id AND done.wallet=c.wallet)) DESC,p.created_at ASC,p.id ASC LIMIT 30`)
       .bind(wallet, wallet)
       .all<{
         id: string;
+        neighborhoodId: string;
+        realm: 'commons' | 'gpu';
         variant: string;
         state: string;
         units: number;
@@ -118,6 +121,7 @@ export async function startProject(
   controller: Controller,
   variant: string,
   now = Date.now(),
+  permit?: RealmPermit,
 ) {
   const presence = await requireMembership(db, wallet, controller, now);
   const template = PROJECT_VARIANTS.find((v) => v.id === variant);
@@ -134,7 +138,7 @@ export async function startProject(
   if (template.extra) required[template.extra]++;
   await db
     .prepare(`INSERT OR IGNORE INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,version,created_at)
-    SELECT ?,?,?,'open',?,?,?,0,? WHERE EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND client_id=? AND generation=? AND neighborhood_id=? AND lease_until>?)`)
+    SELECT ?,?,?,'open',?,?,?,0,? WHERE EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND client_id=? AND generation=? AND neighborhood_id=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)})`)
     .bind(
       crypto.randomUUID(),
       presence.neighborhood_id,
@@ -151,6 +155,17 @@ export async function startProject(
     )
     .run();
   await requireMembership(db, wallet, controller, now);
+  const authorized = await db
+    .prepare(
+      `SELECT 1 FROM crew_presence WHERE wallet=? AND ${realmWriteGuard('crew_presence', permit)}`,
+    )
+    .bind(wallet)
+    .first();
+  if (!authorized)
+    return fail(
+      'Your realm access changed. Rejoin Crew Commons to continue.',
+      403,
+    );
   return projectSnapshot(db, wallet, now);
 }
 export async function contributeProject(
@@ -161,6 +176,7 @@ export async function contributeProject(
   family: ContractFamily,
   requestId: string,
   now = Date.now(),
+  permit?: RealmPermit,
 ) {
   if (!uuid(id) || !uuid(requestId) || !PROJECT_FAMILIES.includes(family))
     return fail('Choose a contribution.', 400);
@@ -223,7 +239,7 @@ export async function contributeProject(
       .prepare(`UPDATE cluster_projects SET progress_json=?,version=version+1,state=?,completed_at=? WHERE id=? AND version=? AND state='open'
       AND NOT EXISTS(SELECT 1 FROM cluster_contributions WHERE id=?)
       AND EXISTS(SELECT 1 FROM players WHERE wallet=? AND facility_version=?)
-      AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16)`)
+      AND EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND neighborhood_id=? AND client_id=? AND generation=? AND lease_until>? AND updated_at>? AND room='commons' AND (x+4)*(x+4)+(z-9)*(z-9)<=16 AND ${realmWriteGuard('crew_presence', permit)})`)
       .bind(
         JSON.stringify(project.progress),
         complete ? 'completed' : 'open',

@@ -1,3 +1,19 @@
+import { listingsPage, escrowListing } from './market-server';
+import { runtimeControls, pausedAction } from './operations';
+import { canTrade, TRADE_QUALIFICATION } from './market';
+import {
+  rememberNeighbors,
+  socialSnapshot,
+  setSocialPreference,
+  reportMessage,
+} from './social-server';
+import { QUICK_PINGS, playerName, noBlockSql } from './social';
+import {
+  localRealmTest,
+  realmWriteGuard,
+  type RealmPermit,
+} from './realm-authority';
+import { realmAccess, tokenPolicy } from './realm-access';
 import {
   projectSnapshot,
   startProject,
@@ -359,9 +375,94 @@ async function withShared(
     corrected?: boolean;
   },
 ) {
+  const [world, project] = await Promise.all([
+    sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
+    db()
+      .prepare(
+        "SELECT id,variant,state,required_json,progress_json FROM cluster_projects WHERE neighborhood_id=? ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1",
+      )
+      .bind(snapshot.membership.neighborhoodId)
+      .first<{
+        id: string;
+        variant: string;
+        state: string;
+        required_json: string;
+        progress_json: string;
+      }>(),
+  ]);
+  const sum = (json: string) =>
+    Object.values(JSON.parse(json) as Record<string, number>).reduce(
+      (total, n) => total + n,
+      0,
+    );
   return {
     ...snapshot,
-    world: await sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
+    world,
+    cluster: project
+      ? {
+          id: project.id,
+          variant: project.variant,
+          online: project.state === 'completed',
+          progress: sum(project.progress_json),
+          total: sum(project.required_json),
+        }
+      : null,
+  };
+}
+const realmValues = () => env as unknown as Record<string, unknown>;
+function permitFor(request: Request): RealmPermit {
+  const values = realmValues();
+  const policy = tokenPolicy(values)?.key ?? null;
+  return {
+    policy,
+    localTest:
+      !policy &&
+      localRealmTest(values, request.url, import.meta.env.DEV === true),
+  };
+}
+async function accessFor(request: Request, wallet: string) {
+  return realmAccess(db(), wallet, realmValues(), permitFor(request).localTest);
+}
+async function readableRealm(request: Request, wallet: string) {
+  const membership = await requireMembership(db(), wallet);
+  if (membership.realm === 'gpu' && !(await accessFor(request, wallet)).allowed)
+    throw new ApiError(
+      403,
+      'Your realm access changed. Return to Crew Commons; your progress is safe.',
+    );
+  return membership;
+}
+async function recoverRealm(
+  request: Request,
+  wallet: string,
+  body: Record<string, unknown>,
+) {
+  const controller = controllerFrom(body),
+    membership = await requireMembership(db(), wallet, controller);
+  if (membership.realm !== 'gpu') return null;
+  const access = await accessFor(request, wallet);
+  if (access.allowed) return null;
+  const p = await player(wallet);
+  const joined = await joinNeighborhood(
+    db(),
+    wallet,
+    'commons',
+    levelBand(p.facility!),
+    controller.clientId,
+    { expectedGeneration: membership.generation },
+  );
+  return {
+    ...(await withShared(
+      wallet,
+      await neighborhoodSnapshot(db(), wallet, {
+        ...controller,
+        generation: joined.generation,
+      }),
+    )),
+    corrected: true,
+    notice:
+      access.message +
+      ' You are back in Crew Commons. Your center, items and earned rewards are safe.',
   };
 }
 export async function handleGame(request: Request, action: string) {
@@ -387,16 +488,31 @@ export async function handleGame(request: Request, action: string) {
         410,
         'The neighborhood system has been upgraded. Refresh the game.',
       );
+    if (action === 'social') {
+      const wallet = await identity(request);
+      if (!wallet) throw new ApiError(401, 'Connect to see your crew.');
+      return result(await socialSnapshot(db(), wallet));
+    }
+    if (action === 'realm-access') {
+      const wallet = await identity(request);
+      if (!wallet) throw new ApiError(401, 'Connect to check realm access.');
+      const p = await player(wallet);
+      return result({
+        ...(await accessFor(request, wallet)),
+        licensed: operatorLicense(careerFor(p.facility!)),
+      });
+    }
     if (action === 'projects') {
       const wallet = await identity(request);
       if (!wallet)
         throw new ApiError(401, 'Connect your wallet to join a crew project.');
+      await readableRealm(request, wallet);
       return result(await projectSnapshot(db(), wallet));
     }
     if (action === 'directory' || action === 'visit' || action === 'messages') {
       const wallet = await identity(request);
       if (!wallet) throw new ApiError(401, 'Connect to join a neighborhood.');
-      const membership = await requireMembership(db(), wallet);
+      const membership = await readableRealm(request, wallet);
       if (action === 'directory') {
         const snapshot = await neighborhoodSnapshot(db(), wallet);
         return result({ facilities: snapshot.neighbors });
@@ -411,21 +527,23 @@ export async function handleGame(request: Request, action: string) {
         );
       const rows = await db()
         .prepare(
-          'SELECT m.id,p.name,m.message,m.created_at FROM crew_messages m JOIN players p ON p.wallet=m.wallet WHERE m.neighborhood_id=? ORDER BY m.created_at DESC LIMIT 40',
+          `SELECT m.id,p.public_id AS author,p.name,m.message,m.created_at,(p.wallet=viewer.wallet) AS mine FROM crew_messages m JOIN players p ON p.wallet=m.wallet JOIN players viewer ON viewer.wallet=? WHERE m.neighborhood_id=? AND ${noBlockSql('viewer.wallet', 'p.wallet')} AND NOT EXISTS(SELECT 1 FROM social_preferences mute WHERE mute.wallet=viewer.wallet AND mute.target_wallet=p.wallet AND mute.muted=1) ORDER BY m.created_at DESC LIMIT 40`,
         )
-        .bind(membership.neighborhood_id)
+        .bind(wallet, membership.neighborhood_id)
         .all();
       return result({ messages: rows.results.reverse() });
     }
     if (action === 'listings') {
-      const wallet = await identity(request);
-      const rows = await db()
-        .prepare(
-          "SELECT l.id,p.public_id AS owner,(l.wallet=?) AS mine,p.name,l.item,l.quantity,l.price FROM market_listings l JOIN players p ON p.wallet=l.wallet WHERE l.status='open' AND (l.wallet=? OR l.id IN (SELECT id FROM market_listings WHERE status='open' ORDER BY created_at DESC LIMIT 50)) ORDER BY l.created_at DESC",
-        )
-        .bind(wallet ?? '', wallet ?? '')
-        .all();
-      return result({ listings: rows.results });
+      const wallet = await identity(request),
+        p = wallet ? await player(wallet) : null;
+      return result(
+        await listingsPage(
+          db(),
+          wallet,
+          p?.facility ?? null,
+          new URL(request.url).searchParams,
+        ),
+      );
     }
     if (action === 'profile') {
       const wallet = await identity(request);
@@ -603,12 +721,64 @@ export async function handleGame(request: Request, action: string) {
     wallet,
   );
 
+  const permit = permitFor(request);
+  const controls = runtimeControls(realmValues());
+  const paused = pausedAction(action, controls);
+  if (paused) throw new ApiError(503, paused);
+  const realmBound =
+    [
+      'neighborhood-sync',
+      'neighborhood-scene',
+      'project-start',
+      'project-contribute',
+      'crew-work',
+      'message',
+    ].includes(action) ||
+    (action === 'facility' &&
+      !!body.action &&
+      typeof body.action === 'object' &&
+      needsHome(body.action as FacilityAction));
+  if (realmBound) {
+    const recovered = await recoverRealm(request, wallet, body);
+    if (recovered) {
+      if (action === 'neighborhood-sync' || action === 'neighborhood-scene')
+        return result(recovered);
+      throw new ApiError(
+        409,
+        'Your realm access changed. Rejoin Crew Commons to continue; your progress is safe.',
+      );
+    }
+  }
+  if (action === 'social-preference') {
+    const social = await setSocialPreference(
+      db(),
+      wallet,
+      String(body.target),
+      String(body.kind),
+      body.enabled,
+    );
+    return result({
+      ...(await responseFor(wallet)),
+      social,
+      message: 'Player controls saved.',
+    });
+  }
+  if (action === 'report') {
+    await rate(request, 'reports', 10, wallet);
+    await reportMessage(db(), wallet, String(body.messageId), body.reason);
+    return result({
+      ...(await responseFor(wallet)),
+      message: 'Report saved for review.',
+    });
+  }
   if (action === 'project-start') {
     await startProject(
       db(),
       wallet,
       controllerFrom(body),
       String(body.variant),
+      Date.now(),
+      permit,
     );
     return result({
       ...(await responseFor(wallet)),
@@ -623,6 +793,8 @@ export async function handleGame(request: Request, action: string) {
       String(body.projectId),
       body.family as ContractFamily,
       String(body.requestId),
+      Date.now(),
+      permit,
     );
     return result({
       ...(await responseFor(wallet)),
@@ -646,10 +818,12 @@ export async function handleGame(request: Request, action: string) {
           403,
           'Earn your Operator license in Crew Commons first.',
         );
-      throw new ApiError(
-        503,
-        'GPU District is still being commissioned. Your center and equipment are safe.',
-      );
+      const access = await accessFor(request, wallet);
+      if (!access.allowed)
+        throw new ApiError(
+          access.status === 'ineligible' ? 403 : 503,
+          access.message,
+        );
     }
     const joined = await joinNeighborhood(
       db(),
@@ -660,8 +834,12 @@ export async function handleGame(request: Request, action: string) {
       {
         target: typeof body.target === 'string' ? body.target : undefined,
         takeover: body.takeover === true,
+        permit,
+        maxActive: controls.maxPlayers,
+        admissionPaused: controls.admissionPaused,
       },
     );
+    await rememberNeighbors(db(), wallet, joined.neighborhoodId);
     return result(
       await withShared(
         wallet,
@@ -682,6 +860,8 @@ export async function handleGame(request: Request, action: string) {
           controllerFrom(body),
           Number(body.sequence),
           body.position as { x: number; z: number },
+          Date.now(),
+          permit,
         ),
       ),
     );
@@ -692,6 +872,8 @@ export async function handleGame(request: Request, action: string) {
       wallet,
       controller,
       String(body.scene),
+      Date.now(),
+      permit,
     );
     return result(
       await withShared(
@@ -733,7 +915,7 @@ export async function handleGame(request: Request, action: string) {
     const updated = applyFacility(previous, a, p.credits, now);
     if (updated.facility.version !== previous.version) {
       const authority = controller
-        ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND c.room=?
+        ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room=?
         AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16)))`
         : '';
       const bindings: (string | number)[] = [
@@ -829,7 +1011,7 @@ export async function handleGame(request: Request, action: string) {
       )
         throw new ApiError(400, 'Walk to the highlighted station first.');
       const id = `${room}:${event}:${station.id}`;
-      const guard = `EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.neighborhood_id=? AND c.client_id=? AND c.generation=? AND c.lease_until>? AND c.room='commons' AND c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=25)`;
+      const guard = `EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.neighborhood_id=? AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room='commons' AND c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=25)`;
       const guardArgs = [
         wallet,
         room,
@@ -926,6 +1108,8 @@ export async function handleGame(request: Request, action: string) {
       wallet,
       controllerFrom(body),
     );
+    if (typeof body.ping === 'string' && Object.hasOwn(QUICK_PINGS, body.ping))
+      body.message = QUICK_PINGS[body.ping as keyof typeof QUICK_PINGS];
     if (typeof body.message !== 'string')
       throw new ApiError(400, 'Write a message.');
     const msg = body.message.trim();
@@ -934,7 +1118,7 @@ export async function handleGame(request: Request, action: string) {
     const now = Date.now();
     const inserted = await db()
       .prepare(
-        `INSERT INTO crew_messages (id,wallet,message,created_at,neighborhood_id) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?) AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.client_id=? AND c.generation=? AND c.neighborhood_id=? AND c.lease_until>?)`,
+        `INSERT INTO crew_messages (id,wallet,message,created_at,neighborhood_id) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?) AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.client_id=? AND c.generation=? AND c.neighborhood_id=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)})`,
       )
       .bind(
         crypto.randomUUID(),
@@ -956,7 +1140,7 @@ export async function handleGame(request: Request, action: string) {
         429,
         'Wait a few seconds before sending another message.',
       );
-    return result({ ok: true });
+    return result({ ...(await responseFor(wallet)), message: 'Message sent.' });
   }
   if (action === 'listing-create') {
     const id = body.requestId,
@@ -986,6 +1170,27 @@ export async function handleGame(request: Request, action: string) {
     }
     const p = await player(wallet),
       f = structuredClone(p.facility!);
+    if (!canTrade(f)) throw new ApiError(403, TRADE_QUALIFICATION);
+    let recipient: string | null = null;
+    if (body.recipient !== undefined && body.recipient !== '') {
+      if (
+        typeof body.recipient !== 'string' ||
+        !/^[a-f0-9]{32}$/.test(body.recipient)
+      )
+        throw new ApiError(400, 'Choose a neighbor for this offer.');
+      const peer = await db()
+        .prepare(
+          `SELECT p.wallet FROM crew_presence self JOIN crew_presence peer ON peer.neighborhood_id=self.neighborhood_id JOIN players p ON p.wallet=peer.wallet WHERE self.wallet=? AND p.public_id=? AND peer.wallet<>self.wallet AND self.lease_until>? AND peer.lease_until>? AND ${noBlockSql('self.wallet', 'peer.wallet')}`,
+        )
+        .bind(wallet, body.recipient, Date.now(), Date.now())
+        .first<{ wallet: string }>();
+      if (!peer)
+        throw new ApiError(
+          403,
+          'That neighbor is no longer available for a direct offer.',
+        );
+      recipient = peer.wallet;
+    }
     if ((f.inventory[item] ?? 0) < n)
       throw new ApiError(400, 'You do not have enough items.');
     const count = await db()
@@ -996,31 +1201,11 @@ export async function handleGame(request: Request, action: string) {
       .first<{ n: number }>();
     if ((count?.n ?? 0) >= 10)
       throw new ApiError(400, 'You can have ten active listings.');
-    f.inventory[item]! -= n;
-    f.version++;
-    const r = await db().batch([
-      db()
-        .prepare(
-          "INSERT OR IGNORE INTO market_listings (id,wallet,item,quantity,price,status,created_at) SELECT ?,?,?,?,?,'open',? WHERE EXISTS(SELECT 1 FROM players WHERE wallet=? AND facility_version=?)",
-        )
-        .bind(
-          id,
-          wallet,
-          item,
-          n,
-          price,
-          Date.now(),
-          wallet,
-          p.facility!.version,
-        ),
-      db()
-        .prepare(
-          'UPDATE players SET facility_state=?,facility_version=? WHERE wallet=? AND changes()=1',
-        )
-        .bind(JSON.stringify(f), f.version, wallet),
-    ]);
-    if (r[0].meta.changes !== 1)
-      throw new ApiError(409, 'Your inventory changed. Retry.');
+    await escrowListing(
+      db(),
+      { id, wallet, item, quantity: n, price, recipient },
+      f,
+    );
     return result(await responseFor(wallet));
   }
   if (
@@ -1066,6 +1251,9 @@ export async function handleGame(request: Request, action: string) {
       throw new ApiError(409, 'Choose another available listing.');
     const p = await player(wallet),
       f = structuredClone(p.facility!);
+    if (!canTrade(f)) throw new ApiError(403, TRADE_QUALIFICATION);
+    if (row.recipient_wallet && row.recipient_wallet !== wallet)
+      throw new ApiError(403, 'This offer is for another neighbor.');
     if (p.credits < row.price)
       throw new ApiError(400, 'You need more credits.');
     if (itemCount(f.inventory) + row.quantity > 120 + f.storage * 40)
@@ -1076,9 +1264,9 @@ export async function handleGame(request: Request, action: string) {
     const r = await db().batch([
       db()
         .prepare(
-          "UPDATE market_listings SET status='sold',buyer=? WHERE id=? AND status='open' AND EXISTS(SELECT 1 FROM players WHERE wallet=? AND facility_version=? AND credits>=?)",
+          `UPDATE market_listings SET status='sold',buyer=? WHERE id=? AND status='open' AND (recipient_wallet IS NULL OR recipient_wallet=?) AND EXISTS(SELECT 1 FROM players buyer WHERE buyer.wallet=? AND buyer.facility_version=? AND buyer.credits>=? AND ${noBlockSql('buyer.wallet', 'market_listings.wallet')})`,
         )
-        .bind(wallet, row.id, wallet, p.facility!.version, row.price),
+        .bind(wallet, row.id, wallet, wallet, p.facility!.version, row.price),
       db()
         .prepare(
           'UPDATE players SET facility_state=?,facility_version=?,credits=credits-? WHERE wallet=? AND changes()=1',
@@ -1098,17 +1286,15 @@ export async function handleGame(request: Request, action: string) {
     return result(await responseFor(wallet));
   }
   if (action === 'name') {
-    if (
-      typeof body.name !== 'string' ||
-      !/^[A-Za-z0-9 _-]{2,20}$/.test(body.name.trim())
-    )
+    const name = playerName(body.name);
+    if (!name)
       throw new ApiError(
         400,
-        'Use 2–20 letters, numbers, spaces, dashes, or underscores.',
+        'Choose a friendly name with 2–20 letters, numbers, spaces, dashes or underscores. Staff titles are reserved.',
       );
     await db()
       .prepare('UPDATE players SET name=? WHERE wallet=?')
-      .bind(body.name.trim(), wallet)
+      .bind(name, wallet)
       .run();
     return result(await responseFor(wallet));
   }

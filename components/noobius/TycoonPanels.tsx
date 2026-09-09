@@ -23,6 +23,9 @@ import {
   type RealmId,
 } from '@/lib/neighborhoods';
 import { Button } from '@/components/ui/button';
+import { api } from './useNoobius';
+import type { SocialSnapshot } from '@/lib/social';
+import type { RealmAccess } from '@/lib/realm-access';
 import AvatarPreview from './AvatarPreview';
 import ComputeIcon from './ComputeIcon';
 
@@ -210,6 +213,7 @@ export function LockerPanel({
 }
 export function WorldPanel({
   onConnect,
+  onChat,
   room,
   practice,
   onGo,
@@ -226,13 +230,99 @@ export function WorldPanel({
   onGo: (r: string) => void;
   onVisit: (id: string) => void;
   onConnect: () => void;
+  onChat: () => void;
   snapshot: NeighborhoodSnapshot | null;
   ownId?: string;
   error: string;
   needsTakeover: boolean;
   onTakeover: () => void;
-  onRealm: (id: RealmId) => void;
+  onRealm: (id: RealmId, target?: string) => Promise<boolean>;
 }) {
+  const [access, setAccess] = useState<
+    (RealmAccess & { licensed: boolean }) | null
+  >(null);
+  const [accessError, setAccessError] = useState(''),
+    [accessLoading, setAccessLoading] = useState(true),
+    [accessRetry, setAccessRetry] = useState(0);
+  const [recent, setRecent] = useState<SocialSnapshot['recent']>([]);
+  const [invite, setInvite] = useState(''),
+    [inviteNotice, setInviteNotice] = useState(''),
+    [traveling, setTraveling] = useState(false);
+  useEffect(() => {
+    if (practice) return;
+    let alive = true;
+    const refresh = async () => {
+      const [eligibility, social] = await Promise.allSettled([
+        api<RealmAccess & { licensed: boolean }>('realm-access'),
+        api<SocialSnapshot>('social'),
+      ]);
+      if (!alive) return;
+      if (eligibility.status === 'fulfilled') {
+        setAccess(eligibility.value);
+        setAccessError('');
+      } else {
+        setAccessError('Could not check realm access. Your progress is safe.');
+      }
+      if (social.status === 'fulfilled') setRecent(social.value.recent);
+      setAccessLoading(false);
+    };
+    setAccessLoading(true);
+    void refresh();
+    const timer = setInterval(refresh, 60000);
+    const params = new URL(window.location.href).searchParams;
+    if (params.has('neighborhood'))
+      setInvite(
+        (params.get('realm') ?? 'commons') + ':' + params.get('neighborhood'),
+      );
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [practice, ownId, accessRetry]);
+  const travel = async (realm: RealmId, target?: string) => {
+    setTraveling(true);
+    setInviteNotice('');
+    try {
+      await onRealm(realm, target);
+    } finally {
+      setTraveling(false);
+    }
+  };
+  const joinFriend = () => {
+    let code = invite.trim();
+    try {
+      const url = new URL(code);
+      code =
+        (url.searchParams.get('realm') ?? 'commons') +
+        ':' +
+        url.searchParams.get('neighborhood');
+    } catch {
+      /* A plain invitation code is also accepted. */
+    }
+    const match = /^(commons|gpu):([a-f0-9]{32})$/.exec(code);
+    if (!match) {
+      setInviteNotice('Paste a Noobius invitation link or neighborhood code.');
+      return;
+    }
+    void travel(match[1] as RealmId, match[2]);
+  };
+  const copyInvite = async () => {
+    if (!snapshot) return;
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('neighborhood', snapshot.membership.neighborhoodId);
+    url.searchParams.set('realm', snapshot.membership.realm);
+    try {
+      await navigator.clipboard.writeText(url.href);
+      setInviteNotice(
+        'Invitation copied. Your friend can paste it in Join a friend.',
+      );
+    } catch {
+      setInvite(url.href);
+      setInviteNotice('Select and copy the invitation below.');
+    }
+  };
   const neighbors = snapshot?.neighbors ?? [];
   return (
     <div className="tycoon-panel neighborhood-panel">
@@ -278,6 +368,9 @@ export function WorldPanel({
             </span>
             <ArrowRight />
           </button>
+          <Button variant="outline" onClick={onChat}>
+            Crew chat <Users size={18} />
+          </Button>
           <div className="neighbor-slots">
             {Array.from({ length: 5 }, (_, slot) => {
               const neighbor = neighbors.find((n) => n.slot === slot),
@@ -318,13 +411,70 @@ export function WorldPanel({
             Visit and look around. Only a center’s owner can change its machines
             or spend its resources.
           </p>
+          <div className="neighborhood-invitations">
+            <Button
+              variant="outline"
+              disabled={!snapshot}
+              onClick={() => void copyInvite()}
+            >
+              Copy invitation
+            </Button>
+            <label htmlFor="neighbor-invite">Join a friend</label>
+            <div>
+              <input
+                id="neighbor-invite"
+                value={invite}
+                onChange={(event) => setInvite(event.target.value)}
+                placeholder="Paste invitation link or code"
+              />
+              <Button
+                disabled={traveling || !invite.trim()}
+                onClick={joinFriend}
+              >
+                Join
+              </Button>
+            </div>
+            <small>
+              Up to five players. If it is full, you keep your current place.
+            </small>
+            {inviteNotice && <p role="status">{inviteNotice}</p>}
+          </div>
+          {recent.some((p) => !neighbors.some((n) => n.id === p.id)) && (
+            <details className="recent-neighbors">
+              <summary>Recent neighbors</summary>
+              {recent
+                .filter((p) => !neighbors.some((n) => n.id === p.id))
+                .map((p) => (
+                  <div key={p.id}>
+                    <strong>{p.name}</strong>
+                    <Button
+                      variant="outline"
+                      disabled={traveling || !p.neighborhoodId || !p.realm}
+                      onClick={() => {
+                        if (p.realm && p.neighborhoodId)
+                          void travel(p.realm, p.neighborhoodId);
+                      }}
+                    >
+                      {p.neighborhoodId ? 'Join' : 'Offline'}
+                    </Button>
+                  </div>
+                ))}
+            </details>
+          )}
           <h3>Realms</h3>
           {REALMS.map((realm) => (
             <button
               className="world-destination"
               key={realm.id}
-              disabled={snapshot?.membership.realm === realm.id}
-              onClick={() => onRealm(realm.id)}
+              disabled={
+                traveling ||
+                snapshot?.membership.realm === realm.id ||
+                (realm.holderOnly &&
+                  (accessLoading ||
+                    !!accessError ||
+                    !(access?.allowed && access.licensed)))
+              }
+              onClick={() => void travel(realm.id)}
             >
               <Radio />
               <span>
@@ -333,13 +483,46 @@ export function WorldPanel({
                   {snapshot?.membership.realm === realm.id
                     ? 'Your current realm'
                     : realm.holderOnly
-                      ? 'Operator license + holder access'
+                      ? accessLoading
+                        ? 'Checking your access…'
+                        : accessError
+                          ? 'Access check unavailable'
+                          : !access?.licensed
+                            ? 'Earn your Operator license in Crew Commons'
+                            : access.message
                       : 'Free to play'}
                 </small>
               </span>
               <ArrowRight />
             </button>
           ))}
+          {accessError && (
+            <div role="alert">
+              <p>{accessError}</p>
+              <Button
+                variant="outline"
+                disabled={accessLoading}
+                onClick={() => setAccessRetry((value) => value + 1)}
+              >
+                Retry access check
+              </Button>
+            </div>
+          )}
+          <div className="realm-preview">
+            <strong>Inside GPU District</strong>
+            <p>
+              Choose a client launch or a quiet overnight build. Each asks your
+              crew for a different mix of completed work. Your own center comes
+              with you.
+            </p>
+            <small>
+              {access?.status === 'test'
+                ? access.message
+                : access?.status === 'unconfigured'
+                  ? access.message
+                  : `Entry: Operator license + ${access?.threshold ?? '…'} $NOOBIUS held. Tokens stay in your wallet.`}
+            </small>
+          </div>
           {error && <p role="alert">{error}</p>}
           {needsTakeover && (
             <Button className="primary-action" onClick={onTakeover}>

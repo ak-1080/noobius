@@ -70,11 +70,15 @@ export const shifts = sqliteTable(
     index('idx_shifts_wallet_started').on(t.wallet, t.startedAt),
   ],
 );
-export const rateLimits = sqliteTable('rate_limits', {
-  key: text('key').primaryKey(),
-  count: integer('count').notNull(),
-  resetsAt: integer('resets_at').notNull(),
-});
+export const rateLimits = sqliteTable(
+  'rate_limits',
+  {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull(),
+    resetsAt: integer('resets_at').notNull(),
+  },
+  (t) => [index('idx_rate_limits_reset').on(t.resetsAt)],
+);
 
 export const neighborhoods = sqliteTable(
   'neighborhoods',
@@ -109,6 +113,7 @@ export const presence = sqliteTable(
     index('idx_presence_time').on(t.updatedAt),
     uniqueIndex('idx_presence_neighborhood_slot').on(t.neighborhoodId, t.slot),
     index('idx_presence_neighborhood_lease').on(t.neighborhoodId, t.leaseUntil),
+    index('idx_presence_lease').on(t.leaseUntil),
     check('valid_neighborhood_slot', sql`${t.slot} BETWEEN 0 AND 4`),
   ],
 );
@@ -140,6 +145,7 @@ export const listings = sqliteTable(
     price: integer('price').notNull(),
     status: text('status').notNull().default('open'),
     buyer: text('buyer'),
+    recipientWallet: text('recipient_wallet').references(() => players.wallet),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('idx_listings_status_time').on(t.status, t.createdAt)],
@@ -156,7 +162,12 @@ export const campusWork = sqliteTable(
     startedAt: integer('started_at').notNull(),
     completedAt: integer('completed_at'),
   },
-  (t) => [index('idx_campus_work_room_event').on(t.room, t.event)],
+  (t) => [
+    index('idx_campus_work_room_event').on(t.room, t.event),
+    index('idx_campus_work_wallet_completed')
+      .on(t.wallet, t.event, t.room)
+      .where(sql`${t.completedAt} IS NOT NULL`),
+  ],
 );
 export const campusRewards = sqliteTable('campus_rewards', {
   id: text('id').primaryKey(),
@@ -235,3 +246,56 @@ export const realmEntitlements = sqliteTable('realm_entitlements', {
   nextCheckAt: integer('next_check_at').notNull(),
   graceUntil: integer('grace_until').notNull(),
 });
+
+export const socialPreferences = sqliteTable(
+  'social_preferences',
+  {
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    targetWallet: text('target_wallet')
+      .notNull()
+      .references(() => players.wallet),
+    muted: integer('muted').notNull().default(0),
+    blocked: integer('blocked').notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex('idx_social_preference_pair').on(t.wallet, t.targetWallet),
+  ],
+);
+
+export const playerReports = sqliteTable(
+  'player_reports',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    targetWallet: text('target_wallet')
+      .notNull()
+      .references(() => players.wallet),
+    messageId: text('message_id').notNull(),
+    message: text('message').notNull(),
+    reason: text('reason').notNull(),
+    createdAt: integer('created_at').notNull(),
+    status: text('status').notNull().default('open'),
+  },
+  (t) => [uniqueIndex('idx_report_message_once').on(t.wallet, t.messageId)],
+);
+
+export const recentNeighbors = sqliteTable(
+  'recent_neighbors',
+  {
+    wallet: text('wallet')
+      .notNull()
+      .references(() => players.wallet),
+    targetWallet: text('target_wallet')
+      .notNull()
+      .references(() => players.wallet),
+    lastSeen: integer('last_seen').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_recent_neighbor_pair').on(t.wallet, t.targetWallet),
+    index('idx_recent_neighbor_time').on(t.wallet, t.lastSeen),
+  ],
+);

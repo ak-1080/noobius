@@ -28,6 +28,7 @@ export function tokenPolicy(
     !Number.isSafeInteger(chainId) ||
     chainId < 1 ||
     !/^0x[a-f0-9]{40}$/.test(contract) ||
+    !/^(0|[1-9]\d*)$/.test(String(values.NOOBIUS_TOKEN_DECIMALS ?? '')) ||
     !Number.isInteger(decimals) ||
     decimals < 0 ||
     decimals > 36 ||
@@ -103,7 +104,9 @@ export async function readTokenHolding(
   if (
     code === '0x' ||
     BigInt(decimals) !== BigInt(policy.decimals) ||
-    amount === '0x'
+    amount === '0x' ||
+    amount.length > 66 ||
+    decimals.length > 66
   )
     throw new Error('Verification asset mismatch.');
   const balance = BigInt(amount),
@@ -200,7 +203,13 @@ export async function realmAccess(
       grace = result.eligible ? now + 300000 : 0;
     await db
       .prepare(
-        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET policy=excluded.policy,amount=excluded.amount,block=excluded.block,status=excluded.status,checked_at=excluded.checked_at,next_check_at=excluded.next_check_at,grace_until=excluded.grace_until WHERE excluded.checked_at>=realm_entitlements.checked_at`,
+        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET policy=excluded.policy,amount=excluded.amount,block=excluded.block,status=excluded.status,checked_at=MAX(realm_entitlements.checked_at,excluded.checked_at),next_check_at=excluded.next_check_at,grace_until=excluded.grace_until WHERE
+          (excluded.policy<>realm_entitlements.policy AND excluded.checked_at>realm_entitlements.checked_at) OR
+          (excluded.policy=realm_entitlements.policy AND (
+            length(excluded.block)>length(realm_entitlements.block) OR
+            (length(excluded.block)=length(realm_entitlements.block) AND excluded.block>realm_entitlements.block) OR
+            (excluded.block=realm_entitlements.block AND (excluded.status='ineligible' OR
+              (realm_entitlements.status<>'ineligible' AND excluded.checked_at>realm_entitlements.checked_at)))))`,
       )
       .bind(
         wallet,
@@ -218,7 +227,7 @@ export async function realmAccess(
     const grace = same?.grace_until ?? 0;
     await db
       .prepare(
-        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until) VALUES (?,?,?,?,'unavailable',?,?,?) ON CONFLICT(wallet) DO UPDATE SET status='unavailable',next_check_at=excluded.next_check_at WHERE realm_entitlements.policy=excluded.policy AND realm_entitlements.checked_at<=?`,
+        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until) VALUES (?,?,?,?,'unavailable',?,?,?) ON CONFLICT(wallet) DO UPDATE SET status=CASE WHEN realm_entitlements.status='ineligible' THEN 'ineligible' ELSE 'unavailable' END,next_check_at=excluded.next_check_at WHERE realm_entitlements.policy=excluded.policy AND realm_entitlements.checked_at<=?`,
       )
       .bind(
         wallet,

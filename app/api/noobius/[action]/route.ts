@@ -2,7 +2,7 @@ import { NeighborhoodError } from '@/lib/neighborhoods-server';
 import { FacilityError } from '@/lib/facility';
 import { ApiError, handleGame } from '@/lib/server';
 export const dynamic = 'force-dynamic';
-async function handle(
+async function respond(
   request: Request,
   { params }: { params: Promise<{ action: string }> },
 ) {
@@ -33,6 +33,33 @@ async function handle(
       { status: 500, headers: { 'Cache-Control': 'no-store' } },
     );
   }
+}
+async function handle(
+  request: Request,
+  context: { params: Promise<{ action: string }> },
+) {
+  const started = performance.now(),
+    requestId = crypto.randomUUID();
+  const response = await respond(request, context);
+  response.headers.set('X-Request-ID', requestId);
+  const action = (await context.params).action.slice(0, 64);
+  const important =
+    response.status >= 400 ||
+    /^(listing-|project-claim|project-contribute|neighborhood-join)/.test(
+      action,
+    );
+  if (important || Math.random() < 0.02)
+    console.log(
+      JSON.stringify({
+        event: 'noobius-request',
+        requestId,
+        action,
+        status: response.status,
+        durationMs: Math.round(performance.now() - started),
+        sampleRate: important ? 1 : 0.02,
+      }),
+    );
+  return response;
 }
 export const GET = handle;
 export const POST = handle;

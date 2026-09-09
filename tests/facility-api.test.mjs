@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { isolatedNeighborhood, attachWorld, walkTo } from './world-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,6 +36,40 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
     ok(await facility(c, 'gather', { id: 'scrap-a' }));
     assert.equal((await facility(c, 'gather', { id: 'scrap-a' })).status, 400);
     ok(await facility(c, 'claim', { id: 'welcome' }));
+    assert.equal(
+      (
+        await c.request(
+          'listing-create',
+          c.body({
+            item: 'scrap',
+            quantity: 1,
+            price: 1,
+            requestId: crypto.randomUUID(),
+          }),
+        )
+      ).status,
+      403,
+    );
+    // Represent an established pre-upgrade account, preserving the test's exact
+    // balance/inventory. This local-only fixture exercises legacy qualification.
+    const wallet = c.account.address.toLowerCase();
+    execFileSync(
+      'npx',
+      [
+        'wrangler',
+        'd1',
+        'execute',
+        'DB',
+        '--local',
+        '--config',
+        '.openai/wrangler.local.json',
+        '--persist-to',
+        '.wrangler/state',
+        '--command',
+        `UPDATE players SET facility_state=json_set(facility_state,'$.stats.repairs',1) WHERE wallet='${wallet}'`,
+      ],
+      { stdio: 'pipe' },
+    );
   }
   assert.equal(
     (await facility(seller, 'buy', { item: 'core', quantity: 50 })).status,
@@ -255,4 +290,36 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
     ).status,
     400,
   );
+  for (const c of [seller, a, b]) await attachWorld(c, room);
+  const available = ok(await seller.request('profile')).profile;
+  const offered = Object.entries(available.facility.inventory).find(
+    ([, n]) => n > 0,
+  )[0];
+  const recipient = ok(await a.request('profile')).profile.id,
+    directId = crypto.randomUUID();
+  ok(
+    await seller.request(
+      'listing-create',
+      seller.body({
+        item: offered,
+        quantity: 1,
+        price: 1,
+        recipient,
+        requestId: directId,
+      }),
+    ),
+  );
+  assert.ok(
+    ok(await a.request('listings?scope=direct')).listings.some(
+      (l) => l.id === directId,
+    ),
+  );
+  assert.ok(
+    !ok(await b.request('listings')).listings.some((l) => l.id === directId),
+  );
+  assert.equal(
+    (await b.request('listing-buy', b.body({ id: directId }))).status,
+    403,
+  );
+  ok(await seller.request('listing-cancel', seller.body({ id: directId })));
 });

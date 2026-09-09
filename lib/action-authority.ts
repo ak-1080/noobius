@@ -17,7 +17,7 @@ export function actionWorksite(
     return OBJECTS.find((o) => o.id === 'workbench');
   if (action.type.startsWith('outage-'))
     return OBJECTS.find((o) => o.id === activeIncident(f)?.rack);
-  if (action.type === 'contract-start' || action.type === 'contract-step') {
+  if (action.type === 'contract-start' || action.type === 'contract-service') {
     const run = careerFor(f).active.find((r) => r.id === action.id);
     const template = run && contractTemplate(run.template);
     if (template && template.family !== 'workload')
@@ -27,6 +27,8 @@ export function actionWorksite(
 }
 export function needsHome(action: Pick<FacilityAction, 'type'>) {
   return ![
+    'buy',
+    'sell',
     'intro',
     'intro-skip',
     'outfit',

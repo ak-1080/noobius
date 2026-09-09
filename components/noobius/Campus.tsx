@@ -19,6 +19,7 @@ import {
   REALMS,
   type Neighbor,
   type RealmId,
+  type NeighborhoodSnapshot,
 } from '@/lib/neighborhoods';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
@@ -35,6 +36,7 @@ type Props = {
   playerName?: string;
   neighbors?: Neighbor[];
   realm?: RealmId;
+  cluster?: NeighborhoodSnapshot['cluster'];
   sharedCampus?: boolean;
   correction?: { x: number; z: number; revision: number } | null;
   facility: Facility;
@@ -274,6 +276,68 @@ export default function Campus(props: Props) {
       context.fillText(text, 256, 51, 480);
       sprite.material.map!.needsUpdate = true;
     };
+    const clusterLights: T.MeshStandardMaterial[] = [];
+    let clusterLabel: T.Sprite | null = null,
+      lastClusterText = '';
+    if (live.current.sharedCampus) {
+      const gpu = live.current.realm === 'gpu',
+        count = gpu ? 6 : 3,
+        height = gpu ? 4.5 : 3.2;
+      const rackMaterial = mat(gpu ? '#222e52' : '#1a3440');
+      const trim = mat(
+        gpu ? '#a3b0ff' : '#bce98e',
+        0.2,
+        gpu ? '#394680' : '#294432',
+      );
+      for (let n = 0; n < count; n++) {
+        const x = (n - (count - 1) / 2) * (gpu ? 2.45 : 3.5);
+        box(1.75, height, 1.3, rackMaterial, scene, x, height / 2, 1.3);
+        box(1.8, 0.16, 1.4, trim, scene, x, height, 1.3);
+        for (let row = 0; row < 4; row++) {
+          box(
+            1.38,
+            0.45,
+            0.12,
+            dark,
+            scene,
+            x,
+            0.6 + (row * (height - 0.8)) / 4,
+            2.01,
+          );
+          const lamp = mat('#28404a', 0.1, '#172c30');
+          box(
+            0.72,
+            0.07,
+            0.13,
+            lamp,
+            scene,
+            x,
+            0.6 + (row * (height - 0.8)) / 4,
+            2.1,
+          );
+          clusterLights.push(lamp);
+        }
+      }
+      if (gpu) {
+        for (const x of [-8.5, 8.5]) {
+          box(0.22, 5.5, 0.22, silver, scene, x, 2.75, 1.4);
+          pipe(
+            new T.Vector3(x, 5.4, 1.4),
+            new T.Vector3(0, 6, 1.4),
+            0.08,
+            trim,
+            scene,
+          );
+        }
+      }
+      clusterLabel = label(
+        'Meet Margo · build a cluster',
+        gpu ? '#a3b0ff' : '#bce98e',
+        6.5,
+      );
+      clusterLabel.position.set(0, height + 1, 1.3);
+      scene.add(clusterLabel);
+    }
     const texCanvas = document.createElement('canvas');
     texCanvas.width = 128;
     texCanvas.height = 128;
@@ -322,7 +386,12 @@ export default function Campus(props: Props) {
       const tiles = mesh(new T.PlaneGeometry(18, 16), tinted, g, 0, 0.052, 0);
       tiles.rotation.x = -Math.PI / 2;
       tiles.castShadow = false;
-      const accent = mat(zone.color, 0.1);
+      const accent = mat(
+        live.current.sharedCampus && live.current.realm === 'gpu'
+          ? '#9cacf8'
+          : zone.color,
+        0.1,
+      );
       box(18, 0.08, 0.12, accent, g, 0, 0.09, 7.6);
       box(0.12, 0.08, 16, accent, g, -8.7, 0.09, 0);
       for (const side of [-1, 1]) {
@@ -1146,6 +1215,29 @@ export default function Campus(props: Props) {
       last = time;
       const p = live.current,
         f = p.facility;
+      if (clusterLabel) {
+        const cluster = p.cluster,
+          ratio = cluster ? cluster.progress / Math.max(1, cluster.total) : 0;
+        const text = cluster?.online
+          ? 'CLUSTER ONLINE · built by your crew'
+          : cluster
+            ? `Build progress · ${cluster.progress}/${cluster.total} contributions`
+            : 'Meet Margo · build a cluster';
+        if (text !== lastClusterText) {
+          relabel(clusterLabel, text);
+          lastClusterText = text;
+        }
+        clusterLights.forEach((lamp, index) => {
+          const online = (index + 1) / clusterLights.length <= ratio;
+          lamp.color.set(online ? '#b8ee89' : '#28404a');
+          lamp.emissive.set(online ? '#629d43' : '#10242b');
+          lamp.emissiveIntensity = online
+            ? motion.matches
+              ? 0.8
+              : 0.8 + 0.15 * Math.sin(time / 1000 + index)
+            : 0.1;
+        });
+      }
       const beforeX = avatar.g.position.x,
         beforeZ = avatar.g.position.z;
       let dx = 0,
