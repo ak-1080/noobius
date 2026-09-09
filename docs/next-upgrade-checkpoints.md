@@ -12,6 +12,10 @@ Installed Vinext and Cloudflare tooling support a custom Worker entry and Durabl
 
 Smallest decisive proof: six simultaneous joins yield five occupants; tab takeover fences the old controller; entering an interior retains a slot; movement reaches peers; impossible movement and remote work fail; reconnect restores membership; restart around a committed action yields the same receipt once. Run through actual deployed staging, not only localhost. Cloudflare references: [WebSockets](https://developers.cloudflare.com/durable-objects/best-practices/websockets/), [class migrations](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/), [service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/).
 
+Follow-up evidence: the managed proof deployed, but reported no room binding and returned HTTP 500 for the raw authenticated socket upgrade. Normal HTTP worked. The probe was subsequently removed; [full evidence](transport-hosting-proof.md) and isolated reproduction are retained. An account/host connection question is pending. Do not repeat the same namespace experiment without a changed provisioning mechanism.
+
+Authorization audit: `crew_presence` is checked inside facility, shared work, projects, chat and targeted-trade writes. Generations are random identifiers, not monotonic counters. `syncNow()` currently gates physical commands; a future socket barrier must await an authoritative durable checkpoint, or commands must be routed through one fenced coordinator. Facility travel writes a new position/sequence directly and must be reconciled before subsequent movement. Never broadcast whole personalized snapshots: membership credentials, claimed/pending/mine fields and private center details are recipient-specific. Earned project/crew claims and escrow cancellations must remain available after leaving a room.
+
 ## Recurring uses for neglected materials
 
 Pump, fiber and core currently lack sufficient recurring use. Candidate design, still requiring implementation and balance validation:
@@ -24,6 +28,8 @@ Pump, fiber and core currently lack sufficient recurring use. Candidate design, 
 Preserve old accepted and unaccepted quotes with a separate termsVersion on offers/runs; missing means original terms. New refills get new terms. Do not repurpose quoteVersion, which already controls idle reimbursement and batch accounting. Preserve template IDs, earned mastery and discoveries. An explicit dispatch replacement chooses new terms; cancel/reload must not rewrite an old offer. Optional craft variants must be server-whitelisted with frozen costs/output/time; missing variant retains ordinary crafting.
 
 Preserve the bench constraint: the reviewed maxed Fast training batch consumed 30 boards per 168 seconds while ordinary fabrication made about 21; Stable consumed 24 per 240 seconds while the bench made 30. A faster alternate recipe would erase that choice. Nominal replacement margins do not prove currency neutrality when players self-gather; measure actual sources/sinks and return-session choices.
+
+Implementation review found two UI traps to cover: JobsPanel must resolve saved terms for “Keep this offer” instead of substituting an identically named current-catalog option; and recovered-board ingredient help must retain the explicit recipe variant when nested under a client job's parts plan. Carry the variant through the per-wallet draft, GuideView and objective recipe resolution while preserving the parent job. Do not add a duplicate `board` recipe ID or change the output to a nonexistent item ID. Saved offer/run pairs must have equal normalized terms versions; unknown versions must fail validation. Recovered crafting needs a single server-side whitelist and a preserved ordinary path for old pending batches. No D1 schema migration is needed for these facility JSON fields.
 
 ## Acceptance still required
 
