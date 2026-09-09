@@ -196,6 +196,7 @@ test('legacy rate settles once, honors its old cap/outage, and retains all saved
   const old = {
     ...newFacility(0),
     tycoonVersion: undefined,
+    productionVersion: undefined,
     economyVersion: 2,
     compute: 500,
     builds: { 'rack-a': 2 },
@@ -237,7 +238,7 @@ test('legacy rate settles once, honors its old cap/outage, and retains all saved
   ])
     assert.deepEqual(migrated[key], old[key]);
   assert.deepEqual(normalizeFacility(migrated, now + 1000), migrated);
-  assert.equal(storedComputeNow(migrated, now + 15000), 43);
+  assert.equal(storedComputeNow(migrated, now + 15000), 31);
   const batch = action(migrated, 'compute-collect', 500, now);
   assert.equal(batch.credits, 40);
   assert.equal(batch.facility.compute, 540);
@@ -294,7 +295,7 @@ test('buying machines or speed keeps the production clock and settles old output
   }).facility;
   for (const [type, id, cost, nextTick] of [
     ['build', 'rack-b', 75, 12],
-    ['build', 'rack-a', 90, 12],
+    ['build', 'rack-a', 90, 8],
     ['compute-upgrade', undefined, 20, 9],
   ]) {
     const bought = action(starter, type, cost, 29999, { id });

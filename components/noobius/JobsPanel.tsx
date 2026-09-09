@@ -24,6 +24,7 @@ import {
   ITEMS,
   OBJECTS,
   canPay,
+  workloadCapacity,
   type Facility,
   type FacilityAction,
   type Bag,
@@ -60,7 +61,7 @@ import type { NextStep } from '@/lib/objectives';
 import { dispatchCount } from '@/lib/dispatch';
 
 type Action = (action: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
-export type JobDraft = { style: ModuleStyle; rack: string };
+export type JobDraft = { style: ModuleStyle; rack: string; quantity?: number };
 type Props = {
   initialTab?: string;
   practice?: boolean;
@@ -106,6 +107,7 @@ function JobOffer({
   const tickets = c.dispatchChoices?.[original.family] ?? [];
   const accepted = c.active.some((run) => run.id === offer.id);
   const { Icon, title } = familyCopy[original.family];
+  const preview = jobSetup(f, selected, 'standard');
   return (
     <article className="client-job">
       <div className="job-eyebrow">
@@ -146,8 +148,8 @@ function JobOffer({
       <div className="job-payout">
         <span>
           <ComputeIcon size={20} />
-          {selected.reward} Compute
-          {selected.family === 'workload' ? ' fee + machine output' : ' reward'}
+          {preview.fee} Compute
+          {selected.family === 'workload' ? ' per one-unit job' : ' reward'}
         </span>
         <span>+{selected.reputation} reputation</span>
         <span>Standard setup</span>
@@ -235,7 +237,19 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     chosenRack,
   );
   const racks = availableRacks(f);
-  const quote = jobSetup(f, t, style, rack, now);
+  const batchEnabled = t.family === 'workload' && run.quoteVersion === 2;
+  const quantity = batchEnabled ? (draft.quantity ?? 1) : 1;
+  const batchLimit = rack ? workloadCapacity(f, rack) : 1;
+  const batchFits = !batchEnabled || quantity <= batchLimit;
+  const quote = jobSetup(
+    f,
+    t,
+    style,
+    rack,
+    now,
+    quantity,
+    run.quoteVersion ?? 1,
+  );
   const worksite = OBJECTS.find((o) => o.id === t.target)!;
   const atWorksite =
     t.family === 'workload' ||
@@ -349,8 +363,39 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                       <NativeSelectOption key={id} value={id}>
                         {OBJECTS.find((o) => o.id === id)?.name ?? id} · level{' '}
                         {f.builds[id]}
+                        {batchEnabled
+                          ? ` · up to ${workloadCapacity(f, id)} units`
+                          : ''}
                       </NativeSelectOption>
                     ))}
+                </NativeSelect>
+              </label>
+            )}
+            {batchEnabled && rack && (batchLimit > 1 || quantity > 1) && (
+              <label>
+                Units in this batch
+                <NativeSelect
+                  aria-label={`Batch size for ${t.name}`}
+                  value={quantity}
+                  onChange={(e) =>
+                    props.onDraft?.(run.id, {
+                      ...draft,
+                      quantity: Number(e.target.value),
+                    })
+                  }
+                >
+                  {!batchFits && (
+                    <NativeSelectOption value={quantity} disabled>
+                      {quantity} · too large for this machine
+                    </NativeSelectOption>
+                  )}
+                  {Array.from({ length: batchLimit }, (_, i) => i + 1).map(
+                    (n) => (
+                      <NativeSelectOption key={n} value={n}>
+                        {n} unit{n === 1 ? '' : 's'}
+                      </NativeSelectOption>
+                    ),
+                  )}
                 </NativeSelect>
               </label>
             )}
@@ -390,7 +435,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
           </div>
           <div className="job-payout">
             <span>
-              <ComputeIcon size={20} /> {quote.fee} Compute job fee
+              <ComputeIcon size={20} /> {quote.fee} Compute payment
             </span>
             <span>+{quote.reputation} reputation</span>
             <span>
@@ -400,9 +445,13 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
           </div>
           {t.family === 'workload' && (
             <p className="job-note">
-              {rack
-                ? `${quote.reservedOutput} Compute replaces this machine’s paused output. Total payment: ${quote.reward} Compute.`
-                : 'Choose the machine to reserve. Its paused output is included in the payment; a bigger rack does not increase the job fee.'}{' '}
+              {run.quoteVersion === 2
+                ? rack
+                  ? `${quantity} unit${quantity === 1 ? '' : 's'} together · one report. This machine pauses about ${quote.lostIdle} Compute of idle income while working.`
+                  : 'Choose a machine. Larger machines can process more units together; more units use more parts and earn a larger payment. Every batch earns one report.'
+                : rack
+                  ? `Your existing one-unit job keeps its original terms: ${quote.reservedOutput} Compute replaces paused output. Total payment: ${quote.reward} Compute.`
+                  : 'This existing job keeps its original one-unit terms. Choose a machine to see its payment.'}{' '}
               Your other machines keep producing.
             </p>
           )}
@@ -411,6 +460,10 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
               <Button className="primary-action" onClick={props.onEquipment}>
                 Equip {styleName(style)} or choose Standard
               </Button>
+            ) : !batchFits ? (
+              <p className="job-note">
+                Choose fewer units or a machine with more capacity.
+              </p>
             ) : !canPay(f.inventory, quote.cost) ? (
               <Button
                 className="primary-action"
@@ -435,6 +488,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                     id: run.id,
                     direction: style,
                     rack,
+                    quantity,
                   })
                 }
               >
@@ -467,6 +521,12 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
         </>
       ) : (
         <>
+          {t.family === 'workload' && (
+            <p className="job-note">
+              {run.quantity ?? 1} unit{(run.quantity ?? 1) === 1 ? '' : 's'} ·{' '}
+              {run.reward} Compute on completion · one report
+            </p>
+          )}
           <Progress value={progress} aria-label={`${t.name} progress`} />
           {t.family === 'service' && !ready && (
             <div className="service-diagnostics">

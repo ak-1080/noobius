@@ -112,7 +112,7 @@ test('either final machine purchase celebrates equipment without declaring the g
     assert.match(result.receipt.detail, /client work and crew projects/);
     assert.match(
       result.receipt.detail,
-      /Compute spent · .* → 6,804 Compute \/ min/,
+      /Compute spent · .* → 476 Compute \/ min/,
     );
   }
 });

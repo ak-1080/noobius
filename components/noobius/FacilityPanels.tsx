@@ -22,6 +22,7 @@ import {
   ArrowUpFromLine,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -35,6 +36,7 @@ import {
   OUTFITS,
   buildCost,
   canPay,
+  craftQuote,
   capacity,
   computePerTick,
   modules,
@@ -154,6 +156,7 @@ export default function FacilityPanels({
   const f = profile.facility!,
     [now, setNow] = useState(Date.now),
     [quantity, setQuantity] = useState(1),
+    [craftQuantity, setCraftQuantity] = useState(1),
     [item, setItem] = useState<ItemId>('scrap'),
     [price, setPrice] = useState(10),
     [listings, setListings] = useState<MarketPage['listings']>([]),
@@ -398,7 +401,7 @@ export default function FacilityPanels({
             Go to workbench <ArrowRight size={18} />
           </Button>
         )}
-        {!f.claims.includes('first-light') && (
+        {!(f.stats.crafted ?? 0) && (
           <p className="muted-small">Start with a repair kit.</p>
         )}
         <div className="facility-summary">
@@ -410,11 +413,19 @@ export default function FacilityPanels({
             <strong>{f.stats.crafted ?? 0}</strong> parts made
           </span>
         </div>
+        {!f.craft && (
+          <label className="dispatch-picker">
+            How many parts?
+            <NativeSelect aria-label="Craft batch size" value={craftQuantity} onChange={e => setCraftQuantity(Number(e.target.value))}>
+              {Array.from({ length: 30 }, (_, i) => i + 1).map(n => <NativeSelectOption key={n} value={n}>{n} part{n === 1 ? '' : 's'}</NativeSelectOption>)}
+            </NativeSelect>
+          </label>
+        )}
         {f.craft && (
           <div className="fabrication-active">
             <Wrench size={24} />
             <span>
-              <strong>{ITEMS[f.craft.recipe as ItemId].name}</strong>
+              <strong>{f.craft.quantity ?? 1} × {ITEMS[f.craft.recipe as ItemId].name}</strong>
               <small>
                 {now < f.craft.readyAt
                   ? `${Math.ceil((f.craft.readyAt - now) / 1000)} seconds remaining`
@@ -423,15 +434,22 @@ export default function FacilityPanels({
             </span>
             <Button
               className="outline-button"
-              disabled={busy || now < f.craft.readyAt || !atWorkbench}
-              onClick={() => action({ type: 'collect' })}
+              disabled={busy || now < f.craft.readyAt || !atWorkbench || itemCount(f.inventory) + (f.craft.quantity ?? 1) > 120 + f.storage * 40}
+              onClick={() => action({ type: 'collect', id: f.craft?.id })}
             >
               Collect
             </Button>
+            {itemCount(f.inventory) + (f.craft.quantity ?? 1) > 120 + f.storage * 40 && (
+              <div className="muted-small">
+                <p>Free {itemCount(f.inventory) + (f.craft.quantity ?? 1) - (120 + f.storage * 40)} backpack spaces to collect. Your finished parts stay here.</p>
+                <Button className="outline-button" onClick={() => onPanel('inventory')}>Manage parts</Button>
+              </div>
+            )}
           </div>
         )}
         <div className="recipe-list">
           {RECIPES.map((r) => {
+            const quote = craftQuote(r, craftQuantity);
             const open =
               f.unlocked.includes(r.zone) &&
               skillLevel(f.skills.engineering) >= r.skill;
@@ -449,18 +467,18 @@ export default function FacilityPanels({
                     <p>{r.description}</p>
                   </div>
                 </div>
-                <Parts cost={r.cost} bag={f.inventory} />
-                {open && !canPay(f.inventory, r.cost) && !f.craft && (
+                <Parts cost={quote.cost} bag={f.inventory} />
+                {open && !canPay(f.inventory, quote.cost) && !f.craft && (
                   <button
                     className="find-parts-button"
-                    onClick={() => onHelp({ recipe: r.id })}
+                    onClick={() => onHelp({ items: quote.cost })}
                   >
                     Find the missing parts <ArrowRight size={14} />
                   </button>
                 )}
                 <div className="recipe-bottom">
                   <small>
-                    {r.seconds}s · Engineering {r.skill}
+                    {quote.seconds}s · Engineering {r.skill}
                     {!f.unlocked.includes(r.zone)
                       ? ` · Open ${ZONES.find((z) => z.id === r.zone)?.name}`
                       : ''}
@@ -471,13 +489,13 @@ export default function FacilityPanels({
                       !!f.craft ||
                       !open ||
                       !atWorkbench ||
-                      !canPay(f.inventory, r.cost)
+                      !canPay(f.inventory, quote.cost)
                     }
                     className="outline-button"
-                    onClick={() => action({ type: 'craft', id: r.id })}
+                    onClick={() => action({ type: 'craft', id: r.id, quantity: craftQuantity })}
                   >
                     {!open ? <Lock size={14} /> : <Wrench size={14} />} Make{' '}
-                    {r.name.toLowerCase()} · {r.seconds}s
+                    {craftQuantity} × {r.name.toLowerCase()} · {quote.seconds}s
                   </Button>
                 </div>
               </div>

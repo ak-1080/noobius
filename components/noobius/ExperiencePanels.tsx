@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
   COMPUTE_JOBS,
   BOOST_PRICES,
-  productionUnits,
+  boostGain,
   OUTAGE_NAMES,
   OUTAGE_STEPS,
   activeIncident,
@@ -98,7 +98,7 @@ export function ComputeDesk({
         <p>
           {f.computeBoost >= 5
             ? 'Top speed reached!'
-            : `${rate} → ${rate + productionUnits(f) * 12} Compute / min`}
+            : `${rate} → ${rate + boostGain(f)} Compute / min`}
         </p>
         <Button
           className="outline-button"

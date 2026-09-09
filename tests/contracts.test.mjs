@@ -390,14 +390,15 @@ test('storage and waiting directions carry presentation context without executab
   assert.equal(ready.cta, 'Back to my goal');
 });
 
-test('job comparisons separate the fee from reserved output and expose real equipment tradeoffs', () => {
+test('job comparisons separate payment from lost idle output and expose real equipment tradeoffs', () => {
   const f = fixture();
   const template = contractTemplate('tiny-model');
   const standard = jobSetup(f, template, 'standard', 'rack-a', 1000);
   const fast = jobSetup(f, template, 'fast', 'rack-a', 1000);
-  assert.equal(fast.fee, template.reward);
+  assert.equal(fast.fee, template.reward + 24);
   assert.equal(fast.fee + fast.reservedOutput, fast.reward);
-  assert.ok(fast.reservedOutput > 0);
+  assert.equal(fast.reservedOutput, 0);
+  assert.ok(fast.lostIdle > 0);
   assert.equal(fast.secondsSaved, standard.duration - fast.duration);
   assert.ok(fast.secondsSaved > 0);
   assert.deepEqual(fast.materials, [{ item: 'copper', change: 1 }]);

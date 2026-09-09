@@ -1,3 +1,8 @@
+import {
+  MACHINE_POWER,
+  machinePerTick,
+  workloadCapacity,
+} from './production.ts';
 import type { Bag, Facility, FacilityAction, ItemId } from './facility.ts';
 import { PROJECT_VARIANTS } from './projects.ts';
 import { validDispatchChoices, type DispatchChoices } from './dispatch.ts';
@@ -209,7 +214,7 @@ export const MODULES = [
   {
     id: 'fast',
     name: 'Fast',
-    description: 'Workloads finish 30% sooner. Uses one extra copper wire.',
+    description: 'Workloads finish 30% sooner. Uses one extra wire per unit.',
     cost: { kit: 1, copper: 4 },
     price: 90,
     required: 2,
@@ -226,7 +231,8 @@ export const MODULES = [
   {
     id: 'stable',
     name: 'Stable',
-    description: 'Favored stability work earns 50% extra reputation.',
+    description:
+      'Workload batches use 20% fewer crafted parts. Favored stability work earns 50% extra reputation.',
     cost: { board: 1, kit: 1 },
     price: 150,
     required: 5,
@@ -235,6 +241,8 @@ export const MODULES = [
 
 export type ContractOffer = { id: string; template: string };
 export type ContractRun = ContractOffer & {
+  quoteVersion?: 1 | 2;
+  quantity?: number;
   acceptedAt: number;
   state: 'accepted' | 'running' | 'ready';
   style: ModuleStyle;
@@ -316,15 +324,6 @@ export function serviceChallenge(run: Pick<ContractRun, 'id' | 'template'>) {
     .reduce((n, char) => (n * 31 + char.charCodeAt(0)) >>> 0, 0);
   return FAULTS[seed % FAULTS.length];
 }
-const machinePower: Record<string, number> = {
-  'rack-a': 1,
-  'rack-b': 1,
-  'rack-c': 2,
-  'rack-d': 3,
-  'rack-e': 4,
-  'rack-f': 6,
-  'rack-g': 10,
-};
 export const contractTemplate = (id: string) =>
   CONTRACT_TEMPLATES.find((t) => t.id === id)!;
 export const completedContracts = (c: Career) =>
@@ -404,14 +403,30 @@ export function contractQuote(
   style: ModuleStyle,
   rack?: string,
   now = Date.now(),
+  quantity = 1,
+  quoteVersion: 1 | 2 = 2,
 ) {
-  const cost = { ...template.cost };
+  if (quoteVersion !== 1 && quoteVersion !== 2)
+    throw new ContractError('Unsupported job terms.');
+  const limit = quoteVersion === 2 && template.family === 'workload' ? 30 : 1;
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > limit)
+    throw new ContractError(`Choose between 1 and ${limit} units.`);
+  const cost = Object.fromEntries(
+    Object.entries(template.cost).map(([key, n]) => [key, n! * quantity]),
+  ) as Bag;
   const raw = new Set(['scrap', 'copper', 'silicon', 'coolant', 'fiber']);
   if (style === 'efficient')
     for (const key of Object.keys(cost) as ItemId[])
       if (raw.has(key)) cost[key] = Math.max(1, Math.ceil(cost[key]! * 0.65));
+  if (
+    style === 'stable' &&
+    quoteVersion === 2 &&
+    template.family === 'workload'
+  )
+    for (const key of Object.keys(cost) as ItemId[])
+      if (!raw.has(key)) cost[key] = Math.max(1, Math.ceil(cost[key]! * 0.8));
   if (style === 'fast' && template.family === 'workload')
-    cost.copper = (cost.copper ?? 0) + 1;
+    cost.copper = (cost.copper ?? 0) + quantity;
   const duration = Math.ceil(
     template.seconds *
       (template.family === 'workload'
@@ -422,22 +437,42 @@ export function contractQuote(
             : 1
         : 1),
   );
-  // The client pays for the rack's displaced normal output plus the job fee.
-  // Snapshot both at start; later purchases cannot change a promised reward.
   const firstTick =
     f.computeAt + Math.max(0, Math.floor((now - f.computeAt) / 15000)) * 15000;
-  const reservedTicks = Math.floor((now + duration * 1000 - firstTick) / 15000);
-  const displaced =
+  const reservedTicks = Math.max(
+    0,
+    Math.floor((now + duration * 1000 - firstTick) / 15000),
+  );
+  const lostIdle =
     template.family === 'workload' && rack
+      ? machinePerTick(f, rack) * reservedTicks
+      : 0;
+  // Version 1 accepted jobs retain their original one-unit reimbursement rules.
+  const reimbursed =
+    quoteVersion === 1 && template.family === 'workload' && rack
       ? (f.builds[rack] ?? 0) *
-        (machinePower[rack] ?? 1) *
+        (MACHINE_POWER[rack] ?? 1) *
         (6 + f.computeBoost * 3) *
         reservedTicks
+      : 0;
+  const booking =
+    quoteVersion === 2 && template.family === 'workload'
+      ? ({
+          'tiny-model': 24,
+          'render-rush': 36,
+          'quiet-inference': 72,
+          'wobbly-training': 96,
+        }[template.id] ?? 0)
       : 0;
   return {
     cost,
     duration,
-    reward: template.reward + displaced,
+    quantity,
+    lostIdle,
+    reimbursed,
+    booking,
+    fee: template.reward * quantity + booking,
+    reward: template.reward * quantity + booking + reimbursed,
     reputation:
       template.reputation +
       (style === template.favored
@@ -454,13 +489,7 @@ export function reservedProduction(f: Facility, until: number): number {
       Math.max(0, Math.min(until, r.readyAt) - f.computeAt) / 15000,
     );
     const start = Math.floor(Math.max(0, r.startedAt - f.computeAt) / 15000);
-    return (
-      sum +
-      Math.max(0, end - start) *
-        (f.builds[r.rack] ?? 0) *
-        (machinePower[r.rack] ?? 1) *
-        (6 + f.computeBoost * 3)
-    );
+    return sum + Math.max(0, end - start) * machinePerTick(f, r.rack);
   }, 0);
 }
 
@@ -558,6 +587,7 @@ export function applyContract(
     }
     c.active.push({
       ...offer,
+      quoteVersion: 2,
       acceptedAt: now,
       state: 'accepted',
       style: 'standard',
@@ -605,9 +635,27 @@ export function applyContract(
     const rack = t.family === 'workload' ? a.rack : undefined;
     if (t.family === 'workload' && (!rack || !availableRacks(f).includes(rack)))
       fail('Choose an available machine.');
-    const quote = contractQuote(f, t, style, rack, now);
+    const quantity = a.quantity === undefined ? 1 : a.quantity;
+    if (t.family === 'workload' && quantity > workloadCapacity(f, rack))
+      fail(
+        'This batch is too large for that machine. Choose fewer units or a bigger machine.',
+      );
+    const quote = contractQuote(
+      f,
+      t,
+      style,
+      rack,
+      now,
+      quantity,
+      run.quoteVersion ?? 1,
+    );
     spend(quote.cost);
-    Object.assign(run, quote, {
+    Object.assign(run, {
+      cost: quote.cost,
+      duration: quote.duration,
+      reward: quote.reward,
+      reputation: quote.reputation,
+      ...(run.quoteVersion === 2 ? { quantity } : {}),
       style,
       rack: rack ?? null,
       startedAt: now,
@@ -884,6 +932,17 @@ export function validCareer(value: unknown): value is Career {
   return c.active.every(
     (r) =>
       ['accepted', 'running', 'ready'].includes(r.state) &&
+      (r.quoteVersion === undefined ||
+        r.quoteVersion === 1 ||
+        r.quoteVersion === 2) &&
+      (r.quantity === undefined
+        ? r.quoteVersion !== 2 || r.state === 'accepted'
+        : r.quoteVersion === 2 &&
+          r.state !== 'accepted' &&
+          nat(r.quantity) &&
+          r.quantity >= 1 &&
+          r.quantity <=
+            (contractTemplate(r.template).family === 'workload' ? 30 : 1)) &&
       ['standard', ...c.modules].includes(r.style) &&
       [
         'acceptedAt',
@@ -895,7 +954,7 @@ export function validCareer(value: unknown): value is Career {
       ].every((k) => nat(r[k as keyof ContractRun])) &&
       (r.startedAt === null || nat(r.startedAt)) &&
       (r.readyAt === null || nat(r.readyAt)) &&
-      (r.rack === null || Object.hasOwn(machinePower, r.rack)) &&
+      (r.rack === null || Object.hasOwn(MACHINE_POWER, r.rack)) &&
       r.steps <= 4 &&
       r.cost &&
       typeof r.cost === 'object' &&

@@ -18,9 +18,27 @@ export function jobSetup(
   style: ModuleStyle,
   rack?: string,
   now = Date.now(),
+  quantity = 1,
+  quoteVersion: 1 | 2 = 2,
 ) {
-  const quote = contractQuote(f, template, style, rack, now);
-  const standard = contractQuote(f, template, 'standard', rack, now);
+  const quote = contractQuote(
+    f,
+    template,
+    style,
+    rack,
+    now,
+    quantity,
+    quoteVersion,
+  );
+  const standard = contractQuote(
+    f,
+    template,
+    'standard',
+    rack,
+    now,
+    quantity,
+    quoteVersion,
+  );
   const materials = [
     ...new Set([...Object.keys(standard.cost), ...Object.keys(quote.cost)]),
   ]
@@ -34,8 +52,7 @@ export function jobSetup(
     .filter((entry) => entry.change !== 0);
   return {
     ...quote,
-    fee: template.reward,
-    reservedOutput: quote.reward - template.reward,
+    reservedOutput: quote.reimbursed,
     secondsSaved: standard.duration - quote.duration,
     reputationBonus: quote.reputation - standard.reputation,
     materials,
@@ -145,7 +162,7 @@ export function careerSuggestions(
             : 0,
         reward: style
           ? 'A different setup to master'
-          : `${t.reward} Compute fee + one completed-job report`,
+          : `${contractQuote(f, t, 'standard', undefined, 0).fee} Compute for one unit + one job report`,
       }),
     );
   }

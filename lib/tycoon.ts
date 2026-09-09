@@ -4,7 +4,7 @@ import {
   ZONES,
   computePerTick,
   machineGain,
-  productionUnits,
+  boostGain,
   modules,
   rackCount,
   rackPrice,
@@ -60,7 +60,7 @@ export function tycoonObjective(
       if (f.computeBoost < BOOST_PRICES.length)
         choices.push({
           cost: BOOST_PRICES[f.computeBoost],
-          gain: productionUnits(f) * 12,
+          gain: boostGain(f),
           target: first,
           action: { type: 'compute-upgrade', id: '' },
         });
@@ -129,7 +129,7 @@ export function tycoonObjective(
       : wrap(
           {
             title: 'Make your machine faster',
-            detail: `Spend ${BOOST_PRICES[0]} Compute · ${rate} → ${rate + productionUnits(f) * 12}/min.`,
+            detail: `Spend ${BOOST_PRICES[0]} Compute · ${rate} → ${rate + boostGain(f)}/min.`,
             cta: 'Upgrade output',
             target: first,
             action: { type: 'compute-upgrade' },
@@ -213,7 +213,7 @@ export function tycoonObjective(
       : wrap(
           {
             title: 'Speed up your whole data center',
-            detail: `${cost} Compute adds ${productionUnits(f) * 12}/min.`,
+            detail: `${cost} Compute adds ${boostGain(f)}/min.`,
             cta: 'Upgrade',
             action: { type: 'compute-upgrade' },
             target: first,

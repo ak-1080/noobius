@@ -1,3 +1,5 @@
+import { machinePerTick } from './production.ts';
+export { MACHINE_POWER, machinePerTick, workloadCapacity } from './production.ts';
 import { applyContract, ContractError, newCareer, reservedProduction, type Career } from './contracts.ts';
 
 export type ItemId =
@@ -26,6 +28,7 @@ export type Facility = {
   career?: Career;
   economyVersion?: number;
   tycoonVersion?: number;
+  productionVersion?: number;
   accessory?: string;
   visiting?: boolean;
   version: number;
@@ -40,7 +43,7 @@ export type Facility = {
   stats: Record<string, number>;
   claims: string[];
   cooldowns: Record<string, number>;
-  craft: { recipe: string; readyAt: number } | null;
+  craft: { id?: string; recipe: string; readyAt: number; quantity?: number } | null;
   energy: number;
   energyAt: number;
   storage: number;
@@ -510,7 +513,7 @@ export const RECIPES: {
     seconds: 5,
     skill: 1,
     zone: 'workshop',
-    description: 'The essential ingredient for restoring every rack.',
+    description: 'Build equipment modules, fill supply orders and help crew projects.',
   },
   {
     id: 'board',
@@ -519,7 +522,7 @@ export const RECIPES: {
     seconds: 8,
     skill: 1,
     zone: 'workshop',
-    description: 'Upgrade rack capacity and deliver engineering contracts.',
+    description: 'Run training jobs, fill supply orders and build equipment modules.',
   },
   {
     id: 'pump',
@@ -537,7 +540,7 @@ export const RECIPES: {
     seconds: 10,
     skill: 2,
     zone: 'workshop',
-    description: 'Expand the power budget. Please keep it dry.',
+    description: 'Fill supply orders or upgrade the power station. Please keep it dry.',
   },
   {
     id: 'coffee',
@@ -699,6 +702,7 @@ export function newFacility(now = Date.now()): Facility {
   return {
     economyVersion: 2,
     tycoonVersion: 1,
+    productionVersion: 2,
     accessory: 'none',
     version: 0,
     zone: 'commons',
@@ -741,6 +745,8 @@ export function normalizeFacility(
   saved: Partial<Facility>,
   now = Date.now(),
 ): Facility {
+  if (saved.productionVersion !== undefined && ![1, 2].includes(saved.productionVersion))
+    throw new FacilityError('This save uses a newer production system. Refresh before playing.');
   const fresh = newFacility(now);
   const f = {
     ...fresh,
@@ -755,9 +761,16 @@ export function normalizeFacility(
   // Settle the old rate once before enabling the tycoon economy. Keep every
   // earned item, pending job, claim and the separate currency migration flag.
   if (saved.tycoonVersion !== 1) {
-    f.storedCompute = storedComputeNow({ ...f, tycoonVersion: undefined }, now);
+    f.storedCompute = storedComputeNow({ ...f, tycoonVersion: undefined, productionVersion: undefined }, now);
     f.computeAt = now;
     f.tycoonVersion = 1;
+  }
+  if (saved.productionVersion !== 2) {
+    // Settle completed old ticks before changing rates, keeping the partial tick.
+    // Existing job receipts, holdings and above-cap output remain earned property.
+    f.storedCompute = storedComputeNow({ ...f, productionVersion: saved.productionVersion }, now);
+    f.computeAt += Math.max(0, Math.floor((now - f.computeAt) / 15000)) * 15000;
+    f.productionVersion = 2;
   }
   f.career ??= newCareer(f);
   return f;
@@ -803,26 +816,15 @@ export const computeTankCapacity = (f: Facility) =>
     ? Math.max(240, computePerTick(f) * 4 * 60)
     : 120 + modules(f) * 30 + f.computeBoost * 50;
 export const computePerTick = (f: Facility) =>
-  f.tycoonVersion === 1
-    ? productionUnits(f) * (6 + f.computeBoost * 3)
-    : modules(f) * (1 + f.computeBoost);
-export const MACHINE_POWER: Record<string, number> = {
-  'rack-a': 1,
-  'rack-b': 1,
-  'rack-c': 2,
-  'rack-d': 3,
-  'rack-e': 4,
-  'rack-f': 6,
-  'rack-g': 10,
+  Object.keys(f.builds).reduce((sum, id) => sum + machinePerTick(f, id), 0);
+export const machineGain = (f: Facility, id: string) => {
+  if ((f.builds[id] ?? 0) >= 3) return 0;
+  const next = { ...f, builds: { ...f.builds, [id]: (f.builds[id] ?? 0) + 1 } };
+  return (machinePerTick(next, id) - machinePerTick(f, id)) * 4;
 };
-export const productionUnits = (f: Facility) =>
-  Object.entries(f.builds).reduce(
-    (sum, [id, level]) => sum + level * (MACHINE_POWER[id] ?? 1),
-    0,
-  );
-export const machineGain = (f: Facility, id: string) =>
-  (MACHINE_POWER[id] ?? 1) * (6 + f.computeBoost * 3) * 4;
-export const BOOST_PRICES = [20, 200, 900, 3500, 12000] as const;
+export const boostGain = (f: Facility) => f.computeBoost >= 5 ? 0 :
+  (computePerTick({ ...f, computeBoost: f.computeBoost + 1 }) - computePerTick(f)) * 4;
+export const BOOST_PRICES = [20, 80, 220, 500, 900] as const;
 export const RACK_PRICES: Record<string, number> = {
   'rack-a': 45,
   'rack-b': 75,
@@ -841,12 +843,12 @@ export function storedComputeNow(f: Facility, now = Date.now()) {
     f.computeAt,
     f.tycoonVersion === 1 ? now : Math.min(now, f.incident?.at ?? now),
   );
-  return Math.min(
+  return Math.max(f.storedCompute, Math.min(
     computeTankCapacity(f),
     f.storedCompute +
       Math.max(0, Math.floor((until - f.computeAt) / 15000)) *
         computePerTick(f) - reservedProduction(f, until),
-  );
+  ));
 }
 export const INTRO_IDS = [
   'identity',
@@ -914,6 +916,14 @@ export type FacilityAction = {
   requestId: string;
 };
 export class FacilityError extends Error {}
+export function craftQuote(recipe: (typeof RECIPES)[number], quantity = 1) {
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 30)
+    throw new FacilityError('Choose between 1 and 30 parts.');
+  return {
+    cost: Object.fromEntries(Object.entries(recipe.cost).map(([id, n]) => [id, n! * quantity])) as Bag,
+    seconds: recipe.seconds * quantity,
+  };
+}
 export function applyFacility(
   previous: Facility,
   action: FacilityAction,
@@ -1157,22 +1167,27 @@ export function applyFacility(
         throw new FacilityError('Collect your finished craft first.');
       if (skillLevel(f.skills.engineering) < recipe.skill)
         throw new FacilityError('Raise your engineering skill first.');
-      spend(recipe.cost);
-      f.craft = { recipe: recipe.id, readyAt: now + recipe.seconds * 1000 };
-      message = `Making ${recipe.name.toLowerCase()} · ${recipe.seconds} seconds`;
+      const quantity = action.quantity === undefined ? 1 : action.quantity;
+      const quote = craftQuote(recipe, quantity);
+      spend(quote.cost);
+      f.craft = { id: crypto.randomUUID(), recipe: recipe.id, quantity, readyAt: now + quote.seconds * 1000 };
+      message = `Making ${quantity} ${recipe.name.toLowerCase()} · ${quote.seconds} seconds`;
       break;
     }
     case 'collect': {
       if (!f.craft || f.craft.readyAt > now)
         throw new FacilityError('The bench is still working.');
+      if (f.craft.id && action.id !== f.craft.id)
+        throw new FacilityError('That batch is no longer at the bench. Reopen the workbench.');
       const recipe = RECIPES.find((r) => r.id === f.craft!.recipe)!;
-      space(1);
-      add(recipe.id, 1);
+      const quantity = f.craft.quantity ?? 1;
+      space(quantity);
+      add(recipe.id, quantity);
       f.craft = null;
-      f.skills.engineering += 10;
-      count('crafted');
-      xp = 5;
-      message = recipe.name + ' ready.';
+      f.skills.engineering += 10 * quantity;
+      count('crafted', quantity);
+      xp = 5 * quantity;
+      message = `${quantity} ${recipe.name.toLowerCase()} ready.`;
       break;
     }
     case 'build': {

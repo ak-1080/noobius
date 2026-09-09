@@ -7,7 +7,9 @@ import {
   ZONES,
   computePerTick,
   machineGain,
-  productionUnits,
+  workloadCapacity,
+  MACHINE_POWER,
+  boostGain,
   modules,
   rackPrice,
   type Facility,
@@ -77,6 +79,11 @@ export default function TycoonBuildPanel({
               </>
             )}
           </p>
+          <p className="muted-small">
+            {level >= 3
+              ? `Runs up to ${workloadCapacity(f, o.id)} client units together`
+              : `Client capacity: ${workloadCapacity(f, o.id)} → ${(level + 1) * MACHINE_POWER[o.id]} units`}
+          </p>
           <Button
             className={cost === 0 ? 'primary-action' : 'outline-button'}
             disabled={busy || level >= 3 || balance < cost}
@@ -136,7 +143,7 @@ export default function TycoonBuildPanel({
                 <>
                   {rate} <ArrowRight size={14} />{' '}
                   <strong>
-                    {rate + productionUnits(f) * 12} Compute / min
+                    {rate + boostGain(f)} Compute / min
                   </strong>
                 </>
               )}

@@ -82,7 +82,7 @@ export function resolveObjective(
         : 'Ready! Pick it up and put it to work.',
     cta: f.craft && now < f.craft.readyAt ? 'Making…' : 'Collect part',
     target: 'workbench',
-    action: { type: 'collect' },
+    action: { type: 'collect', id: f.craft?.id },
     wait: !!f.craft && now < f.craft.readyAt,
   });
   const gather = (id: ItemId): NextStep => {
@@ -327,7 +327,7 @@ export function resolveObjective(
   }
   const pickup =
     step.action?.type === 'collect'
-      ? 1
+      ? (f.craft?.quantity ?? 1)
       : step.action?.type === 'bank' && step.action.direction === 'withdraw'
         ? (step.action.quantity ?? 0)
         : step.action?.type === 'gather'

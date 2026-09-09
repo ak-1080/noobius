@@ -291,3 +291,62 @@ test('invalid active-job timestamps and impossible cooling puzzles cannot strand
     assert.equal(saved.profile.facility.builds['rack-a'], 1);
   }
 });
+
+test('reading and saving an unchanged legacy guest persists the production migration exactly once', () => {
+  const t = setup(), p = t.profile;
+  delete p.facility.productionVersion;
+  p.facility.builds = { 'rack-g': 3 };
+  p.facility.computeBoost = 5;
+  const first = t.makeStore(); first.read(); first.write(p, null);
+  t.advance(30001);
+  const store = t.makeStore(), loaded = store.read().snapshot;
+  assert.equal(loaded.profile.facility.storedCompute, 1260);
+  assert.equal(loaded.profile.facility.productionVersion, 2);
+  const before = JSON.parse(t.data.get(GUEST_SAVE_KEY)).revision;
+  assert.equal(store.write(loaded.profile, loaded.shift).kind, 'saved');
+  const saved = JSON.parse(t.data.get(GUEST_SAVE_KEY));
+  assert.notEqual(saved.revision, before);
+  assert.equal(saved.profile.facility.productionVersion, 2);
+  t.advance(15000);
+  const later = t.makeStore().read().snapshot;
+  assert.equal(later.profile.facility.storedCompute, 1260);
+  assert.equal(storedComputeNow(later.profile.facility, t.now), 1277);
+});
+
+test('guest migration handles a concurrent tab and retries failed storage without false success', () => {
+  const t = setup(), p = t.profile;
+  delete p.facility.productionVersion;
+  const initial = t.makeStore(); initial.read(); initial.write(p, null);
+  t.advance(30000);
+  const a = t.makeStore(), b = t.makeStore();
+  const av = a.read().snapshot, bv = b.read().snapshot;
+  assert.equal(a.write({ ...av.profile, name: 'NewestName' }, null).kind, 'saved');
+  const conflict = b.write(bv.profile, bv.shift);
+  assert.equal(conflict.kind, 'conflict');
+  assert.equal(conflict.snapshot.profile.name, 'NewestName');
+  assert.equal(conflict.snapshot.profile.facility.productionVersion, 2);
+  assert.equal(b.write(conflict.snapshot.profile, null).kind, 'saved');
+
+  const raw = JSON.parse(t.data.get(GUEST_SAVE_KEY));
+  delete raw.profile.facility.productionVersion;
+  t.data.set(GUEST_SAVE_KEY, JSON.stringify(raw));
+  const retry = t.makeStore(), v = retry.read().snapshot;
+  const originalSet = t.storage.setItem;
+  t.storage.setItem = () => { throw new Error('quota'); };
+  assert.equal(retry.write(v.profile, v.shift).kind, 'unavailable');
+  assert.equal(JSON.parse(t.data.get(GUEST_SAVE_KEY)).profile.facility.productionVersion, undefined);
+  t.storage.setItem = originalSet;
+  assert.equal(retry.write(v.profile, v.shift).kind, 'saved');
+  assert.equal(JSON.parse(t.data.get(GUEST_SAVE_KEY)).profile.facility.productionVersion, 2);
+});
+
+test('future production versions cannot be replaced by a fresh guest fallback', () => {
+  const t = setup(), a = t.makeStore(); a.read(); a.write(t.profile, null);
+  const newer = JSON.parse(t.data.get(GUEST_SAVE_KEY));
+  newer.profile.facility.productionVersion = 3;
+  const raw = JSON.stringify(newer); t.data.set(GUEST_SAVE_KEY, raw);
+  const b = t.makeStore();
+  assert.equal(b.read().issue, 'newer');
+  assert.equal(b.write(t.profile, null).kind, 'unavailable');
+  assert.equal(t.data.get(GUEST_SAVE_KEY), raw);
+});

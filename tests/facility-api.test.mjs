@@ -166,9 +166,10 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
   ]);
   assert.ok(craft.every((r) => [200, 409].includes(r.status)));
   ok(await facility(seller, 'craft', { id: 'kit' }, craftId));
-  assert.equal((await facility(seller, 'collect')).status, 400);
+  const craftBatch = ok(await seller.request('profile')).profile.facility.craft.id;
+  assert.equal((await facility(seller, 'collect', { id: craftBatch })).status, 400);
   await delay(5100);
-  ok(await facility(seller, 'collect'));
+  ok(await facility(seller, 'collect', { id: craftBatch }));
   const claimId = crypto.randomUUID(),
     claims = await Promise.all([
       facility(seller, 'claim', { id: 'maker' }, claimId),

@@ -50,7 +50,8 @@ const date = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 function facility(v: unknown): v is Facility {
-  if (record(v) && v.career !== undefined && !validCareer(v.career)) return false;
+  if (record(v) && v.career !== undefined && !validCareer(v.career))
+    return false;
   if (
     !record(v) ||
     !zone(v.zone) ||
@@ -127,14 +128,26 @@ function facility(v: unknown): v is Facility {
     return false;
   if (!date(v.day) || !(v.lastWorkday === '' || date(v.lastWorkday)))
     return false;
-  if (v.economyVersion !== 2 || v.tycoonVersion !== 1 || v.visiting)
+  if (
+    v.economyVersion !== 2 ||
+    v.tycoonVersion !== 1 ||
+    v.visiting ||
+    (v.productionVersion !== undefined && ![1, 2].includes(v.productionVersion))
+  )
     return false;
   if (
     v.craft !== null &&
     !(
       record(v.craft) &&
       RECIPES.some((r) => r.id === v.craft.recipe) &&
-      number(v.craft.readyAt)
+      number(v.craft.readyAt) &&
+      (v.craft.id === undefined ||
+        (typeof v.craft.id === 'string' &&
+          /^[a-zA-Z0-9-]{8,80}$/.test(v.craft.id))) &&
+      (v.craft.quantity === undefined ||
+        (number(v.craft.quantity) &&
+          v.craft.quantity >= 1 &&
+          v.craft.quantity <= 30))
     )
   )
     return false;
@@ -266,6 +279,7 @@ function decode(raw: string | null, now: number): Envelope | null {
 export class GuestSaveStore {
   private revision: string | null = null;
   private fingerprint = '';
+  private migrationDirty = false;
   private readOnly = false;
   private storage: () => StoragePort;
   private now: () => number;
@@ -284,7 +298,8 @@ export class GuestSaveStore {
           if (
             record(envelope) &&
             number(envelope.schemaVersion) &&
-            envelope.schemaVersion > 1
+            (envelope.schemaVersion > 1 ||
+              (envelope.profile?.facility?.productionVersion ?? 0) > 2)
           ) {
             this.readOnly = true;
             return { snapshot: null, issue: 'newer' };
@@ -299,6 +314,11 @@ export class GuestSaveStore {
         ? { profile: saved.profile, shift: saved.shift }
         : null;
       this.fingerprint = snapshot ? JSON.stringify(snapshot) : '';
+      const original = raw && saved ? JSON.parse(raw) : null;
+      this.migrationDirty =
+        !!original &&
+        JSON.stringify({ profile: original.profile, shift: original.shift }) !==
+          this.fingerprint;
       return {
         snapshot,
         ...(raw && !saved ? { issue: 'invalid' as const } : {}),
@@ -318,7 +338,8 @@ export class GuestSaveStore {
     if (this.readOnly) return { kind: 'unavailable' };
     const snapshot = { profile: p, shift: s };
     const fingerprint = JSON.stringify(snapshot);
-    if (fingerprint === this.fingerprint) return { kind: 'saved' };
+    if (!this.migrationDirty && fingerprint === this.fingerprint)
+      return { kind: 'saved' };
     try {
       const storage = this.storage();
       const raw = storage.getItem(GUEST_SAVE_KEY);
@@ -326,7 +347,11 @@ export class GuestSaveStore {
       if (raw) {
         try {
           const candidate = JSON.parse(raw);
-          if (record(candidate) && candidate.schemaVersion > 1)
+          if (
+            record(candidate) &&
+            (candidate.schemaVersion > 1 ||
+              (candidate.profile?.facility?.productionVersion ?? 0) > 2)
+          )
             return { kind: 'unavailable' };
           current = decode(raw, this.now());
         } catch {
@@ -350,6 +375,7 @@ export class GuestSaveStore {
       );
       this.revision = revision;
       this.fingerprint = fingerprint;
+      this.migrationDirty = false;
       return { kind: 'saved' };
     } catch {
       return { kind: 'unavailable' };

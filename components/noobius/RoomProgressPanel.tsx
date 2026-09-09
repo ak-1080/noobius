@@ -17,6 +17,7 @@ import {
   OBJECTS,
   ZONES,
   machineGain,
+  machinePerTick,
   modules,
   type Facility,
   type FacilityAction,
@@ -187,7 +188,7 @@ export default function RoomProgressPanel({
                   </span>
                   <span>
                     {level
-                      ? `+${(machineGain(f, plot.id) * level).toLocaleString()}/min`
+                      ? `+${(machinePerTick(f, plot.id) * 4).toLocaleString()}/min`
                       : `+${machineGain(f, plot.id).toLocaleString()}/min`}
                     <small>{level ? 'Earning Compute' : 'Once built'}</small>
                   </span>

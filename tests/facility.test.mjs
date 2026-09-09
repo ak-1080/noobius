@@ -17,7 +17,7 @@ import { resolveObjective } from '../lib/objectives.ts';
 const act = (f, type, extras = {}, credits = 1000, now = 100000) =>
   applyFacility(
     f,
-    { type, ...extras, requestId: extras.requestId ?? crypto.randomUUID() },
+    { type, ...(type === 'collect' ? { id: f.craft?.id } : {}), ...extras, requestId: extras.requestId ?? crypto.randomUUID() },
     credits,
     now,
   );

@@ -210,7 +210,7 @@ async function player(wallet: string): Promise<Profile> {
       .run();
     return player(wallet);
   }
-  if (saved.tycoonVersion !== 1) {
+  if (saved.tycoonVersion !== 1 || saved.productionVersion !== 2) {
     // Commit the rate transition before returning it to the client. Otherwise
     // a legacy read could display new-rate earnings that a later write reverts.
     const migrated = normalizeFacility(saved, Date.now());
