@@ -1,5 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
+  emitOperationalEvent,
+  type OperationalEvent,
+} from '../../lib/operational-events.ts';
+import {
   roomAuthConfig,
   roomServiceHeaders,
   ROOM_SERVICE_PATH,
@@ -36,6 +40,9 @@ type Actor = {
   lastCheckpointAt: number;
 };
 type Outbox = {
+  recoveryId?: string;
+  queuedAt?: number;
+  checkpointOutcome?: 'confirmed' | 'terminal';
   grant: string;
   checkpoint: RoomMotionCheckpoint;
   expiresAt: number;
@@ -53,6 +60,15 @@ class ServiceFailure extends Error {
     this.status = status;
   }
 }
+class ServiceTransportFailure extends Error {
+  reason: 'timeout' | 'network' | 'json';
+  constructor(reason: ServiceTransportFailure['reason']) {
+    super('Room service unavailable');
+    this.reason = reason;
+  }
+}
+const timedOut = (error: unknown) =>
+  error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name);
 function configuration(env: Env) {
   const config = roomAuthConfig(env, env.LOCAL_ROOM_DEVELOPMENT === 'true');
   if (!config) throw new ServiceFailure(503);
@@ -71,6 +87,22 @@ const nowFor = (actor: Actor) => Date.now() + actor.offset;
 const terminal = (error: unknown) =>
   error instanceof ServiceFailure &&
   [400, 401, 403, 404, 409, 410, 413, 415].includes(error.status);
+const failureFields = (
+  error: unknown,
+): Pick<OperationalEvent, 'reason' | 'status'> =>
+  error instanceof ServiceFailure
+    ? { reason: 'http', status: error.status }
+    : {
+        reason:
+          error instanceof ServiceTransportFailure ? error.reason : 'unknown',
+      };
+const recoveryFields = (value: Outbox) => ({
+  recoveryId: value.recoveryId,
+  attempt: value.attempts ?? 0,
+  ...(value.queuedAt !== undefined
+    ? { ageMs: Date.now() - value.queuedAt }
+    : {}),
+});
 const updateClock = (actor: Actor, authority: RoomAuthority) => {
   actor.offset = Math.max(actor.offset, authority.serverNow - Date.now());
 };
@@ -115,6 +147,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private rates = new Map<WebSocket, { at: number; count: number }>();
   private lastBroadcastAt = 0;
   private admission = Promise.resolve();
+  private backlogWarningAt = -Infinity;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -159,7 +192,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
                   operation: 'authority-release',
                   grant: a.grant,
                 });
-              } catch {
+              } catch (error) {
+                emitOperationalEvent({
+                  event: 'room-release-deferred',
+                  phase: 'restore',
+                  ...failureFields(error),
+                });
                 /* A failed restore still loses its writer lease within ten seconds. */
               }
             }
@@ -179,16 +217,28 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     body: Record<string, unknown>,
   ): Promise<T> {
     const raw = JSON.stringify(body);
-    const response = await fetch(this.config.audience + ROOM_SERVICE_PATH, {
-      method: 'POST',
-      body: raw,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(2500),
-      headers: await roomServiceHeaders(this.config, raw),
-    });
+    const headers = await roomServiceHeaders(this.config, raw);
+    let response: Response;
+    try {
+      response = await fetch(this.config.audience + ROOM_SERVICE_PATH, {
+        method: 'POST',
+        body: raw,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(2500),
+        headers,
+      });
+    } catch (error) {
+      throw new ServiceTransportFailure(
+        timedOut(error) ? 'timeout' : 'network',
+      );
+    }
     if (!response.ok)
       throw new ServiceFailure(response.status < 400 ? 503 : response.status);
-    return response.json<T>();
+    try {
+      return await response.json<T>();
+    } catch (error) {
+      throw new ServiceTransportFailure(timedOut(error) ? 'timeout' : 'json');
+    }
   }
   private actor(
     grant: string,
@@ -276,13 +326,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     q.tail = q.tail
       .then(() => (this.closed.has(ws) ? undefined : job()))
       .catch((error) => {
-        console.warn(
-          JSON.stringify({
-            event: 'room-connection-failed',
-            status: error instanceof ServiceFailure ? error.status : 503,
-            kind: error instanceof Error ? error.name : 'unknown',
-          }),
-        );
+        emitOperationalEvent({
+          event: 'room-connection-failed',
+          ...failureFields(error),
+        });
         ws.close(1012, 'Reconnect to continue.');
         void this.webSocketClose(ws);
       })
@@ -377,8 +424,18 @@ export class NeighborhoodRoom extends DurableObject<Env> {
                 limit: OUTBOX_ADMISSION_LIMIT,
               })
             ).size >= OUTBOX_ADMISSION_LIMIT
-          )
+          ) {
+            if (Date.now() - this.backlogWarningAt >= 30000) {
+              this.backlogWarningAt = Date.now();
+              emitOperationalEvent({
+                event: 'room-admission-blocked',
+                reason: 'outbox-backlog',
+                pendingAtLeast: OUTBOX_ADMISSION_LIMIT,
+                limit: OUTBOX_ADMISSION_LIMIT,
+              });
+            }
             throw new ServiceFailure(503);
+          }
           const result = await this.service<RoomAuthority & { grant: string }>({
             operation: 'ticket-consume',
             ticket: body.ticket,
@@ -536,7 +593,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     const checkpoint = a.motion.pendingCheckpoint!;
     const key = 'checkpoint:' + a.grant;
     // Durable before network. A new nonce is safe; a new checkpoint ID is not.
+    const previous = await this.ctx.storage.get<Outbox>(key);
+    const same =
+      previous?.checkpoint.id === checkpoint.id ? previous : undefined;
     await this.ctx.storage.put(key, {
+      recoveryId: same?.recoveryId ?? crypto.randomUUID(),
+      queuedAt: same?.queuedAt ?? Date.now(),
       grant: a.grant,
       checkpoint,
       expiresAt: a.authority.expiresAt,
@@ -618,7 +680,11 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     if (!this.recovery) {
       this.recovery = this.recoverOrphans()
         .catch(() =>
-          console.warn(JSON.stringify({ event: 'room-recovery-delayed' })),
+          emitOperationalEvent({
+            event: 'room-recovery-delayed',
+            phase: 'storage',
+            reason: 'storage',
+          }),
         )
         .finally(() => {
           this.recovery = null;
@@ -645,37 +711,71 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         limit: RECOVERY_SCAN,
       });
     const jobs: Promise<void>[] = [];
-    for (const [key, value] of pending) {
-      await this.ctx.storage.put('recovery-cursor', key);
-      if ([...this.actors.values()].some((a) => a.grant === value.grant))
-        continue;
-      if (Date.now() > value.expiresAt + 60000) {
-        await this.ctx.storage.delete(key);
-        continue;
+    let failed = false;
+    const recordFailure = () => {
+      failed = true;
+    };
+    try {
+      for (const [key, value] of pending) {
+        await this.ctx.storage.put('recovery-cursor', key);
+        if ([...this.actors.values()].some((a) => a.grant === value.grant))
+          continue;
+        if (Date.now() > value.expiresAt + 60000) {
+          await this.ctx.storage.delete(key);
+          emitOperationalEvent({
+            event: 'room-outbox-expired',
+            ...recoveryFields(value),
+            phase: value.reconciled ? 'release' : 'checkpoint',
+          });
+          continue;
+        }
+        if ((value.retryAt ?? 0) > Date.now()) continue;
+        // Attach rejection handling immediately: scanning the next record can await storage.
+        jobs.push(this.recoverOrphan(key, value).catch(recordFailure));
+        if (jobs.length === RECOVERY_BATCH) break;
       }
-      if ((value.retryAt ?? 0) > Date.now()) continue;
-      jobs.push(this.recoverOrphan(key, value));
-      if (jobs.length === RECOVERY_BATCH) break;
+    } catch {
+      recordFailure();
+    } finally {
+      // Keep the gate until every launched request settles, even after a storage failure.
+      await Promise.all(jobs);
     }
-    await Promise.all(jobs);
+    if (failed) throw new Error('Recovery storage unavailable.');
   }
   private async recoverOrphan(key: string, value: Outbox) {
+    let phase: 'checkpoint' | 'release' | 'storage' = 'storage';
+    const started = Date.now();
     try {
+      if (!value.recoveryId) {
+        value.recoveryId = crypto.randomUUID();
+        await this.ctx.storage.put(key, value);
+      }
+      emitOperationalEvent({
+        event: 'room-outbox-attempt',
+        ...recoveryFields(value),
+        phase: value.reconciled ? 'release' : 'checkpoint',
+      });
       if (!value.reconciled) {
+        phase = 'checkpoint';
         try {
           await this.service({
             operation: 'movement-checkpoint',
             grant: value.grant,
             ...value.checkpoint,
           });
+          value.checkpointOutcome = 'confirmed';
         } catch (error) {
           if (!terminal(error)) throw error;
+          value.checkpointOutcome = 'terminal';
         }
         // Retain a durable release obligation even when checkpoint replay is
         // terminal or release itself fails after a successful reconciliation.
         value.reconciled = true;
+        phase = 'storage';
         await this.ctx.storage.put(key, value);
       }
+      phase = 'release';
+      let release: 'confirmed' | 'terminal' = 'confirmed';
       try {
         await this.service({
           operation: 'authority-release',
@@ -683,12 +783,30 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         });
       } catch (error) {
         if (!terminal(error)) throw error;
+        release = 'terminal';
       }
+      phase = 'storage';
       await this.ctx.storage.delete(key);
-    } catch {
+      emitOperationalEvent({
+        event: 'room-outbox-finished',
+        ...recoveryFields(value),
+        durationMs: Date.now() - started,
+        checkpoint: value.checkpointOutcome ?? 'previously-reconciled',
+        release,
+      });
+    } catch (error) {
+      if (phase === 'storage') throw error;
       value.attempts = Math.min(6, (value.attempts ?? 0) + 1);
       value.retryAt = Date.now() + Math.min(30000, 1000 * 2 ** value.attempts);
       await this.ctx.storage.put(key, value);
+      emitOperationalEvent({
+        event: 'room-outbox-retry',
+        ...recoveryFields(value),
+        phase,
+        delayMs: value.retryAt - Date.now(),
+        durationMs: Date.now() - started,
+        ...failureFields(error),
+      });
     }
   }
   async webSocketClose(ws: WebSocket) {
@@ -703,7 +821,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     if (a && !(await this.ctx.storage.get('checkpoint:' + a.grant))) {
       try {
         await this.service({ operation: 'authority-release', grant: a.grant });
-      } catch {
+      } catch (error) {
+        emitOperationalEvent({
+          event: 'room-release-deferred',
+          phase: 'close',
+          ...failureFields(error),
+        });
         /* ten-second writer expiry permits recovery */
       }
     }

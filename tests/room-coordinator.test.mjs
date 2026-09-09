@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { operationalRecord } from '../lib/operational-events.ts';
 
 // All mocks and test state live in memory. No site files or database are changed.
 // Override either path to run against a saved earlier version of worker.ts.
@@ -121,7 +122,7 @@ const modules = {
   },
   '../../lib/room-motion.ts': { RoomMotion: RoomMotionMock },
 };
-function roomClass(clock) {
+function roomClass(clock, events, fetcher) {
   class VirtualDate extends Date {
     static now() {
       return clock.now;
@@ -130,6 +131,11 @@ function roomClass(clock) {
   const sandbox = {
     exports: {},
     require(id) {
+      if (id === '../../lib/operational-events.ts')
+        return {
+          emitOperationalEvent: (event) =>
+            events.push(operationalRecord(event)),
+        };
       if (!(id in modules))
         throw new Error('Unexpected import in coordinator mock: ' + id);
       return modules[id];
@@ -141,11 +147,14 @@ function roomClass(clock) {
     WebSocket: WebSocketMock,
     Request,
     Response,
+    Error,
     URL,
     AbortSignal,
-    fetch() {
-      throw new Error('Unexpected network call in coordinator test');
-    },
+    fetch:
+      fetcher ??
+      (() => {
+        throw new Error('Unexpected network call in coordinator test');
+      }),
   };
   vm.runInNewContext(output, sandbox, { filename: sourcePath });
   return sandbox.exports.NeighborhoodRoom;
@@ -233,7 +242,8 @@ async function fixture(options = {}) {
       sockets.push(ws);
     },
   };
-  const NeighborhoodRoom = roomClass(clock);
+  const events = [];
+  const NeighborhoodRoom = roomClass(clock, events, options.fetch);
   if (options.service) NeighborhoodRoom.prototype.service = options.service;
   const room = new NeighborhoodRoom(ctx, {});
   const rawAlarm = room.alarm.bind(room);
@@ -262,6 +272,7 @@ async function fixture(options = {}) {
     initialized,
     rawAlarm,
     backgroundJobs,
+    events,
   };
 }
 
@@ -1093,3 +1104,262 @@ test(
     assert.equal(checkpointCount(f), 0);
   },
 );
+
+test('orphan retry and release completion share a redacted correlation and preserve actual phase outcomes', async () => {
+  const now = Date.now(),
+    value = outbox('secret-grant-do-not-log', now);
+  value.queuedAt = now - 8000;
+  let attempts = 0;
+  const f = await fixture({
+    now,
+    values: [['checkpoint:' + value.grant, value]],
+    service: async (body) => {
+      if (body.operation === 'movement-checkpoint' && ++attempts === 1) {
+        const error = new Error('secret-message');
+        error.name = 'secret-name';
+        throw error;
+      }
+      return {};
+    },
+  });
+  await f.room.alarm();
+  const retry = f.events.find((e) => e.event === 'room-outbox-retry');
+  assert.equal(retry.phase, 'checkpoint');
+  assert.equal(retry.delayMs, 2000);
+  assert.equal(retry.ageMs, 8000);
+  assert.match(retry.recoveryId, /^[a-f0-9-]{36}$/);
+  assert.equal(f.values.get('checkpoint:' + value.grant).retryAt, now + 2000);
+  f.clock.now += 2000;
+  await f.room.alarm();
+  const finished = f.events.find((e) => e.event === 'room-outbox-finished');
+  assert.equal(finished.recoveryId, retry.recoveryId);
+  assert.equal(finished.checkpoint, 'confirmed');
+  assert.equal(finished.release, 'confirmed');
+  assert.equal(checkpointCount(f), 0);
+  assert.doesNotMatch(JSON.stringify(f.events), /secret-|checkpoint:/);
+});
+test('release retry does not claim that an uncertain release completed or replay the confirmed checkpoint', async () => {
+  const now = Date.now(),
+    value = outbox('release-secret', now),
+    calls = [];
+  let release = 0;
+  const f = await fixture({
+    now,
+    values: [['checkpoint:' + value.grant, value]],
+    service: async (body) => {
+      calls.push(body.operation);
+      if (body.operation === 'authority-release' && ++release === 1)
+        throw new Error('private failure');
+      return {};
+    },
+  });
+  await f.room.alarm();
+  assert.equal(
+    f.events.find((e) => e.event === 'room-outbox-retry').phase,
+    'release',
+  );
+  assert.equal(
+    f.events.some((e) => e.event === 'room-outbox-finished'),
+    false,
+  );
+  f.clock.now += 2000;
+  await f.room.alarm();
+  assert.deepEqual(calls, [
+    'movement-checkpoint',
+    'authority-release',
+    'authority-release',
+  ]);
+  assert.equal(
+    f.events.find((e) => e.event === 'room-outbox-finished').checkpoint,
+    'confirmed',
+  );
+});
+test('terminal rejection and expiry are distinguished from confirmed recovery', async () => {
+  const now = Date.now(),
+    value = outbox('terminal-secret', now);
+  const f = await fixture({
+    now,
+    values: [['checkpoint:' + value.grant, value]],
+    fetch: async () => new Response(null, { status: 409 }),
+  });
+  await f.room.alarm();
+  const finished = f.events.find((e) => e.event === 'room-outbox-finished');
+  assert.equal(finished.checkpoint, 'terminal');
+  assert.equal(finished.release, 'terminal');
+  const expired = outbox('expired-secret', now);
+  expired.expiresAt = now - 60001;
+  f.values.set('checkpoint:' + expired.grant, expired);
+  await f.room.alarm();
+  assert.equal(
+    f.events.filter((e) => e.event === 'room-outbox-expired').length,
+    1,
+  );
+  assert.equal(
+    f.events.filter((e) => e.event === 'room-outbox-finished').length,
+    1,
+  );
+});
+test('storage failure never reports a retry as durably scheduled', async () => {
+  const now = Date.now(),
+    value = outbox('storage-secret', now);
+  const f = await fixture({
+    now,
+    values: [['checkpoint:' + value.grant, value]],
+    service: async () => {
+      throw new Error('provider failed');
+    },
+  });
+  const put = f.ctx.storage.put;
+  f.ctx.storage.put = async (key, value) => {
+    if (value?.retryAt) throw new Error('storage private data');
+    return put(key, value);
+  };
+  await f.room.alarm();
+  assert.equal(
+    f.events.some((e) => e.event === 'room-outbox-retry'),
+    false,
+  );
+  assert.equal(
+    f.events.find((e) => e.event === 'room-recovery-delayed').reason,
+    'storage',
+  );
+  assert.equal(checkpointCount(f), 1);
+});
+test('backlog admission warning is bounded and happens before consuming a ticket', async () => {
+  const now = Date.now(),
+    values = Array.from({ length: 64 }, (_, i) => {
+      const v = outbox('backlog-' + i, now);
+      return ['checkpoint:' + v.grant, v];
+    });
+  let calls = 0;
+  const f = await fixture({
+    now,
+    values,
+    service: async () => {
+      calls++;
+      return {};
+    },
+  });
+  for (let i = 0; i < 3; i++) {
+    const ws = f.socket();
+    await f.room.webSocketMessage(
+      ws,
+      JSON.stringify({ type: 'join', ticket: 'secret-ticket' }),
+    );
+  }
+  assert.equal(calls, 0);
+  const warnings = f.events.filter((e) => e.event === 'room-admission-blocked');
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].pendingAtLeast, 64);
+  assert.equal(warnings[0].limit, 64);
+  assert.doesNotMatch(JSON.stringify(f.events), /secret-ticket|backlog-0/);
+});
+
+test('recovery storage failures keep the batch gate until pending siblings settle', async () => {
+  for (const stage of ['checkpoint', 'cursor']) {
+    const now = Date.now(),
+      a = outbox('a-pending', now),
+      b = outbox('b-storage', now),
+      gate = deferred();
+    let pendingCalls = 0,
+      failed = false;
+    const f = await fixture({
+      now,
+      values: [
+        ['checkpoint:' + a.grant, a],
+        ['checkpoint:' + b.grant, b],
+      ],
+      service: async (body) => {
+        if (
+          body.operation === 'movement-checkpoint' &&
+          body.grant === a.grant
+        ) {
+          pendingCalls++;
+          await gate.promise;
+        }
+        return {};
+      },
+    });
+    const put = f.ctx.storage.put;
+    f.ctx.storage.put = async (key, value) => {
+      if (
+        !failed &&
+        ((stage === 'checkpoint' &&
+          key === 'checkpoint:' + b.grant &&
+          value.reconciled) ||
+          (stage === 'cursor' &&
+            key === 'recovery-cursor' &&
+            value === 'checkpoint:' + b.grant))
+      ) {
+        failed = true;
+        throw new Error('storage failed');
+      }
+      return put(key, value);
+    };
+    try {
+      await f.rawAlarm();
+      await nextTurn();
+      assert.equal(failed, true);
+      f.clock.now += 1000;
+      await f.rawAlarm();
+      await nextTurn();
+      assert.equal(pendingCalls, 1, stage);
+      assert.equal(
+        f.events.some((e) => e.event === 'room-recovery-delayed'),
+        false,
+        'Do not release the batch before draining',
+      );
+    } finally {
+      gate.resolve();
+      await Promise.allSettled(f.backgroundJobs);
+    }
+    assert.equal(
+      f.events.filter((e) => e.event === 'room-recovery-delayed').length,
+      1,
+    );
+  }
+});
+
+test('room service classifies only proven transport failures and redacts provider payloads', async () => {
+  const marker = 'private-room-provider-sentinel';
+  for (const [reason, fetcher] of [
+    [
+      'network',
+      async () => {
+        const error = new Error(marker);
+        error.name = marker;
+        throw error;
+      },
+    ],
+    [
+      'timeout',
+      async () => {
+        throw new DOMException(marker, 'TimeoutError');
+      },
+    ],
+    ['json', async () => new Response(marker)],
+    [
+      'timeout',
+      async () => ({
+        ok: true,
+        async json() {
+          throw new DOMException(marker, 'AbortError');
+        },
+      }),
+    ],
+  ]) {
+    const now = Date.now(),
+      value = outbox('private-room-grant', now);
+    const f = await fixture({
+      now,
+      values: [['checkpoint:' + value.grant, value]],
+      fetch: fetcher,
+    });
+    await f.room.alarm();
+    const retry = f.events.find((e) => e.event === 'room-outbox-retry');
+    assert.ok(retry, reason);
+    assert.equal(retry.reason, reason);
+    for (const secret of [marker, value.grant, value.checkpoint.id])
+      assert.equal(JSON.stringify(f.events).includes(secret), false);
+  }
+});

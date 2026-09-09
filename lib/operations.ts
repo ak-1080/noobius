@@ -6,6 +6,7 @@ export function runtimeControls(values: Record<string, unknown>) {
         ? configured
         : 50,
     admissionPaused: values.NOOBIUS_ADMISSION_PAUSED === 'true',
+    gpuAdmissionPaused: values.NOOBIUS_GPU_ADMISSION_PAUSED === 'true',
     tradePaused: values.NOOBIUS_TRADE_PAUSED === 'true',
     projectsPaused: values.NOOBIUS_PROJECTS_PAUSED === 'true',
   };

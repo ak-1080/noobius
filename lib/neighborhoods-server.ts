@@ -130,6 +130,7 @@ export async function joinNeighborhood(
     expectedGeneration?: number;
     maxActive?: number;
     admissionPaused?: boolean;
+    gpuAdmissionPaused?: boolean;
   } = {},
   now = Date.now(),
 ): Promise<Membership> {
@@ -149,6 +150,63 @@ export async function joinNeighborhood(
     );
   const admissionGuard =
     realm === 'commons' ? '1' : walletHoldingGuard(wallet, options.permit);
+  const paused =
+    options.admissionPaused || (realm === 'gpu' && options.gpuAdmissionPaused);
+  if (paused) {
+    // Resumption is an in-place operation, never a route back into matchmaking.
+    // In particular, takeover without a target must not select another room.
+    if (
+      !old ||
+      old.lease_until <= now ||
+      old.realm !== realm ||
+      (options.target && options.target !== old.neighborhood_id)
+    )
+      throw new NeighborhoodError(
+        503,
+        realm === 'gpu' && options.gpuAdmissionPaused
+          ? 'New GPU District arrivals are paused. You can keep playing in Crew Commons; your center and earned rewards are safe.'
+          : 'New neighborhood arrivals are paused. Your center and saved progress are safe. Try again shortly.',
+      );
+    const takeover = old.client_id !== clientId;
+    if (takeover && !options.takeover)
+      throw new NeighborhoodError(
+        409,
+        'This game is open in another tab. Choose Continue here to take control.',
+      );
+    const generation = takeover ? freshGeneration() : old.generation;
+    const resumed = await db
+      .prepare(
+        `UPDATE crew_presence SET client_id=?,generation=?,
+        sequence=CASE WHEN ? THEN 0 ELSE sequence END,
+        room=CASE WHEN ? THEN 'commons' ELSE room END,
+        x=CASE WHEN ? THEN 0 ELSE x END,z=CASE WHEN ? THEN 17 ELSE z END,
+        updated_at=CASE WHEN ? THEN ? ELSE updated_at END,
+        lease_until=MAX(lease_until,?+${MEMBERSHIP_LEASE_MS})
+      WHERE wallet=? AND neighborhood_id=? AND slot=? AND generation=? AND client_id=?
+        AND lease_until>MAX(?,CAST(unixepoch('subsec')*1000 AS INTEGER))
+        AND ${admissionGuard} RETURNING *`,
+      )
+      .bind(
+        clientId,
+        generation,
+        ...Array(5).fill(takeover ? 1 : 0),
+        now,
+        now,
+        wallet,
+        old.neighborhood_id,
+        old.slot,
+        old.generation,
+        old.client_id,
+        now,
+      )
+      .first<PresenceRow>();
+    if (!resumed)
+      throw new NeighborhoodError(
+        409,
+        'Your connection or access changed. Return to Crew Commons to reconnect; your progress is safe.',
+      );
+    return membership({ ...resumed, realm });
+  }
   if (old?.neighborhood_id && old.lease_until > now) {
     if (old.client_id !== clientId && !options.takeover)
       throw new NeighborhoodError(
@@ -174,19 +232,6 @@ export async function joinNeighborhood(
       return membership({ ...renewed, realm });
     }
   }
-  if (
-    options.admissionPaused &&
-    !(
-      old &&
-      old.lease_until > now &&
-      old.realm === realm &&
-      (!options.target || options.target === old.neighborhood_id)
-    )
-  )
-    throw new NeighborhoodError(
-      503,
-      'New neighborhood arrivals are paused. Your center and saved progress are safe. Try again shortly.',
-    );
   const maxActive = options.maxActive ?? 50;
   if (!Number.isSafeInteger(maxActive) || maxActive < 1 || maxActive > 10000)
     throw new NeighborhoodError(

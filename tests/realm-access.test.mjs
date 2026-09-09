@@ -430,3 +430,195 @@ test('newer confirmed chain evidence wins even if its request began earlier', as
     '0xf5',
   );
 });
+
+test('holder provider failures are classified once without leaking provider data', async (t) => {
+  const events = [],
+    marker = 'private-provider-sentinel';
+  t.mock.method(console, 'info', (raw) => events.push(JSON.parse(raw)));
+  const configured = {
+    ...values,
+    NOOBIUS_TOKEN_RPC_URL: 'https://rpc.test.invalid/private?key=' + marker,
+  };
+  const bodyFailure = (name) => async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      throw new DOMException(marker, name);
+    },
+  });
+  const cases = [
+    ['http', async () => new Response(marker, { status: 429 }), 429],
+    ['http', async () => new Response(marker, { status: 503 }), 503],
+    ['json', async () => new Response(marker)],
+    [
+      'rpc',
+      async () => Response.json({ error: { message: marker, data: wallet } }),
+    ],
+    ['invalid-result', async () => Response.json({ result: '0x' })],
+    [
+      'timeout',
+      async () => {
+        throw new DOMException(marker, 'TimeoutError');
+      },
+    ],
+    ['timeout', bodyFailure('AbortError')],
+    ['timeout', bodyFailure('TimeoutError')],
+    [
+      'network',
+      async () => {
+        const error = new Error(marker);
+        error.name = marker;
+        throw error;
+      },
+    ],
+    ['network-mismatch', transport('888000000', '0x2').fetcher],
+    ['asset-mismatch', transport('888000000', '0x1', '0x12').fetcher],
+  ];
+  for (const [reason, fetcher, status] of cases) {
+    const db = fixture();
+    t.after(() => db.sqlite.close());
+    events.length = 0;
+    const result = await realmAccess(
+      db,
+      wallet,
+      configured,
+      false,
+      1000,
+      fetcher,
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(events.length, 1, reason);
+    assert.equal(events[0].event, 'holder-verification');
+    assert.equal(events[0].reason, reason);
+    assert.equal(events[0].status, status);
+    assert.equal(events[0].outcome, 'unavailable');
+    for (const secret of [
+      marker,
+      wallet,
+      configured.NOOBIUS_TOKEN_RPC_URL,
+      values.NOOBIUS_TOKEN_CONTRACT,
+    ])
+      assert.equal(JSON.stringify(events).includes(secret), false);
+  }
+});
+test('holder telemetry reports grace and winning concurrent denial with silent cache hits', async (t) => {
+  const db = fixture(),
+    events = [];
+  t.after(() => db.sqlite.close());
+  t.mock.method(console, 'info', (raw) => events.push(JSON.parse(raw)));
+  await realmAccess(db, wallet, values, false, 1000, transport().fetcher);
+  const offline = async () => {
+    throw new Error('private provider failure');
+  };
+  events.length = 0;
+  assert.equal(
+    (await realmAccess(db, wallet, values, false, 62000, offline)).allowed,
+    true,
+  );
+  assert.equal(events.length, 1);
+  assert.equal(events[0].outcome, 'grace');
+  assert.equal(events[0].reason, 'network');
+  events.length = 0;
+  let called = false;
+  await realmAccess(db, wallet, values, false, 63000, async () => {
+    called = true;
+    return offline();
+  });
+  assert.equal(called, false);
+  assert.equal(events.length, 0);
+  let release, entered;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const pending = realmAccess(db, wallet, values, false, 78000, async () => {
+    entered();
+    await gate;
+    return offline();
+  });
+  await started;
+  const denied = await realmAccess(
+    db,
+    wallet,
+    values,
+    false,
+    78001,
+    transport('0').fetcher,
+  );
+  assert.equal(denied.allowed, false);
+  release();
+  assert.equal((await pending).allowed, false);
+  assert.equal(events.length, 2);
+  assert.equal(events.at(-1).reason, 'network');
+  assert.equal(events.at(-1).outcome, 'ineligible');
+});
+test('holder storage failures remain distinct from provider failures', async (t) => {
+  const events = [];
+  t.mock.method(console, 'info', (raw) => events.push(JSON.parse(raw)));
+  for (const [stage, providerFails] of [
+    ['initial', false],
+    ['write', false],
+    ['reread', false],
+    ['write', true],
+    ['reread', true],
+  ]) {
+    const db = fixture(),
+      fault = new Error('private database detail');
+    t.after(() => db.sqlite.close());
+    let reads = 0,
+      rpcCalls = 0;
+    const hooked = {
+      ...db,
+      prepare(sql) {
+        const statement = db.prepare(sql);
+        return {
+          bind(...args) {
+            const bound = statement.bind(...args);
+            return {
+              async first() {
+                reads++;
+                if (
+                  (stage === 'initial' && reads === 1) ||
+                  (stage === 'reread' && reads === 2)
+                )
+                  throw fault;
+                return bound.first();
+              },
+              async run() {
+                if (stage === 'write') throw fault;
+                return bound.run();
+              },
+            };
+          },
+        };
+      },
+    };
+    const healthy = transport().fetcher;
+    const fetcher = async (...args) => {
+      rpcCalls++;
+      if (providerFails) throw new Error('private provider detail');
+      return healthy(...args);
+    };
+    events.length = 0;
+    await assert.rejects(
+      realmAccess(hooked, wallet, values, false, 1000, fetcher),
+      (error) => error === fault,
+    );
+    assert.deepEqual(
+      events.map((e) => e.event),
+      providerFails
+        ? ['holder-verification', 'holder-storage-failed']
+        : ['holder-storage-failed'],
+    );
+    assert.equal(events.at(-1).reason, 'storage');
+    if (stage === 'initial') assert.equal(rpcCalls, 0);
+    if (providerFails) {
+      assert.equal(events[0].reason, 'network');
+      assert.equal(events[0].outcome, undefined);
+      assert.equal(events[0].recoveryId, events[1].recoveryId);
+    }
+    assert.equal(JSON.stringify(events).includes('private'), false);
+  }
+});

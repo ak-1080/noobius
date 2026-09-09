@@ -1036,6 +1036,7 @@ export async function handleGame(request: Request, action: string) {
         permit,
         maxActive: controls.maxPlayers,
         admissionPaused: controls.admissionPaused,
+        gpuAdmissionPaused: controls.gpuAdmissionPaused,
       },
     );
     await rememberNeighbors(db(), wallet, joined.neighborhoodId);
