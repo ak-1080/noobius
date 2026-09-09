@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game and Ethereum/EVM + Solana wallet entry, with the job-choice and guidance follow-up below, were published as **Site version 32** on September 9, 2026 at 06:41 UTC. Source: `fcdf5714386f2f650ee80284071abc3890e1ee8c`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
+The neighborhood game, EVM + Solana wallet entry, guidance and new specialist job choices were published as **Site version 33** on September 9, 2026 at 07:03:40 UTC. Source: `3733c5c5a6274b35b0c99df4702389d6d0221dae`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
 
-Deployment `appgdep_6aa0ff86552081918a5e191c7e106a6d` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_05006b65654081918f70f08d05097f77`. It uses the same database schema and environment revision zero. The previous release's database overview listed all 18 expected game tables; its hosted save reopening, Jobs/Equipment/Milestones rendering, mouse-wheel zoom and console smoke checks passed. This remains a private playable release, not public multiplayer acceptance.
+Deployment `appgdep_6aa104bfecb48191bc801b4462071fbc` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_27638e9ba1408191bc0b248b42b7e65d`, with environment revision zero. The nullable dispatch policy migration is present in the live schema. Hosted guest save/Jobs smoke checks passed; authenticated rewards were tested in isolated local SQL/HTTP, not with a live extension. This remains a private playable release, not public multiplayer acceptance.
 
 ## Implemented
 
@@ -99,4 +99,4 @@ The project board previews matching contributions and storage before collection;
 
 All 147 default tests passed. TypeScript and production build passed. Scoped lint for the new core logic, Jobs panel and new project/API tests passed; broader touched-file lint still reports pre-existing issues in the server, ProjectPanel and older tests. The new local wallet HTTP test passed against an isolated database; no test wallet or fixture route ships. A temporary browser UI fixture confirmed preview → accept → cancel and no console errors. The full human gameplay/wallet/device acceptance remains open. Detailed experiment and validation scope: [specialist job choices](dispatch-choice-experiment.md).
 
-New migration 0007 only adds nullable `cluster_projects.benefit_json`. The local DB was backed up before applying it. Hosted preflight confirmed zero players/projects with no further pages and absence of this column. A populated pre-migration regression test preserves old terms with null benefits. Private publishing and hosted schema confirmation for this follow-up are pending below.
+New migration 0007 only adds nullable `cluster_projects.benefit_json`. The local DB was backed up before applying it. Hosted preflight confirmed zero players/projects with no further pages and absence of this column. A populated pre-migration regression test preserves old terms with null benefits. Version 33 private publishing succeeded at 07:03:40 UTC; the live schema now contains the benefit column. Hosted guest smoke checks preserved 880,287 spendable and 408,240 stored Compute, rendered the updated offer cards and reported no browser console errors. No runtime token, reviewer or access settings changed.

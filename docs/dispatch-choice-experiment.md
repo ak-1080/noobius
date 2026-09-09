@@ -1,6 +1,6 @@
 # Specialist project choices
 
-Status: implemented and validated locally; private release pending. This gives specialist clusters a continuing benefit for an equipped player: control over the next job offer. It does not change token payouts or passive production.
+Status: implemented, validated and published privately as Site version 33 on September 9, 2026 at 07:03:40 UTC. This gives specialist clusters a continuing benefit for an equipped player: control over the next job offer. It does not change token payouts or passive production.
 
 ## Implemented rules
 
@@ -42,3 +42,8 @@ Test duplicate claims, generic-only helpers, partial/full storage, concurrent gr
 ## Running the isolated HTTP check
 
 `tests/dispatch-api.test.mjs` refuses anything except loopback port 3003. Start a local Vite preview with Cloudflare `persistState.path` set to `.wrangler/qa-dispatch`, apply the canonical journal to that isolated database, and run `NOOBIUS_TEST_ORIGIN=http://localhost:3003 npm run test:dispatch-api`. Do not use its database fixtures against a hosted environment. Keep temporary preview configuration and fixture pages out of the production archive.
+
+
+## Private release evidence
+
+Deployed source `3733c5c5a6274b35b0c99df4702389d6d0221dae`, also pushed to GitHub main and the work branch. Version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_27638e9ba1408191bc0b248b42b7e65d`; deployment `appgdep_6aa104bfecb48191bc801b4462071fbc` succeeded at 07:03:40 UTC with environment revision zero. The live schema includes `benefit_json`. Owner-only access and runtime settings were preserved. Hosted guest save reopened with 880,287 spendable and 408,240 stored Compute unchanged; updated Jobs offers rendered correctly and the browser console contained no errors. This hosted smoke check did not exercise authenticated specialist rewards; those were covered by local SQL/HTTP and the temporary browser fixture described above.
