@@ -2,7 +2,7 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game, wallet entry, specialist dispatch choices and new capacity/batch economy are published as **Site version 34** on September 9, 2026 at 07:31:40 UTC. Source: `b5f8cf4254db09f92cf227dcb4609490b7d5bc38`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
+The neighborhood game, wallet entry, specialist dispatch choices, capacity/batch economy and connected supply guidance are published as **Site version 35** on September 9, 2026 at 07:49:52 UTC. Source: `123df291f9c128a657e5ec81a275914b140462f9`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
 
 Deployment `appgdep_6aa10b514e8881919344260306f72e18` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_2d8e3d3180648191bca5427cc50d8084`, with environment revision zero. Hosted guest smoke checks retained 880,287 spendable and 408,240 stored Compute, showed the new 476/min maximum rate and 3–30 unit machine capacities, and reported no browser error-level messages. Authenticated migration/claims were tested in isolated local SQL/HTTP, not with a live extension. This remains a private playable release, not public multiplayer acceptance.
 
@@ -110,3 +110,8 @@ Production-version migration preserves old earned and over-cap output, existing 
 163 default tests, TypeScript, scoped new-logic lint and production build pass. An isolated generated-wallet Worker/D1 HTTP check covers migration/harvest/start/claim races and bulk pickup/full-bag recovery. A temporary browser fixture covers explicit selection and spending, invalid capacity, batch ingredients/time and full-bag instructions; no error-level browser logs were reported. It was removed before the successful production build. These checks do not substitute for independent human, wallet-extension, device or hosted-load acceptance. Detailed rules, numerical scenarios and limits: [batch economy upgrade](batch-economy-upgrade.md).
 
 Version 34 publishing succeeded at 07:31:40 UTC. The source/archive has no temporary QA route or fixture server configuration. No SQL migration or runtime token/access/reviewer setting changed. Existing hosted guest holdings survived the production transition; the updated center rendered all seven machine capacities. The public acceptance gates above remain open.
+
+
+## Supply guidance release
+
+Site version 35 keeps account-scoped workshop selections, adaptive source-job/module supply plans, explicit capacity-aware bench batches and a return to the originating job card. Guidance cannot execute economic actions. Full-bag recovery prefers surplus ingredients; oversized final quotes return to configuration instead of cycling storage. 174 default tests, TypeScript, scoped changed-logic lint and the production build pass. Browser checks confirmed a 12-board parts trip retains its quantity/recipe and displays a cancelable supply goal; no error-level browser logs appeared. Detailed behavior and remaining commissioning/material/world-feedback gaps: [supply guidance upgrade](supply-guidance-upgrade.md). No schema, access or runtime configuration changed.
