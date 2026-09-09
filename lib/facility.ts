@@ -909,6 +909,8 @@ export type FacilityAction = {
   quantity?: number;
   direction?: string;
   rack?: string;
+  template?: string;
+  dispatchTicket?: string;
   requestId: string;
 };
 export class FacilityError extends Error {}

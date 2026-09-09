@@ -593,3 +593,430 @@ test('GPU holder revocation and account-version races preserve typed proof and p
     );
   }
 });
+
+// These seeded completed rows isolate claim authority and concurrency. Earlier
+// tests exercise earning reports and contributing through actual job actions.
+function completedDispatchProject(
+  db,
+  p,
+  family = 'workload',
+  units = 1,
+  policy,
+  other = null,
+) {
+  const id = crypto.randomUUID();
+  const variant = {
+    workload: 'gpu-launch',
+    service: 'gpu-stability',
+    supply: 'gpu-efficiency',
+  }[family];
+  const room = db.sqlite
+    .prepare('SELECT neighborhood_id AS id FROM crew_presence WHERE wallet=?')
+    .get(p.wallet).id;
+  const benefit =
+    policy === undefined
+      ? { version: 1, kind: 'dispatch', family, storedLimit: 2 }
+      : policy;
+  db.sqlite
+    .prepare(
+      "INSERT INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,benefit_json,version,created_at) VALUES (?,?,?,'completed',1,'{}','{}',?,0,1000)",
+    )
+    .run(id, room, variant, benefit === null ? null : JSON.stringify(benefit));
+  const add = (person, kind, n) =>
+    db.sqlite
+      .prepare(
+        'INSERT INTO cluster_contributions(id,project_id,wallet,family,units,created_at) VALUES (?,?,?,?,?,1000)',
+      )
+      .run(crypto.randomUUID(), id, person.wallet, kind, n);
+  add(p, family, units);
+  if (other) add(other, family, 2);
+  return { id, add };
+}
+const tickets = (f, family = 'workload') =>
+  f.career.dispatchChoices?.[family] ?? [];
+const spendChoice = (f, ticket = tickets(f)[0], now = 5000) => {
+  const offer = f.career.offers.find(
+    (o) => contractTemplate(o.template).family === 'workload',
+  );
+  const template =
+    offer.template === 'tiny-model' ? 'render-rush' : 'tiny-model';
+  f.builds['rack-a'] = 1;
+  f = applyFacility(
+    f,
+    {
+      type: 'contract-accept',
+      id: offer.id,
+      template,
+      dispatchTicket: ticket,
+      requestId: crypto.randomUUID(),
+    },
+    f.compute,
+    now,
+  ).facility;
+  return applyFacility(
+    f,
+    { type: 'contract-cancel', id: offer.id, requestId: crypto.randomUUID() },
+    f.compute,
+    now + 1,
+  ).facility;
+};
+
+test('each specialist grants only matching personal work; partial and full storage previews match claims', async () => {
+  for (const family of ['service', 'supply', 'workload']) {
+    const {
+      db,
+      crew: [p, other],
+    } = await fixture(2);
+    const { id, add } = completedDispatchProject(
+      db,
+      p,
+      family,
+      1,
+      undefined,
+      other,
+    );
+    const generic = family === 'service' ? 'supply' : 'service';
+    add(p, generic, 2);
+    const history = (await projectSnapshot(db, p.wallet, 4100)).history.find(
+      (h) => h.id === id,
+    );
+    assert.equal(history.dispatchUnits, 1);
+    assert.equal(history.units, 3);
+    const reward = await claimProject(db, p.wallet, id, 4100);
+    assert.deepEqual(reward.dispatch, { family, granted: 1, stored: 1 });
+    assert.equal(reward.compute, 300);
+    assert.deepEqual(tickets(facility(db, p), family), [`${id}:0`]);
+    const before = facility(db, p);
+    await assert.rejects(
+      claimProject(db, p.wallet, id, 4200),
+      (e) => e.status === 409 && /already collected/.test(e.message),
+    );
+    assert.deepEqual(facility(db, p), before);
+    const second = completedDispatchProject(db, p, family, 2);
+    assert.equal(
+      (await claimProject(db, p.wallet, second.id, 4300)).dispatch.granted,
+      1,
+    );
+    assert.equal(tickets(facility(db, p), family).length, 2);
+    const third = completedDispatchProject(db, p, family, 2);
+    assert.equal(
+      (await claimProject(db, p.wallet, third.id, 4400)).dispatch.granted,
+      0,
+    );
+    const saved = facility(db, p);
+    saved.career.dispatchChoices[family] = [];
+    saveFacility(db, p, saved);
+    await assert.rejects(
+      claimProject(db, p.wallet, third.id, 4500),
+      /already collected/,
+    );
+    assert.equal(tickets(facility(db, p), family).length, 0);
+  }
+});
+
+test('generic helpers and legacy null-policy projects do not gain choices from today’s variant definition', async () => {
+  const {
+    db,
+    crew: [p, other],
+  } = await fixture(2);
+  const { id, add } = completedDispatchProject(db, other, 'workload', 2);
+  add(p, 'service', 1);
+  assert.equal(
+    (await projectSnapshot(db, p.wallet, 4100)).history.find((h) => h.id === id)
+      .dispatchUnits,
+    0,
+  );
+  assert.equal(
+    (await claimProject(db, p.wallet, id, 4100)).dispatch.granted,
+    0,
+  );
+  assert.deepEqual(facility(db, p).career.dispatchChoices, undefined);
+  const old = completedDispatchProject(db, p, 'workload', 2, null);
+  assert.equal(
+    (await projectSnapshot(db, p.wallet, 4100)).history.find(
+      (h) => h.id === old.id,
+    ).benefit,
+    null,
+  );
+  assert.deepEqual(await claimProject(db, p.wallet, old.id, 4200), {
+    compute: 200,
+    reputation: 40,
+  });
+  assert.deepEqual(facility(db, p).career.dispatchChoices, undefined);
+});
+
+test('duplicate claims after spending either ticket return a conflict and never restore it', async () => {
+  for (const ordinal of [0, 1]) {
+    const {
+      db,
+      crew: [p],
+    } = await fixture();
+    const { id } = completedDispatchProject(db, p, 'workload', 2);
+    await claimProject(db, p.wallet, id, 4100);
+    const f = spendChoice(facility(db, p), `${id}:${ordinal}`);
+    saveFacility(db, p, f);
+    await assert.rejects(
+      claimProject(db, p.wallet, id, 6000),
+      (e) => e.status === 409 && /already collected/.test(e.message),
+    );
+    assert.deepEqual(facility(db, p), f);
+    assert.deepEqual(tickets(f), [`${id}:${1 - ordinal}`]);
+  }
+});
+
+test('two project claims competing for one slot cannot overfill or overwrite the winner', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  const initial = completedDispatchProject(db, p);
+  await claimProject(db, p.wallet, initial.id, 4000);
+  const projects = [
+    completedDispatchProject(db, p),
+    completedDispatchProject(db, p),
+  ];
+  const results = await Promise.allSettled(
+    projects.map((x) => claimProject(db, p.wallet, x.id, 4100)),
+  );
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(tickets(facility(db, p)).length, 2);
+  const lost = projects[results.findIndex((r) => r.status === 'rejected')];
+  assert.equal(
+    (await claimProject(db, p.wallet, lost.id, 4200)).dispatch.granted,
+    0,
+  );
+  assert.equal(tickets(facility(db, p)).length, 2);
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT count(*) AS n FROM cluster_claims WHERE wallet=?')
+      .get(p.wallet).n,
+    3,
+  );
+});
+
+test('a spend racing a project claim forces a fresh capacity read and preserves running work', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  let activeFacility = facility(db, p);
+  activeFacility.inventory.scrap = 100;
+  const service = activeFacility.career.offers.find(
+    (o) => contractTemplate(o.template).family === 'service',
+  );
+  for (const type of ['contract-accept', 'contract-start'])
+    activeFacility = applyFacility(
+      activeFacility,
+      { type, id: service.id, requestId: crypto.randomUUID() },
+      activeFacility.compute,
+      3900,
+    ).facility;
+  const committedRun = structuredClone(activeFacility.career.active[0]);
+  saveFacility(db, p, activeFacility);
+  const first = completedDispatchProject(db, p, 'workload', 2);
+  await claimProject(db, p.wallet, first.id, 4000);
+  const next = completedDispatchProject(db, p);
+  const batch = db.batch.bind(db);
+  let concurrent;
+  db.batch = async (statements) => {
+    db.batch = batch;
+    concurrent = spendChoice(facility(db, p));
+    saveFacility(db, p, concurrent);
+    return batch(statements);
+  };
+  await assert.rejects(
+    claimProject(db, p.wallet, next.id, 4100),
+    /center changed/,
+  );
+  assert.deepEqual(facility(db, p), concurrent);
+  assert.equal(
+    (await claimProject(db, p.wallet, next.id, 6000)).dispatch.granted,
+    1,
+  );
+  assert.equal(tickets(facility(db, p)).length, 2);
+  assert.deepEqual(
+    facility(db, p).career.active.find((r) => r.id === service.id),
+    committedRun,
+  );
+  assert.ok(validCareer(facility(db, p).career));
+});
+
+async function measuredWorkloadPlan(variant, first, serial, steps) {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  let f = facility(db, p);
+  f.compute = 1_000_000;
+  f.builds = Object.fromEntries(
+    'abcdefg'.split('').map((x) => [`rack-${x}`, 3]),
+  );
+  f.unlocked = [
+    'commons',
+    'salvage',
+    'workshop',
+    'thermal',
+    'compute',
+    'network',
+    'core',
+  ];
+  f.skills.engineering = 1000;
+  Object.assign(f.career, {
+    projectUsed: { service: 9, supply: 9, workload: 8 },
+    reportStyles: { workload: { fast: 2 } },
+    modules: ['fast', 'efficient', 'stable'],
+    loadout: ['fast', 'efficient'],
+    commissioned: 3,
+    serial,
+    offers: [
+      { id: 'contract-1', template: 'loose-link' },
+      { id: 'contract-2', template: 'kit-order' },
+      { id: `contract-${serial - 1}`, template: first },
+    ],
+    active: [],
+    selected: null,
+  });
+  saveFacility(db, p, f);
+  await enterGpu(db, p);
+  const project = (
+    await startProject(
+      db,
+      p.wallet,
+      p.controller,
+      variant,
+      gpuNow + 2100,
+      gpuPermit,
+    )
+  ).project;
+  for (const [family, n] of Object.entries(project.required))
+    for (let i = 0; i < n; i++)
+      await gpuContribution(db, p, project.id, family);
+  await claimProject(db, p.wallet, project.id, gpuNow + 4000);
+  f = facility(db, p);
+  let now = gpuNow + 5000;
+  const started = now;
+  const action = (type, extra) => {
+    f = applyFacility(
+      f,
+      { type, requestId: crypto.randomUUID(), ...extra },
+      f.compute,
+      now,
+    ).facility;
+  };
+  for (const [offered, replacement, seconds] of steps) {
+    const o = f.career.offers.find(
+      (o) => contractTemplate(o.template).family === 'workload',
+    );
+    assert.equal(o.template, offered);
+    const serialBefore = f.career.serial;
+    action('contract-accept', {
+      id: o.id,
+      ...(replacement
+        ? { template: replacement, dispatchTicket: tickets(f)[0] }
+        : {}),
+    });
+    assert.equal(f.career.serial, serialBefore);
+    action('contract-start', { id: o.id, direction: 'fast', rack: 'rack-g' });
+    const run = f.career.active.find((r) => r.id === o.id);
+    assert.equal(run.duration, seconds);
+    assert.equal(run.readyAt, now + seconds * 1000);
+    now = run.readyAt;
+    action('contract-claim', { id: o.id });
+    assert.ok(validCareer(f.career));
+  }
+  assert.equal(f.career.completed.workload - f.career.projectUsed.workload, 3);
+  assert.equal(f.career.commissioned, 4);
+  assert.equal(tickets(f).length, 0);
+  return (now - started) / 1000;
+}
+
+test('maxed operators have conditional project choices: specialists win on a slow board, First light on a short board', async () => {
+  // Same final report stock, including the specialist's extra consumed report.
+  // Exact job clocks; no claims in other families to advance the shared serial.
+  assert.equal(
+    await measuredWorkloadPlan('balanced', 'quiet-inference', 7, [
+      ['quiet-inference', null, 126],
+      ['wobbly-training', null, 168],
+    ]),
+    294,
+  );
+  assert.equal(
+    await measuredWorkloadPlan('gpu-launch', 'quiet-inference', 7, [
+      ['quiet-inference', 'tiny-model', 42],
+      ['wobbly-training', 'tiny-model', 42],
+      ['tiny-model', null, 42],
+    ]),
+    126,
+  );
+  assert.equal(
+    await measuredWorkloadPlan('balanced', 'tiny-model', 5, [
+      ['tiny-model', null, 42],
+      ['render-rush', null, 63],
+    ]),
+    105,
+  );
+  assert.equal(
+    await measuredWorkloadPlan('gpu-launch', 'tiny-model', 5, [
+      ['tiny-model', null, 42],
+      ['render-rush', 'tiny-model', 42],
+      ['quiet-inference', 'tiny-model', 42],
+    ]),
+    126,
+  );
+});
+
+test('twelve claimed projects conserve named choices through full storage, spending, reloads, and old-claim replay', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  const granted = new Set(),
+    spent = new Set(),
+    ids = [];
+  for (let cycle = 0; cycle < 12; cycle++) {
+    let f = facility(db, p);
+    for (let i = 0; i < cycle % 3; i++) {
+      const ticket = tickets(f)[0];
+      assert.ok(ticket);
+      assert.ok(!spent.has(ticket));
+      f = spendChoice(f, ticket, 5000 + cycle * 100 + i * 2);
+      spent.add(ticket);
+    }
+    saveFacility(db, p, f);
+    const before = [...tickets(f)];
+    const { id } = completedDispatchProject(db, p, 'workload', 2);
+    ids.push(id);
+    await claimProject(db, p.wallet, id, 5000 + cycle * 100 + 10);
+    f = facility(db, p);
+    assert.equal(tickets(f).length, 2);
+    for (const ticket of before) assert.ok(tickets(f).includes(ticket));
+    for (const ticket of tickets(f).filter((t) => !before.includes(t))) {
+      assert.ok(!granted.has(ticket));
+      assert.ok(!spent.has(ticket));
+      granted.add(ticket);
+    }
+    assert.equal(granted.size, spent.size + tickets(f).length);
+    assert.ok(validCareer(f.career));
+    await assert.rejects(
+      claimProject(db, p.wallet, id, 5000 + cycle * 100 + 20),
+      /already collected/,
+    );
+    assert.deepEqual(facility(db, p), f);
+  }
+  assert.equal(granted.size, 14);
+  assert.equal(spent.size, 12);
+  let f = facility(db, p);
+  while (tickets(f).length) f = spendChoice(f, tickets(f)[0], 10000);
+  saveFacility(db, p, f);
+  await assert.rejects(
+    claimProject(db, p.wallet, ids[0], 11000),
+    /already collected/,
+  );
+  assert.deepEqual(facility(db, p), f);
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT count(*) AS n FROM cluster_claims WHERE wallet=?')
+      .get(p.wallet).n,
+    12,
+  );
+});

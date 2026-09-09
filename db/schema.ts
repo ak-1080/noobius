@@ -186,6 +186,7 @@ export const clusterProjects = sqliteTable(
     state: text('state').notNull(),
     scale: integer('scale').notNull(),
     required: text('required_json').notNull(),
+    benefit: text('benefit_json'),
     progress: text('progress_json').notNull(),
     version: integer('version').notNull().default(0),
     createdAt: integer('created_at').notNull(),

@@ -1,5 +1,6 @@
 import type { Bag, Facility, FacilityAction, ItemId } from './facility.ts';
 import { PROJECT_VARIANTS } from './projects.ts';
+import { validDispatchChoices, type DispatchChoices } from './dispatch.ts';
 
 export type ContractFamily = 'service' | 'supply' | 'workload';
 export type ModuleStyle = 'standard' | 'fast' | 'efficient' | 'stable';
@@ -251,6 +252,7 @@ export type ReportStyleCounts = Partial<
   Record<ContractFamily, Partial<Record<ModuleStyle, number>>>
 >;
 export type Career = {
+  dispatchChoices?: DispatchChoices;
   projectUsed?: Record<ContractFamily, number>;
   // Only new claims mint typed proof. Old completed totals remain legacy reports.
   reportStyles?: ReportStyleCounts;
@@ -343,17 +345,24 @@ export const masteryStamps = (c: Career) =>
 export const careerLevel = (c: Career) =>
   1 + Math.floor(Math.sqrt(c.reputation / 30));
 
+export function eligibleContracts(
+  c: Career,
+  f: Pick<Facility, 'unlocked' | 'skills'>,
+  family: ContractFamily,
+) {
+  return CONTRACT_TEMPLATES.filter(
+    (t) =>
+      t.family === family &&
+      t.qualification <= completedContracts(c) &&
+      (!t.requiredZone || f.unlocked.includes(t.requiredZone as never)) &&
+      (!t.cost.battery || f.skills.engineering >= 20),
+  );
+}
 function refill(c: Career, f: Pick<Facility, 'unlocked' | 'skills'>) {
   for (const family of FAMILIES) {
     if (c.offers.some((o) => contractTemplate(o.template)?.family === family))
       continue;
-    const eligible = CONTRACT_TEMPLATES.filter(
-      (t) =>
-        t.family === family &&
-        t.qualification <= completedContracts(c) &&
-        (!t.requiredZone || f.unlocked.includes(t.requiredZone as never)) &&
-        (!t.cost.battery || f.skills.engineering >= 20),
-    );
+    const eligible = eligibleContracts(c, f, family);
     const template = eligible[c.serial % eligible.length];
     c.offers.push({ id: `contract-${c.serial++}`, template: template.id });
   }
@@ -524,6 +533,29 @@ export function applyContract(
     const t = contractTemplate(offer.template);
     if (t.family === 'workload' && !Object.values(f.builds).some((v) => v > 0))
       fail('Build your free starter machine first.');
+    let acceptedTemplate = t;
+    if (a.template !== undefined || a.dispatchTicket !== undefined) {
+      if (
+        typeof a.template !== 'string' ||
+        typeof a.dispatchTicket !== 'string'
+      )
+        fail('Choose a job and an available job choice together.');
+      const tickets = c.dispatchChoices?.[t.family] ?? [];
+      if (!tickets.includes(a.dispatchTicket))
+        fail(
+          'That job choice has already been used or belongs to another kind of work.',
+        );
+      const replacement = eligibleContracts(c, f, t.family).find(
+        (job) => job.id === a.template && job.id !== t.id,
+      );
+      if (!replacement)
+        fail('Choose a different job you have unlocked in this family.');
+      acceptedTemplate = replacement;
+      c.dispatchChoices![t.family] = tickets.filter(
+        (id) => id !== a.dispatchTicket,
+      );
+      offer.template = replacement.id;
+    }
     c.active.push({
       ...offer,
       acceptedAt: now,
@@ -533,14 +565,17 @@ export function applyContract(
       startedAt: null,
       readyAt: null,
       reward: 0,
-      reputation: t.reputation,
+      reputation: acceptedTemplate.reputation,
       cost: {},
       steps: 0,
       nextStepAt: 0,
-      duration: t.seconds,
+      duration: acceptedTemplate.seconds,
     });
     c.selected = offer.id;
-    return { message: `${t.name} accepted. Choose how to tackle it.`, xp: 0 };
+    return {
+      message: `${acceptedTemplate.name} accepted.${a.dispatchTicket ? ' One job choice used.' : ''} Choose how to tackle it.`,
+      xp: 0,
+    };
   }
   const run = c.active.find((r) => r.id === a.id);
   if (!run)
@@ -692,6 +727,11 @@ export function validCareer(value: unknown): value is Career {
   )
     return false;
   if (c.commissioned !== undefined && !nat(c.commissioned)) return false;
+  if (
+    c.dispatchChoices !== undefined &&
+    !validDispatchChoices(c.dispatchChoices)
+  )
+    return false;
   if (
     c.mastery !== undefined &&
     (!c.mastery ||

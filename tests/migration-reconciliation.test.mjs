@@ -229,6 +229,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0004_odd_blackheart',
       '0005_tired_jocasta',
       '0006_handy_polaris',
+      '0007_nappy_red_wolf',
     ],
   );
   assert.ok(
@@ -547,4 +548,31 @@ test('reconciliation retains the archived upgrade schema and index/FK semantics'
   ])
     experimental.exec(migration(tag, directory));
   assert.deepEqual(schemaSemantics(canonical), schemaSemantics(experimental));
+});
+
+test('dispatch migration preserves populated project terms and makes no retrospective benefit grants', (t) => {
+  const sqlite = database(
+    t,
+    journal.filter((e) => e.idx < 7),
+  );
+  sqlite
+    .prepare(
+      "INSERT INTO neighborhoods(id,realm,preferred_band,created_at) VALUES ('migration-room','gpu',0,1)",
+    )
+    .run();
+  const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  sqlite
+    .prepare(
+      "INSERT INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,version,created_at) VALUES (?,'migration-room','gpu-launch','open',1,'{\"workload\":2}','{\"workload\":1}',1,1000)",
+    )
+    .run(id);
+  const before = sqlite
+    .prepare('SELECT * FROM cluster_projects WHERE id=?')
+    .get(id);
+  sqlite.exec(migration('0007_nappy_red_wolf'));
+  const { benefit_json, ...after } = sqlite
+    .prepare('SELECT * FROM cluster_projects WHERE id=?')
+    .get(id);
+  assert.equal(benefit_json, null);
+  assert.deepEqual({ ...before }, after);
 });

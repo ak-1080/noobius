@@ -1,4 +1,9 @@
 import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
+import {
+  decodeDispatchBenefit,
+  dispatchCount,
+  grantDispatchChoices,
+} from './dispatch.ts';
 import { careerFor, type ContractFamily } from './contracts.ts';
 import { newFacility, normalizeFacility, type ItemId } from './facility.ts';
 import {
@@ -10,6 +15,7 @@ import {
   PROJECT_INPUTS,
   PROJECT_FAMILIES,
   projectVariantsFor,
+  projectBenefitFor,
   projectReportStyle,
   reportsAvailable,
   consumeProjectReport,
@@ -25,11 +31,13 @@ type ProjectRow = {
   scale: number;
   required_json: string;
   progress_json: string;
+  benefit_json: string | null;
   version: number;
   created_at: number;
   completed_at: number | null;
 };
 const decode = (p: ProjectRow): Project => ({
+  benefit: decodeDispatchBenefit(p.benefit_json),
   id: p.id,
   neighborhoodId: p.neighborhood_id,
   variant: p.variant,
@@ -98,7 +106,11 @@ export async function projectSnapshot(
     : [];
   const history = (
     await db
-      .prepare(`SELECT p.id,p.neighborhood_id AS neighborhoodId,n.realm,p.variant,p.state,sum(c.units) AS units,EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed
+      .prepare(`SELECT p.id,p.neighborhood_id AS neighborhoodId,n.realm,p.variant,p.state,p.benefit_json AS benefitJson,sum(c.units) AS units,
+    sum(CASE WHEN c.family='service' THEN c.units ELSE 0 END) AS service,
+    sum(CASE WHEN c.family='supply' THEN c.units ELSE 0 END) AS supply,
+    sum(CASE WHEN c.family='workload' THEN c.units ELSE 0 END) AS workload,
+    EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed
     FROM cluster_contributions c JOIN cluster_projects p ON p.id=c.project_id JOIN neighborhoods n ON n.id=p.neighborhood_id WHERE c.wallet=? GROUP BY p.id ORDER BY (p.state='completed' AND NOT EXISTS(SELECT 1 FROM cluster_claims done WHERE done.project_id=p.id AND done.wallet=c.wallet)) DESC,p.created_at ASC,p.id ASC LIMIT 30`)
       .bind(wallet, wallet)
       .all<{
@@ -109,12 +121,26 @@ export async function projectSnapshot(
         state: string;
         units: number;
         claimed: boolean;
+        benefitJson: string | null;
+        service: number;
+        supply: number;
+        workload: number;
       }>()
   ).results;
   return {
     project: row ? decode(row) : null,
     contributions: contributions.map((c) => ({ ...c, mine: !!c.mine })),
-    history: history.map((p) => ({ ...p, claimed: !!p.claimed })),
+    history: history.map(({ benefitJson, service, supply, workload, ...p }) => {
+      const benefit = decodeDispatchBenefit(benefitJson);
+      return {
+        ...p,
+        claimed: !!p.claimed,
+        benefit,
+        dispatchUnits: benefit
+          ? { service, supply, workload }[benefit.family]
+          : 0,
+      };
+    }),
   };
 }
 export async function startProject(
@@ -142,8 +168,8 @@ export async function startProject(
   const required = { service: scale, supply: scale, workload: scale };
   if (template.extra) required[template.extra]++;
   await db
-    .prepare(`INSERT OR IGNORE INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,version,created_at)
-    SELECT ?,?,?,'open',?,?,?,0,? WHERE EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND client_id=? AND generation=? AND neighborhood_id=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)})`)
+    .prepare(`INSERT OR IGNORE INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,benefit_json,version,created_at)
+    SELECT ?,?,?,'open',?,?,?,?,0,? WHERE EXISTS(SELECT 1 FROM crew_presence WHERE wallet=? AND client_id=? AND generation=? AND neighborhood_id=? AND lease_until>? AND ${realmWriteGuard('crew_presence', permit)})`)
     .bind(
       crypto.randomUUID(),
       presence.neighborhood_id,
@@ -151,6 +177,9 @@ export async function startProject(
       scale,
       JSON.stringify(required),
       JSON.stringify(empty()),
+      projectBenefitFor(variant)
+        ? JSON.stringify(projectBenefitFor(variant))
+        : null,
       now,
       wallet,
       controller.clientId,
@@ -291,15 +320,36 @@ export async function claimProject(
   if (!uuid(id)) return fail('Choose a completed cluster.', 400);
   const row = await db
     .prepare(
-      `SELECT p.variant,sum(c.units) AS units FROM cluster_projects p JOIN cluster_contributions c ON c.project_id=p.id WHERE p.id=? AND p.state='completed' AND c.wallet=? GROUP BY p.id`,
+      `SELECT p.variant,p.benefit_json,sum(c.units) AS units,
+      EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=c.wallet) AS claimed,
+      sum(CASE WHEN c.family='service' THEN c.units ELSE 0 END) AS service,
+      sum(CASE WHEN c.family='supply' THEN c.units ELSE 0 END) AS supply,
+      sum(CASE WHEN c.family='workload' THEN c.units ELSE 0 END) AS workload
+      FROM cluster_projects p JOIN cluster_contributions c ON c.project_id=p.id WHERE p.id=? AND p.state='completed' AND c.wallet=? GROUP BY p.id`,
     )
     .bind(id, wallet)
-    .first<{ variant: string; units: number }>();
+    .first<{
+      variant: string;
+      claimed: boolean;
+      units: number;
+      benefit_json: string | null;
+      service: number;
+      supply: number;
+      workload: number;
+    }>();
   if (!row) return fail('Contribute to a completed cluster before collecting.');
+  if (row.claimed) return fail('This reward was already collected.');
   const { p, f } = await account(db, wallet, now),
     career = f.career!,
     compute = row.units * 100,
     reputation = row.units * 20;
+  const benefit = decodeDispatchBenefit(row.benefit_json);
+  const granted = grantDispatchChoices(
+    career,
+    benefit,
+    id,
+    benefit ? row[benefit.family] : 0,
+  );
   career.reputation += reputation;
   career.commissioned = (career.commissioned ?? 0) + 1;
   career.projectDiscoveries ??= [];
@@ -334,5 +384,17 @@ export async function claimProject(
     return fail(
       'This reward was already collected or your center changed. Refresh to check.',
     );
-  return { compute, reputation };
+  return {
+    compute,
+    reputation,
+    ...(benefit
+      ? {
+          dispatch: {
+            family: benefit.family,
+            granted,
+            stored: dispatchCount(career, benefit.family),
+          },
+        }
+      : {}),
+  };
 }

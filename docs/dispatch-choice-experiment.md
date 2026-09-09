@@ -1,8 +1,8 @@
-# Specialist project benefit — next experiment
+# Specialist project choices
 
-Status: proposed, not implemented or published. Prepared after the version 32 choice/guidance release. This targets the open problem that specialist clusters have no continuing operating benefit for an equipped player. It adds control over existing work, not a token payout or production multiplier.
+Status: implemented and validated locally; private release pending. This gives specialist clusters a continuing benefit for an equipped player: control over the next job offer. It does not change token payouts or passive production.
 
-## Proposed rules
+## Implemented rules
 
 A matching specialist-family contribution earns one dispatch choice when that project is claimed, up to two stored choices per family. Launch night supplies workload choices, Steady overnight service choices, and Lean build supply choices. Generic-only contributions receive existing rewards. Choices do not expire, cannot be traded, and remain usable outside GPU District.
 
@@ -17,7 +17,7 @@ Both examples start with one service report, one supply report and two Fast work
 | Quiet inference → Wobbly training → Tiny model | 126 + 168 = 294 seconds | Replace first two with Tiny: 42 + 42 + 42 = 126 seconds |
 | Tiny model → Render rush → Quiet inference | 42 + 63 = 105 seconds | Best possible three Tiny jobs: 126 seconds |
 
-These calculations use current server work durations and exclude movement/interaction overhead. No unrelated claims advance the shared offer serial in the table. Even allowing those claims, the first First light case requires the current 126-second workload plus at least one 42-second workload, still longer than 126 seconds. Confirm through executable repeated-cycle simulations before implementation is considered accepted. This does not establish retention. The principal risk is always selecting the shortest eligible job once a choice is held; acquisition cost must remain a real tradeoff.
+These calculations use current server work durations and exclude movement/interaction overhead. No unrelated claims advance the shared offer serial in the table. Even allowing those claims, the first First light case requires the current 126-second workload plus at least one 42-second workload, still longer than 126 seconds. Both cases now pass executable tests using actual project contributions, claims, job acceptance, execution clocks and report totals. A separate twelve-project seeded-claim test checks ticket conservation, full storage, reloads and replay; it is not a twelve-session retention test. This does not establish retention. The principal risk is always selecting the shortest eligible job once a choice is held; acquisition cost must remain a real tradeoff.
 
 ## Persistence and transaction boundaries
 
@@ -29,3 +29,16 @@ These calculations use current server work durations and exclude movement/intera
 ## Acceptance boundaries
 
 Test duplicate claims, generic-only helpers, partial/full storage, concurrent grants/spends, expired request-history replay, cancellation without refund, unavailable templates, old project/save preservation, unchanged running-job quotes, and both conditional-benefit examples. Reuse existing templates and basic interface controls. Show exact effects before contribution, claim and acceptance. Actual independent-player enjoyment and public capacity remain separate acceptance work.
+
+
+## Validation for this pass
+
+- In-memory SQLite tests cover all three benefit families, personal matching contribution totals, generic-only helpers, null legacy policies, partial/full storage, duplicate claims with partially spent tickets, simultaneous claims, and a claim racing a spend. Running job terms survive the race.
+- Facility tests cover atomic replacement/acceptance, stable offer IDs and serial, cancellation without refunds, expired request-cache replay, every existing eligibility gate, two-job limits, missing machines, malformed tickets and old optional data.
+- The isolated local Worker HTTP test uses generated test wallets and seeded completed-project rows. It verifies login, wrong/absent identity, non-contributors, racing claims, home authority, successful spending and replay. It does not verify a real browser wallet extension. An initial local SQLite busy error was observed during fixture login; the final complete test passed without retries inside the test.
+- Browser UI fixture: selecting Tiny Labs changed the displayed time, parts and reward without spending; accepting reduced two stored choices to one; cancellation retained the selected offer and one remaining choice. Browser console errors: none. The temporary fixture route/config were removed before the production build.
+- New migration `0007_nappy_red_wolf.sql` only adds a nullable policy column. Populated pre-migration project terms remain unchanged and receive null. Existing local DB was backed up before applying this migration. Hosted preflight found zero account and project rows and no existing benefit column; it is not a hosted backup/restore drill.
+
+## Running the isolated HTTP check
+
+`tests/dispatch-api.test.mjs` refuses anything except loopback port 3003. Start a local Vite preview with Cloudflare `persistState.path` set to `.wrangler/qa-dispatch`, apply the canonical journal to that isolated database, and run `NOOBIUS_TEST_ORIGIN=http://localhost:3003 npm run test:dispatch-api`. Do not use its database fixtures against a hosted environment. Keep temporary preview configuration and fixture pages out of the production archive.

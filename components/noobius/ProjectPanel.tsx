@@ -16,11 +16,13 @@ import {
   reportsAvailable,
   projectVariantsFor,
   projectReportStyle,
+  projectBenefitFor,
   previewProjectReport,
   type ProjectSnapshot,
 } from '@/lib/projects';
 import { api } from './useNoobius';
 import type { RealmId } from '@/lib/neighborhoods';
+import { dispatchCount, dispatchGrantCount } from '@/lib/dispatch';
 const styleLabel = (style: string) => style[0].toUpperCase() + style.slice(1);
 const LABELS = { service: 'Service', supply: 'Supply', workload: 'Workload' },
   ICONS = { service: Wrench, supply: Package, workload: Cpu };
@@ -139,6 +141,13 @@ export default function ProjectPanel({
               <article className="project-choice" key={v.id}>
                 <h4>{v.name}</h4>
                 <p>{v.description}</p>
+                {projectBenefitFor(v.id) && (
+                  <p className="dispatch-benefit">
+                    Each {projectBenefitFor(v.id)!.family} contribution earns
+                    one job choice on collection. Store up to two; use them to
+                    pick an unlocked job.
+                  </p>
+                )}
                 {PROJECT_FAMILIES.map((family) => {
                   const style = projectReportStyle(v.id, family);
                   return style ? (
@@ -223,6 +232,13 @@ export default function ProjectPanel({
                     equipment afterward does not change its receipt.
                   </small>
                 )}
+                {project.benefit?.family === family && (
+                  <small className="dispatch-benefit">
+                    This contribution can earn one {family} job choice when you
+                    collect. You currently store {dispatchCount(career, family)}
+                    /2. Claiming with full storage adds none.
+                  </small>
+                )}
                 {!style &&
                   proof &&
                   proof !== 'legacy' &&
@@ -302,7 +318,32 @@ export default function ProjectPanel({
                       ? `${p.units * 100} Compute ready`
                       : 'Your crew is still building'}
                 </small>
+                {!p.claimed && p.benefit && (
+                  <small className="dispatch-benefit">
+                    On collection: +
+                    {dispatchGrantCount(
+                      career,
+                      p.benefit,
+                      p.dispatchUnits ?? 0,
+                    )}{' '}
+                    {p.benefit.family} job choices ·{' '}
+                    {dispatchCount(career, p.benefit.family)}/2 stored now.
+                    {dispatchCount(career, p.benefit.family) >= 2
+                      ? ' Use a choice before collecting to make room. Collecting now forfeits the overflow.'
+                      : ''}
+                  </small>
+                )}
               </span>
+              {!p.claimed &&
+                p.benefit &&
+                dispatchCount(career, p.benefit.family) > 0 && (
+                  <button
+                    className="text-action"
+                    onClick={() => onJobs(p.benefit!.family)}
+                  >
+                    Use saved choices <ArrowRight size={16} />
+                  </button>
+                )}
               {p.state === 'open' && p.neighborhoodId !== neighborhoodId && (
                 <Button
                   variant="outline"

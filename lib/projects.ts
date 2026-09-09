@@ -1,5 +1,6 @@
 import type { Bag } from './facility.ts';
 import type { Career, ContractFamily, ModuleStyle } from './contracts.ts';
+import type { DispatchBenefit } from './dispatch.ts';
 export const PROJECT_FAMILIES: ContractFamily[] = [
   'service',
   'supply',
@@ -69,6 +70,12 @@ export const PROJECT_VARIANTS: readonly ProjectVariant[] = [
 ];
 export const projectVariantsFor = (realm: 'commons' | 'gpu') =>
   PROJECT_VARIANTS.filter((v) => v.realms.includes(realm));
+export function projectBenefitFor(variant: string): DispatchBenefit | null {
+  const v = PROJECT_VARIANTS.find((v) => v.id === variant);
+  return v?.extra && v.requirements[v.extra] && v.realms.includes('gpu')
+    ? { version: 1, kind: 'dispatch', family: v.extra, storedLimit: 2 }
+    : null;
+}
 export const projectReportStyle = (
   variant: string,
   family: ContractFamily,
@@ -140,6 +147,7 @@ export function consumeProjectReport(
   return true;
 }
 export type Project = {
+  benefit?: DispatchBenefit | null;
   id: string;
   neighborhoodId: string;
   variant: string;
@@ -160,6 +168,8 @@ export type ProjectSnapshot = {
     mine: boolean;
   }[];
   history: {
+    benefit?: DispatchBenefit | null;
+    dispatchUnits?: number;
     id: string;
     neighborhoodId: string;
     realm: 'commons' | 'gpu';

@@ -1,0 +1,1 @@
+ALTER TABLE `cluster_projects` ADD `benefit_json` text;

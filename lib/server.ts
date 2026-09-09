@@ -860,7 +860,7 @@ export async function handleGame(request: Request, action: string) {
     const reward = await claimProject(db(), wallet, String(body.projectId));
     return result({
       ...(await responseFor(wallet)),
-      message: `Cluster commissioned! +${reward.compute} Compute · +${reward.reputation} reputation.`,
+      message: `Cluster commissioned! +${reward.compute} Compute · +${reward.reputation} reputation.${reward.dispatch ? ` +${reward.dispatch.granted} ${reward.dispatch.family} job choices (${reward.dispatch.stored}/2 stored).` : ''}`,
     });
   }
   if (action === 'neighborhood-join') {

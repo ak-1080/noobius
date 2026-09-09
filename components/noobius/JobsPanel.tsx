@@ -34,6 +34,7 @@ import {
   careerFor,
   careerLevel,
   completedContracts,
+  eligibleContracts,
   contractTemplate,
   MODULES,
   CONTRACT_TEMPLATES,
@@ -42,6 +43,7 @@ import {
   SERVICE_REPAIRS,
   serviceChallenge,
   type ContractRun,
+  type ContractOffer,
   type ContractFamily,
   type ModuleStyle,
 } from '@/lib/contracts';
@@ -55,6 +57,7 @@ import {
   usefulStyles,
 } from '@/lib/job-choices';
 import type { NextStep } from '@/lib/objectives';
+import { dispatchCount } from '@/lib/dispatch';
 
 type Action = (action: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
 export type JobDraft = { style: ModuleStyle; rack: string };
@@ -88,6 +91,104 @@ const familyCopy = {
 };
 const styleName = (style: ModuleStyle) =>
   style === 'standard' ? 'Standard' : MODULES.find((m) => m.id === style)!.name;
+function JobOffer({
+  offer,
+  facility: f,
+  busy,
+  onAction,
+}: Pick<Props, 'facility' | 'busy' | 'onAction'> & { offer: ContractOffer }) {
+  const c = careerFor(f),
+    original = contractTemplate(offer.template);
+  const [chosen, setChosen] = useState(offer.template);
+  const options = eligibleContracts(c, f, original.family);
+  const selected = options.find((t) => t.id === chosen) ?? original;
+  const changed = chosen !== offer.template;
+  const tickets = c.dispatchChoices?.[original.family] ?? [];
+  const accepted = c.active.some((run) => run.id === offer.id);
+  const { Icon, title } = familyCopy[original.family];
+  return (
+    <article className="client-job">
+      <div className="job-eyebrow">
+        <span>
+          <Icon size={16} />
+          {title}
+        </span>
+        <span>
+          {selected.seconds ? `${selected.seconds}s work` : 'Craft & deliver'}
+        </span>
+      </div>
+      {tickets.length > 0 && !accepted && (
+        <label className="dispatch-picker">
+          {tickets.length} job choice{tickets.length === 1 ? '' : 's'} saved
+          <NativeSelect
+            aria-label={`Choose a ${original.family} job`}
+            value={chosen}
+            onChange={(event) => setChosen(event.target.value)}
+            disabled={busy}
+          >
+            <NativeSelectOption value={original.id}>
+              Keep this offer · no choice used
+            </NativeSelectOption>
+            {options
+              .filter((t) => t.id !== original.id)
+              .map((t) => (
+                <NativeSelectOption key={t.id} value={t.id}>
+                  {t.name} · {t.seconds}s
+                </NativeSelectOption>
+              ))}
+          </NativeSelect>
+        </label>
+      )}
+      <small className="job-client">{selected.client}</small>
+      <h3>{selected.name}</h3>
+      <p>{selected.description}</p>
+      <Materials cost={selected.cost} f={f} />
+      <div className="job-payout">
+        <span>
+          <ComputeIcon size={20} />
+          {selected.reward} Compute
+          {selected.family === 'workload' ? ' fee + machine output' : ' reward'}
+        </span>
+        <span>+{selected.reputation} reputation</span>
+        <span>Standard setup</span>
+      </div>
+      {changed && (
+        <p className="dispatch-benefit">
+          Accepting uses one {original.family} job choice. Canceling later keeps
+          this offer and does not return the choice. Configure your equipment
+          after accepting.
+        </p>
+      )}
+      <Button
+        className="outline-button"
+        disabled={
+          busy ||
+          accepted ||
+          c.active.length >= 2 ||
+          (original.family === 'workload' &&
+            !Object.values(f.builds).some((v) => v > 0)) ||
+          (changed && (!tickets[0] || !options.some((t) => t.id === chosen)))
+        }
+        onClick={() =>
+          void onAction({
+            type: 'contract-accept',
+            id: offer.id,
+            ...(changed
+              ? { template: chosen, dispatchTicket: tickets[0] }
+              : {}),
+          })
+        }
+      >
+        {accepted
+          ? 'Accepted'
+          : changed
+            ? 'Use 1 choice & accept'
+            : 'Accept job'}{' '}
+        <ArrowRight size={16} />
+      </Button>
+    </article>
+  );
+}
 function Materials({ cost, f }: { cost: Bag; f: Facility }) {
   return (
     <div className="job-materials">
@@ -705,6 +806,19 @@ export default function JobsPanel(props: Props) {
             <h3>Pick your next job</h3>
             <span>Fresh offers after each completed job</span>
           </div>
+          {(['service', 'supply', 'workload'] as const).some(
+            (family) => dispatchCount(c, family) > 0,
+          ) && (
+            <p className="job-note">
+              Saved job choices:{' '}
+              {(['service', 'supply', 'workload'] as const)
+                .filter((family) => dispatchCount(c, family) > 0)
+                .map((family) => `${dispatchCount(c, family)} ${family}`)
+                .join(' · ')}
+              . Use an offer’s menu to pick a different unlocked job. Your
+              choice is used only when you accept.
+            </p>
+          )}
           <div className="job-offers">
             {c.offers
               .filter(
@@ -712,53 +826,15 @@ export default function JobsPanel(props: Props) {
                   !props.focusFamily ||
                   contractTemplate(o.template).family === props.focusFamily,
               )
-              .map((o) => {
-                const t = contractTemplate(o.template),
-                  { Icon, title } = familyCopy[t.family];
-                return (
-                  <article className="client-job" key={o.id}>
-                    <div className="job-eyebrow">
-                      <span>
-                        <Icon size={16} />
-                        {title}
-                      </span>
-                      <span>
-                        {t.seconds ? `${t.seconds}s work` : 'Craft & deliver'}
-                      </span>
-                    </div>
-                    <small className="job-client">{t.client}</small>
-                    <h3>{t.name}</h3>
-                    <p>{t.description}</p>
-                    <Materials cost={t.cost} f={f} />
-                    <div className="job-payout">
-                      <span>
-                        <ComputeIcon size={20} />
-                        {t.reward}
-                        {t.family === 'workload' ? '+' : ''}
-                      </span>
-                      <span>+{t.reputation} reputation</span>
-                    </div>
-                    <Button
-                      className="outline-button"
-                      disabled={
-                        busy ||
-                        c.active.some((r) => r.id === o.id) ||
-                        c.active.length >= 2 ||
-                        (t.family === 'workload' &&
-                          !Object.values(f.builds).some((v) => v > 0))
-                      }
-                      onClick={() =>
-                        void onAction({ type: 'contract-accept', id: o.id })
-                      }
-                    >
-                      {c.active.some((r) => r.id === o.id)
-                        ? 'Accepted'
-                        : 'Accept job'}{' '}
-                      <ArrowRight size={16} />
-                    </Button>
-                  </article>
-                );
-              })}
+              .map((o) => (
+                <JobOffer
+                  key={`${o.id}:${o.template}:${(c.dispatchChoices?.[contractTemplate(o.template).family] ?? []).join(',')}`}
+                  offer={o}
+                  facility={f}
+                  busy={busy}
+                  onAction={onAction}
+                />
+              ))}
           </div>
           <div className="license-progress">
             <strong>

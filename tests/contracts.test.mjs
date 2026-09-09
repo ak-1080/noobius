@@ -677,3 +677,187 @@ test('typed report save validation rejects invented, overspent or double-counted
     assert.equal(validCareer(invalid), false);
   }
 });
+
+const ticketA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:0';
+const ticketB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb:1';
+function dispatchFixture() {
+  const f = fixture();
+  f.career.completed = { service: 10, supply: 10, workload: 10 };
+  f.unlocked = [
+    'commons',
+    'salvage',
+    'workshop',
+    'thermal',
+    'compute',
+    'network',
+    'core',
+  ];
+  f.skills.engineering = 1000;
+  f.career.dispatchChoices = { workload: [ticketA, ticketB] };
+  f.career.offers.find(
+    (o) => contractTemplate(o.template).family === 'workload',
+  ).template = 'tiny-model';
+  return f;
+}
+
+test('job choice acceptance keeps IDs and serial; cancel retains replacement and never refunds', () => {
+  let f = dispatchFixture();
+  const offer = f.career.offers.find(
+    (o) => contractTemplate(o.template).family === 'workload',
+  );
+  const other = structuredClone(
+    f.career.offers.filter((o) => o.id !== offer.id),
+  );
+  const serial = f.career.serial;
+  const action = {
+    id: offer.id,
+    template: 'render-rush',
+    dispatchTicket: ticketA,
+    requestId: crypto.randomUUID(),
+  };
+  f = act(f, 'contract-accept', 10, action);
+  assert.equal(f.career.active[0].template, 'render-rush');
+  assert.equal(
+    f.career.active[0].duration,
+    contractTemplate('render-rush').seconds,
+  );
+  assert.deepEqual(f.career.dispatchChoices.workload, [ticketB]);
+  assert.equal(f.career.serial, serial);
+  assert.deepEqual(
+    f.career.offers.filter((o) => o.id !== offer.id),
+    other,
+  );
+  f = act(f, 'contract-cancel', 11, { id: offer.id });
+  assert.equal(
+    f.career.offers.find((o) => o.id === offer.id).template,
+    'render-rush',
+  );
+  assert.deepEqual(f.career.dispatchChoices.workload, [ticketB]);
+  f = act(f, 'contract-accept', 12, {
+    id: offer.id,
+    template: 'tiny-model',
+    dispatchTicket: ticketB,
+  });
+  f = act(f, 'contract-cancel', 13, { id: offer.id });
+  f.requests = Array.from({ length: 100 }, () => crypto.randomUUID());
+  const before = structuredClone(f);
+  assert.throws(
+    () => act(f, 'contract-accept', 14, action),
+    /already been used/,
+  );
+  assert.deepEqual(f, before);
+  assert.ok(validCareer(f.career));
+});
+
+test('invalid job replacements never spend a choice or change the facility', () => {
+  const base = dispatchFixture();
+  const offer = base.career.offers.find(
+    (o) => contractTemplate(o.template).family === 'workload',
+  );
+  for (const extra of [
+    { template: 'render-rush' },
+    { dispatchTicket: ticketA },
+    { template: null, dispatchTicket: ticketA },
+    { template: 'render-rush', dispatchTicket: ticketA.slice(0, -1) + '1' },
+    { template: offer.template, dispatchTicket: ticketA },
+    { template: 'loose-link', dispatchTicket: ticketA },
+    { template: 'not-a-job', dispatchTicket: ticketA },
+  ]) {
+    const f = structuredClone(base);
+    assert.throws(() =>
+      act(f, 'contract-accept', 10, { id: offer.id, ...extra }),
+    );
+    assert.deepEqual(f, base);
+  }
+  for (const change of [
+    (f) => {
+      f.builds = {};
+    },
+    (f) => {
+      f.career.completed = { service: 0, supply: 0, workload: 0 };
+    },
+    (f) => {
+      f.career.dispatchChoices = { service: [ticketA] };
+    },
+  ]) {
+    const f = structuredClone(base);
+    change(f);
+    const before = structuredClone(f);
+    assert.throws(() =>
+      act(f, 'contract-accept', 10, {
+        id: offer.id,
+        template: 'wobbly-training',
+        dispatchTicket: ticketA,
+      }),
+    );
+    assert.deepEqual(f, before);
+  }
+  for (const [family, template, mutate] of [
+    [
+      'service',
+      'cooling-call',
+      (f) => {
+        f.unlocked = ['commons'];
+      },
+    ],
+    [
+      'supply',
+      'field-stock',
+      (f) => {
+        f.skills.engineering = 0;
+      },
+    ],
+  ]) {
+    const f = structuredClone(base);
+    mutate(f);
+    f.career.dispatchChoices = { [family]: [ticketA] };
+    const id = f.career.offers.find(
+      (o) => contractTemplate(o.template).family === family,
+    ).id;
+    const before = structuredClone(f);
+    assert.throws(() =>
+      act(f, 'contract-accept', 10, { id, template, dispatchTicket: ticketA }),
+    );
+    assert.deepEqual(f, before);
+  }
+  let f = base;
+  [f] = accept(f, 'service', 1);
+  [f] = accept(f, 'supply', 2);
+  const full = structuredClone(f);
+  assert.throws(
+    () =>
+      act(f, 'contract-accept', 10, {
+        id: offer.id,
+        template: 'render-rush',
+        dispatchTicket: ticketA,
+      }),
+    /before accepting/,
+  );
+  assert.deepEqual(f, full);
+});
+
+test('job choice validation preserves missing old data and rejects malformed or duplicated tickets', () => {
+  const c = fixture().career;
+  assert.ok(validCareer(c));
+  for (const choices of [
+    null,
+    [],
+    { unknown: [] },
+    { service: 'oops' },
+    { workload: [ticketA, ticketB, ticketA] },
+    { service: [ticketA], workload: [ticketA] },
+    { workload: ['arbitrary'] },
+    { workload: [42] },
+  ])
+    assert.equal(
+      validCareer({ ...c, dispatchChoices: choices }),
+      false,
+      JSON.stringify(choices),
+    );
+  assert.ok(
+    validCareer({
+      ...c,
+      dispatchChoices: { service: [ticketA], workload: [ticketB] },
+    }),
+  );
+});
