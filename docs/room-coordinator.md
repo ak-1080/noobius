@@ -51,3 +51,13 @@ Before enabling either runtime:
 Do not roll the economy service back to code without writer fences while an external writer is active. Disable socket admission, stop/release coordinators, wait for writer expiry and confirm no active grants before any such rollback. Keep the additive tables and all player data. Restart the compatible polling code only after this transition.
 
 No exact holder-token policy or real Compute-to-$NOOBIUS/NBIS payout is activated by this increment. Human usability and repeat-session retention remain separate acceptance gates.
+
+## Private checkpoint release
+
+Version 42 published successfully on September 9, 2026 at 10:30:12 UTC from `c5cef8608008d08bead65c138cb5254ce472282b`. Deployment `appgdep_6aa1352536b8819190e6ab10f5288a8c` kept owner-private access and environment revision zero. The archive contains 165 files, 33,464,320 bytes, hash `sha256:2e9bdb2355d48705b7c1e18c83bb8e3d62e62d771ab357a38ef0abf723ca3d6e`.
+
+All 264 default tests, TypeScript, scoped lint for the new protocol/coordinator/tests, and the production build passed. The two real coordinator API scenarios and the exact-login/authentication API scenario passed locally. Broader touched-file lint still reports the established React/compiler/server backlog; this release does not claim repository-wide lint is clean. No temporary QA configuration or service key was included in the source or production archive; scanning the client output found no room secret configuration or service signing code.
+
+Migration 0010 was applied to the isolated QA and normal local databases, then by private publishing. Hosted preflight showed zero players, projects, listings and grants with no further pages. Post-publish inspection confirmed `room_checkpoints` and the three new writer/freeze fields on `room_grants`; grants remain empty. These inspections and a local backup do not constitute a hosted backup/restore rehearsal.
+
+The existing hosted guest game reopened with 880,287 spendable and 408,240 stored Compute. Neither balance was collected or spent, and the browser reported no error-level logs. Local guest preview also reopened successfully. The standalone coordinator has not been deployed; socket activation, five rendered browser sessions, full five-minute grant rollover, real wallet/mobile coverage, hosted restart/recovery and load/cost acceptance remain open.

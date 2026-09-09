@@ -121,3 +121,9 @@ Site version 35 keeps account-scoped workshop selections, adaptive source-job/mo
 ## Timed commissioning, included in version 36
 
 New projects require a checked service attempt and a finite machine assignment as well as delivered supplies. Loans preserve their start/deadline and paused output, complete through ordinary neighborhood polling, and cannot overlap client use of the same rack. Pending work is distinguished from completed contributions; displayed earnings respect reserved machines. Stable retry IDs and atomic final-test/loan/claim checks prevent duplicate spending. Old projects, contributions and payouts retain their terms through additive migration 0008. See [the commissioning record](commissioning-upgrade.md) for the rules, preservation tests, local API/browser evidence and outstanding acceptance work.
+
+## Room transport checkpoint, version 42
+
+Implemented a standalone room Worker, bounded validated movement, durable checkpoint receipts, exclusive movement writers, exact physical-action proofs, and a browser adapter with reconnect and serialized travel. Metadata polling preserves shared job/project updates; inaccessible interior visits recover to Commons. The five-socket and browser-adapter integration scenarios pass locally, along with 264 default tests, TypeScript, scoped new-logic lint and the production build. Existing hosted guest holdings remain 880,287 spendable and 408,240 stored Compute after private publishing.
+
+The private release succeeded at 10:30:12 UTC on September 9, 2026. Migration 0010 adds checkpoint storage and writer/freeze fields without changing player economy rows. Runtime activation remains off. A separately owned coordinator host and supported authenticated access to the private economy service are still needed; local checks do not prove hosted multiplayer or human retention. Full protocol, rollout limitations and exact release evidence: [room coordinator](room-coordinator.md).
