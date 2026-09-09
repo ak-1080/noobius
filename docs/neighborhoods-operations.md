@@ -1,6 +1,6 @@
 # Neighborhoods operations notes
 
-Updated September 9, 2026. These notes describe the current implementation and the remaining operator work. Version 31 is deployed owner-private; the [implementation checkpoint](neighborhoods-implementation-status.md) records the source and deployment. No hosted recovery drill or public launch is claimed.
+Updated September 9, 2026. These notes describe the current implementation and the remaining operator work. Version 43 is deployed owner-private; the [implementation checkpoint](neighborhoods-implementation-status.md) records the source and deployment. No hosted recovery drill or public launch is claimed.
 
 ## Hosting and identity
 
@@ -14,16 +14,18 @@ WalletConnect QR, embedded email access, contract-wallet authentication and toke
 
 The behavior below comes from `lib/operations.ts`, `lib/neighborhoods-server.ts` and the server's action routing. Values are server-side configuration; `.env.example` is a template, not evidence that hosted variables have been set. Change hosted configuration through the supported hosting workflow and verify the resulting deployment. There is no in-game administrator switchboard.
 
-| Variable | Default | Actual effect |
-| --- | --- | --- |
-| `NOOBIUS_MAX_PLAYERS` | `50` | Limits active neighborhood admission across rooms. Valid values are integers from 1 to 10,000; invalid configuration falls back to 50. Raising it does not establish capacity. Lowering it does not evict already active players. |
-| `NOOBIUS_ADMISSION_PAUSED` | `false` | Exact string `true` pauses new neighborhood arrivals and moves requiring new admission. Existing valid membership can renew; an expired player may have to wait to rejoin. Saves are retained. |
-| `NOOBIUS_TRADE_PAUSED` | `false` | Exact string `true` rejects new listings and listing purchases. Existing offers can still be cancelled to recover their escrowed items. This is not a pause of every shop or game action. |
-| `NOOBIUS_PROJECTS_PAUSED` | `false` | Exact string `true` stops starting new cluster projects. Existing contributions and earned claims remain available under normal membership and realm rules. |
+| Variable                   | Default | Actual effect                                                                                                                                                                                                                     |
+| -------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOOBIUS_MAX_PLAYERS`      | `50`    | Limits active neighborhood admission across rooms. Valid values are integers from 1 to 10,000; invalid configuration falls back to 50. Raising it does not establish capacity. Lowering it does not evict already active players. |
+| `NOOBIUS_ADMISSION_PAUSED` | `false` | Exact string `true` pauses new neighborhood arrivals and moves requiring new admission. Existing valid membership can renew; an expired player may have to wait to rejoin. Saves are retained.                                    |
+| `NOOBIUS_TRADE_PAUSED`     | `false` | Exact string `true` rejects new listings and listing purchases. Existing offers can still be cancelled to recover their escrowed items. This is not a pause of every shop or game action.                                         |
+| `NOOBIUS_PROJECTS_PAUSED`  | `false` | Exact string `true` stops starting new cluster projects. Existing contributions and earned claims remain available under normal membership and realm rules.                                                                       |
 
 Each neighborhood has five slots. Membership leases last 45 seconds; visible presence expires after ten seconds. The client normally polls every 1.5 seconds, suspends while hidden and backs off transient failures up to roughly 30 seconds with jitter. Concurrent tabs use controller generations and explicit takeover; never work around a takeover error by dropping controller checks.
 
 The recorded 50-client local experiment is a short synthetic baseline only. It used ten rooms, 2,000 sync requests in 60 seconds, zero errors and p95 224 ms before the final wallet merge. It does not measure public D1 latency, billing, browser rendering, realistic chat/market traffic or a long reconnect soak. The harness uses separate simulated edge IPs on loopback; it does not establish shared-IP login-burst capacity.
+
+The newer standalone WebSocket test uses 50 synthetic clients across ten rooms for 60 seconds, with each room split between a two-person interior and three plaza peers. All 18,446 moves were accepted and all 50 final positions persisted. It includes peer-isolation checks and 600 metadata reads. The coordinator remains disabled in production, pending its host and supported private API ingress. Full measurement scope: [build history and room load](project-history-and-room-load.md). Both load harnesses require the explicitly isolated loopback QA database; neither may seed the ordinary player database.
 
 ## Holder access
 
@@ -38,7 +40,7 @@ Solana login does not imply Solana holder verification: the current adapter retu
 ## Migration and release sequence
 
 1. Record the exact source commit, current hosted version, target version, deployment audience and existing database migration state.
-2. Confirm the canonical history in `drizzle/meta/_journal.json`: `0000`–`0003`, `0004_odd_blackheart`, then `0005_tired_jocasta` and `0006_handy_polaris`. Retain the published wallet migration. Do not deploy the experimental SQL archived in `docs/migration-history/pre-reconciliation-4385554`.
+2. Confirm the canonical history in `drizzle/meta/_journal.json`: `0000`–`0003`, `0004_odd_blackheart`, then `0005_tired_jocasta`, `0006_handy_polaris`, `0007_nappy_red_wolf`, `0008_foamy_sersi`, `0009_bouncy_lilith` and `0010_red_piledriver`. Retain the published wallet migration. Do not deploy the experimental SQL archived in `docs/migration-history/pre-reconciliation-4385554`.
 3. Run the default rules suite, migration reconciliation tests, TypeScript, production build and relevant local API suites. Generated-key fixtures and test databases must remain separate from real saves.
 4. Verify the actual hosted recovery capability and record a usable recovery point before applying a hosted migration. A local SQLite migration test is not a backup or restore drill.
 5. Publish through the hosting workflow, wait for terminal deployment success and record the commit/version/migration mapping. Then check homepage/assets, login cancellation and success, returning saves, neighborhood entry, takeover, visits and existing claims on the deployed HTTPS origin.
@@ -62,6 +64,6 @@ Before public access, assign an operator and verify dashboards/alerts for 5xx, 4
 
 Players can mute/block peers and report a message from their neighborhood. Reports persist the reported message and reason in `player_reports`; an explicitly allowlisted moderator can review them at `/moderation`, dismiss a report or remove its message with a retained decision note. No reviewer is configured, and there is no notification pipeline or staffed response process. See [the moderator guide](moderation.md). An operator must define who reviews reports, how action is taken, how users contact support and how records are retained. Existing controls are not proof that abuse handling is operational.
 
-Open acceptance items are real wallet extensions, mobile devices, multi-person play/reconnect, longer return-session playtests, hosted load/cost measurements, dependency patch review, operational alerts and a hosted backup/restore rehearsal. The targeted dependency patch leaves 10 affected packages (4 moderate, 6 high); follow the [dependency review](dependency-review-2026-09-09.md) rather than describing the build as vulnerability-free.
+Open acceptance items are real wallet extensions, mobile devices, multi-person play/reconnect, longer return-session playtests, hosted load/cost measurements, dependency patch review, operational alerts and a hosted backup/restore rehearsal. The scoped dependency patches leave 2 high affected packages (image-size and vinext); follow the [dependency review](dependency-review-2026-09-09.md) rather than describing the build as vulnerability-free.
 
 Real $NOOBIUS rewards require a separately specified and funded quote/settlement system. The current Exchange only previews an amount and creates no transfer or payout request. Keep release copy consistent with that behavior.

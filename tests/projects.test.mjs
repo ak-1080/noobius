@@ -182,7 +182,7 @@ const gpuContribution = (db, p, id, family, request = crypto.randomUUID()) =>
     gpuPermit,
   );
 
-test('a solo cluster consumes earned work and parts; completed rewards survive leaving and pay once', async () => {
+void test('a solo cluster consumes earned work and parts; completed rewards survive leaving and pay once', async () => {
   const {
     db,
     crew: [p],
@@ -229,7 +229,7 @@ test('a solo cluster consumes earned work and parts; completed rewards survive l
   );
 });
 
-test('five-person work is fixed; a racing last contribution cannot consume two players parts', async () => {
+void test('five-person work is fixed; a racing last contribution cannot consume two players parts', async () => {
   const { db, crew } = await fixture(5),
     p = crew[0];
   const id = (await startProject(db, p.wallet, p.controller, 'balanced', 3100))
@@ -256,7 +256,7 @@ test('five-person work is fixed; a racing last contribution cannot consume two p
   assert.equal(claimed.filter((r) => r.status === 'fulfilled').length, 1);
 });
 
-test('missing work, missing components, distance and noncontributors cannot obtain project credit', async () => {
+void test('missing work, missing components, distance and noncontributors cannot obtain project credit', async () => {
   const {
     db,
     crew: [p, other],
@@ -300,7 +300,7 @@ test('missing work, missing components, distance and noncontributors cannot obta
   );
 });
 
-test('newer projects cannot hide an older unclaimed completion; rewards count toward daily work', async () => {
+void test('newer projects cannot hide an older unclaimed completion; rewards count toward daily work', async () => {
   const {
     db,
     crew: [p],
@@ -342,12 +342,342 @@ test('newer projects cannot hide an older unclaimed completion; rewards count to
   assert.equal(facility(db, p).daily.computeEarned, 300);
 });
 
+function seedHistoryBuild(
+  db,
+  p,
+  {
+    id = crypto.randomUUID(),
+    neighborhoodId,
+    state = 'completed',
+    claimed = false,
+    time = 6000,
+    workVersion = 0,
+  },
+) {
+  db.sqlite
+    .prepare(
+      "INSERT OR IGNORE INTO neighborhoods(id,realm,preferred_band,created_at) VALUES (?,'commons',0,?)",
+    )
+    .run(neighborhoodId, time);
+  const required = { service: 1, supply: 1, workload: 1 };
+  const progress =
+    state === 'completed' ? required : { service: 0, supply: 1, workload: 0 };
+  db.sqlite
+    .prepare(
+      "INSERT INTO cluster_projects(id,neighborhood_id,variant,state,scale,required_json,progress_json,work_version,version,created_at,completed_at) VALUES (?,?,'balanced',?,1,?,?,?,1,?,?)",
+    )
+    .run(
+      id,
+      neighborhoodId,
+      state,
+      JSON.stringify(required),
+      JSON.stringify(progress),
+      workVersion,
+      time,
+      state === 'completed' ? time : null,
+    );
+  db.sqlite
+    .prepare(
+      "INSERT INTO cluster_contributions(id,project_id,wallet,family,units,created_at) VALUES (?,?,?,'supply',1,?)",
+    )
+    .run(crypto.randomUUID(), id, p.wallet, time);
+  if (claimed)
+    db.sqlite
+      .prepare(
+        'INSERT INTO cluster_claims(id,project_id,wallet,compute,reputation,created_at) VALUES (?,?,?,100,20,?)',
+      )
+      .run(crypto.randomUUID(), id, p.wallet, time);
+  return { id, neighborhoodId, state, claimed, time };
+}
+
+function seedPendingHistoryWork(db, p, projectId, readyAt) {
+  const id = crypto.randomUUID();
+  const work = {
+    id,
+    projectId,
+    version: 1,
+    rack: 'rack-a',
+    capacity: 1,
+    startedAt: 0,
+    readyAt,
+    duration: readyAt / 1000,
+    pausedOutput: 6,
+  };
+  db.sqlite
+    .prepare('UPDATE cluster_projects SET progress_json=? WHERE id=?')
+    .run(JSON.stringify({ service: 1, supply: 1, workload: 0 }), projectId);
+  db.sqlite
+    .prepare(
+      "INSERT INTO cluster_contributions(id,project_id,wallet,family,units,created_at,state,ready_at,work_json) VALUES (?,?,?,'workload',1,0,'pending',?,?)",
+    )
+    .run(id, projectId, p.wallet, readyAt, JSON.stringify(work));
+  return id;
+}
+
+void test('large unfinished histories skip per-project reads until work is due, including older pages', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  const prepare = db.prepare.bind(db);
+  let reads = 0;
+  db.prepare = (sql) => {
+    reads++;
+    return prepare(sql);
+  };
+  await projectSnapshot(db, p.wallet, 20000);
+  const baseline = reads;
+  for (let i = 1; i <= 90; i++) {
+    const project = seedHistoryBuild(db, p, {
+      neighborhoodId: i.toString(16).padStart(32, '0'),
+      state: 'open',
+      workVersion: i <= 30 ? 0 : 1,
+      time: 4000 + i,
+    });
+    if (i <= 30) seedPendingHistoryWork(db, p, project.id, 1000);
+    if (i > 60) seedPendingHistoryWork(db, p, project.id, 100000);
+  }
+  const older = seedHistoryBuild(db, p, {
+    neighborhoodId: 'e'.repeat(32),
+    state: 'open',
+    workVersion: 1,
+    time: 1000,
+  });
+  const dueId = seedPendingHistoryWork(db, p, older.id, 25000);
+  reads = 0;
+  const waiting = await projectSnapshot(db, p.wallet, 20000);
+  assert.equal(
+    reads,
+    baseline,
+    'Legacy, empty and future projects need no additional finalization reads',
+  );
+  assert.equal(waiting.history.length, 30);
+  assert.ok(!waiting.history.some((p) => p.id === older.id));
+  reads = 0;
+  const finished = await projectSnapshot(db, p.wallet, 26000);
+  assert.ok(
+    reads < baseline + 10,
+    'Only the due project should add finalization work',
+  );
+  assert.equal(finished.history[0].id, older.id);
+  assert.equal(finished.history[0].state, 'completed');
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT state FROM cluster_contributions WHERE id=?')
+      .get(dueId).state,
+    'complete',
+  );
+  assert.equal(
+    db.sqlite
+      .prepare("SELECT count(*) AS n FROM cluster_projects WHERE state='open'")
+      .get().n,
+    90,
+  );
+});
+
+void test('due work is visible through the current neighborhood or an own contribution, not unrelated builds', async () => {
+  const {
+    db,
+    crew: [viewer, contributor],
+  } = await fixture(2);
+  const neighborhoodId = db.sqlite
+    .prepare('SELECT neighborhood_id FROM crew_presence WHERE wallet=?')
+    .get(viewer.wallet).neighborhood_id;
+  const nearby = seedHistoryBuild(db, contributor, {
+    neighborhoodId,
+    state: 'open',
+    workVersion: 1,
+  });
+  seedPendingHistoryWork(db, contributor, nearby.id, 7000);
+  const unrelated = seedHistoryBuild(db, contributor, {
+    neighborhoodId: 'd'.repeat(32),
+    state: 'open',
+    workVersion: 1,
+  });
+  seedPendingHistoryWork(db, contributor, unrelated.id, 7000);
+  const view = await projectSnapshot(db, viewer.wallet, 8000);
+  assert.equal(view.project.id, nearby.id);
+  assert.equal(view.project.state, 'completed');
+  assert.equal(view.history.length, 0);
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT state FROM cluster_projects WHERE id=?')
+      .get(unrelated.id).state,
+    'open',
+  );
+});
+
+void test('thirty claimed builds cannot hide a newer open project or its resume destination', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  const neighborhoodId = 'f'.repeat(32);
+  const claimed = [];
+  for (let i = 0; i < 35; i++)
+    claimed.push(
+      seedHistoryBuild(db, p, {
+        neighborhoodId,
+        claimed: true,
+        time: 4000 + i,
+      }),
+    );
+  const reward = seedHistoryBuild(db, p, { neighborhoodId, time: 5000 });
+  const open = seedHistoryBuild(db, p, {
+    neighborhoodId,
+    state: 'open',
+    time: 6000,
+  });
+  const view = await projectSnapshot(db, p.wallet, 8000);
+  assert.equal(view.history.length, 30);
+  assert.ok(view.historyNextCursor);
+  assert.deepEqual(
+    view.history.slice(0, 3).map((row) => row.id),
+    [reward.id, open.id, claimed.at(-1).id],
+  );
+  assert.equal(view.history[1].neighborhoodId, open.neighborhoodId);
+  assert.equal(view.history[1].claimed, false);
+  const resumed = await joinNeighborhood(
+    db,
+    p.wallet,
+    'commons',
+    0,
+    p.controller.clientId,
+    { target: view.history[1].neighborhoodId },
+    8100,
+  );
+  assert.equal(resumed.neighborhoodId, open.neighborhoodId);
+  assert.equal((await projectSnapshot(db, p.wallet, 8200)).project.id, open.id);
+});
+
+void test('bounded history pages expose every outstanding build with deterministic timestamp ties', async () => {
+  const {
+    db,
+    crew: [p, other],
+  } = await fixture(2);
+  const entries = [];
+  for (let i = 1; i <= 85; i++)
+    entries.push(
+      seedHistoryBuild(db, p, {
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+        neighborhoodId: i.toString(16).padStart(32, '0'),
+        state: i > 40 && i <= 80 ? 'open' : 'completed',
+        claimed: i > 80,
+      }),
+    );
+  const expected = [...entries].sort((a, b) => {
+    const rank = (p) => (p.claimed ? 2 : p.state === 'completed' ? 0 : 1);
+    return rank(a) - rank(b) || b.time - a.time || b.id.localeCompare(a.id);
+  });
+  const found = [],
+    cursors = [];
+  let cursor = null;
+  do {
+    const view = await projectSnapshot(db, p.wallet, 8000, cursor);
+    assert.ok(view.history.length <= 30);
+    found.push(...view.history);
+    cursor = view.historyNextCursor;
+    if (cursor) {
+      assert.ok(!cursors.includes(cursor), 'Pagination must make progress');
+      cursors.push(cursor);
+    }
+  } while (cursor);
+  assert.deepEqual(
+    found.map((p) => p.id),
+    expected.map((p) => p.id),
+  );
+  assert.equal(new Set(found.map((p) => p.id)).size, 85);
+  assert.equal(found.filter((p) => p.state === 'open').length, 40);
+  assert.equal(
+    found.filter((p) => p.state === 'completed' && !p.claimed).length,
+    40,
+  );
+  assert.equal(
+    (await projectSnapshot(db, other.wallet, 8000, cursors[0])).history.length,
+    0,
+  );
+
+  const lateReward = found[35];
+  assert.equal(lateReward.state, 'completed');
+  assert.equal(
+    (await claimProject(db, p.wallet, lateReward.id, 8100)).compute,
+    100,
+  );
+  await assert.rejects(
+    claimProject(db, p.wallet, lateReward.id, 8101),
+    /already collected/,
+  );
+  const latest = await projectSnapshot(db, p.wallet, 8200);
+  assert.ok(latest.history.every((p) => p.state === 'completed' && !p.claimed));
+  assert.ok(!latest.history.some((p) => p.id === lateReward.id));
+  const lateOpen = found[70];
+  const resumed = await joinNeighborhood(
+    db,
+    p.wallet,
+    lateOpen.realm,
+    0,
+    p.controller.clientId,
+    { target: lateOpen.neighborhoodId },
+    8300,
+  );
+  assert.equal(resumed.neighborhoodId, lateOpen.neighborhoodId);
+  assert.equal(
+    (await projectSnapshot(db, p.wallet, 8400)).project.id,
+    lateOpen.id,
+  );
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT count(*) AS n FROM cluster_contributions WHERE wallet=?')
+      .get(p.wallet).n,
+    85,
+  );
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT count(*) AS n FROM cluster_claims WHERE wallet=?')
+      .get(p.wallet).n,
+    6,
+  );
+});
+
+void test('project history rejects malformed or unbounded cursors without changing saved work', async () => {
+  const {
+    db,
+    crew: [p],
+  } = await fixture();
+  const id = '00000000-0000-4000-8000-000000000001';
+  for (const cursor of [
+    '',
+    '3:6000:' + id,
+    '0:-1:' + id,
+    '0:1.5:' + id,
+    '0:9007199254740992:' + id,
+    '0:6000:not-an-id',
+    '0:6000:' + id + "' OR 1=1",
+    'x'.repeat(10000),
+    1,
+    {},
+  ])
+    await assert.rejects(
+      projectSnapshot(db, p.wallet, 8000, cursor),
+      (e) => e.status === 400,
+    );
+  assert.equal(
+    db.sqlite.prepare('SELECT count(*) AS n FROM cluster_contributions').get()
+      .n,
+    0,
+  );
+  assert.equal(
+    db.sqlite.prepare('SELECT count(*) AS n FROM cluster_claims').get().n,
+    0,
+  );
+});
+
 for (const [variant, family, style] of [
   ['gpu-launch', 'workload', 'fast'],
   ['gpu-stability', 'service', 'stable'],
   ['gpu-efficiency', 'supply', 'efficient'],
 ]) {
-  test(`${variant} needs a completed ${style} ${family} job, not a module or generic work`, async () => {
+  void test(`${variant} needs a completed ${style} ${family} job, not a module or generic work`, async () => {
     const {
       db,
       crew: [p],
@@ -403,7 +733,7 @@ for (const [variant, family, style] of [
   });
 }
 
-test('legacy GPU project IDs and frozen requirements remain finishable with legacy reports', async () => {
+void test('legacy GPU project IDs and frozen requirements remain finishable with legacy reports', async () => {
   for (const variant of ['rapid', 'quiet']) {
     const {
       db,
@@ -466,7 +796,7 @@ test('legacy GPU project IDs and frozen requirements remain finishable with lega
   }
 });
 
-test('a typed report spent on a Commons project cannot be reused in GPU District', async () => {
+void test('a typed report spent on a Commons project cannot be reused in GPU District', async () => {
   const {
     db,
     crew: [p],
@@ -503,7 +833,7 @@ test('a typed report spent on a Commons project cannot be reused in GPU District
   assert.deepEqual(facility(db, p), before);
 });
 
-test('the last GPU contribution races atomically across reports, components and project progress', async () => {
+void test('the last GPU contribution races atomically across reports, components and project progress', async () => {
   const { db, crew } = await fixture(2);
   for (const p of crew) {
     let f = finishJob(facility(db, p), 'workload', 'fast');
@@ -548,7 +878,7 @@ test('the last GPU contribution races atomically across reports, components and 
   );
 });
 
-test('GPU holder revocation and account-version races preserve typed proof and parts at commit', async () => {
+void test('GPU holder revocation and account-version races preserve typed proof and parts at commit', async () => {
   for (const race of ['holder', 'account']) {
     const {
       db,
@@ -671,7 +1001,7 @@ const spendChoice = (f, ticket = tickets(f)[0], now = 5000) => {
   ).facility;
 };
 
-test('each specialist grants only matching personal work; partial and full storage previews match claims', async () => {
+void test('each specialist grants only matching personal work; partial and full storage previews match claims', async () => {
   for (const family of ['service', 'supply', 'workload']) {
     const {
       db,
@@ -724,7 +1054,7 @@ test('each specialist grants only matching personal work; partial and full stora
   }
 });
 
-test('generic helpers and legacy null-policy projects do not gain choices from today’s variant definition', async () => {
+void test('generic helpers and legacy null-policy projects do not gain choices from today’s variant definition', async () => {
   const {
     db,
     crew: [p, other],
@@ -755,7 +1085,7 @@ test('generic helpers and legacy null-policy projects do not gain choices from t
   assert.deepEqual(facility(db, p).career.dispatchChoices, undefined);
 });
 
-test('duplicate claims after spending either ticket return a conflict and never restore it', async () => {
+void test('duplicate claims after spending either ticket return a conflict and never restore it', async () => {
   for (const ordinal of [0, 1]) {
     const {
       db,
@@ -774,7 +1104,7 @@ test('duplicate claims after spending either ticket return a conflict and never 
   }
 });
 
-test('two project claims competing for one slot cannot overfill or overwrite the winner', async () => {
+void test('two project claims competing for one slot cannot overfill or overwrite the winner', async () => {
   const {
     db,
     crew: [p],
@@ -804,7 +1134,7 @@ test('two project claims competing for one slot cannot overfill or overwrite the
   );
 });
 
-test('a spend racing a project claim forces a fresh capacity read and preserves running work', async () => {
+void test('a spend racing a project claim forces a fresh capacity read and preserves running work', async () => {
   const {
     db,
     crew: [p],
@@ -940,7 +1270,7 @@ async function measuredWorkloadPlan(variant, first, serial, steps) {
   return (now - started) / 1000;
 }
 
-test('maxed operators have conditional project choices: specialists win on a slow board, First light on a short board', async () => {
+void test('maxed operators have conditional project choices: specialists win on a slow board, First light on a short board', async () => {
   // Same final report stock, including the specialist's extra consumed report.
   // Exact job clocks; no claims in other families to advance the shared serial.
   assert.equal(
@@ -975,7 +1305,7 @@ test('maxed operators have conditional project choices: specialists win on a slo
   );
 });
 
-test('twelve claimed projects conserve named choices through full storage, spending, reloads, and old-claim replay', async () => {
+void test('twelve claimed projects conserve named choices through full storage, spending, reloads, and old-claim replay', async () => {
   const {
     db,
     crew: [p],

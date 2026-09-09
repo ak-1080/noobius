@@ -163,6 +163,7 @@ export type Project = {
   completedAt: number | null;
 };
 export type ProjectSnapshot = {
+  historyNextCursor?: string | null;
   service?: ServiceSession | null;
   workloads?: (CommissioningWork & { name: string; mine: boolean })[];
   project: Project | null;

@@ -14,3 +14,19 @@ The previous statement that every affected path was tooling-only was too broad. 
 - The broader suggested Cloudflare update introduces a new workerd and a Miniflare 5 alpha. Treat that as a separately tested runtime/tooling upgrade.
 
 No force audit fix or unsupported downgrade was performed. Continue remediation before broad public access rather than describing the project as vulnerability-free.
+
+## Scoped tooling follow-up
+
+Applied three scoped overrides while retaining the existing Vinext, Cloudflare Vite plugin, Wrangler, Miniflare, workerd, React and Vite versions:
+
+| Parent                    | Dependency | Before → after    |
+| ------------------------- | ---------- | ----------------- |
+| Wrangler                  | esbuild    | 0.27.3 → 0.28.2   |
+| `@esbuild-kit/core-utils` | esbuild    | 0.18.20 → 0.25.12 |
+| Miniflare                 | sharp      | 0.34.5 → 0.35.4   |
+
+The esbuild updates address the [Windows development-server traversal](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr) and [development-server CORS issue](https://github.com/evanw/esbuild/security/advisories/GHSA-67mh-4wv8-2f99). Sharp 0.35.4 includes patched libheif 1.23.2; see the [maintainer advisory](https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c). Existing ws and Undici overrides remain.
+
+`npm run test:tooling` passes three compatibility checks: the legacy TypeScript loader's sync/async transforms; real-schema Drizzle migration generation in a temporary directory followed by an unchanged repeat; and native sharp through Miniflare Images metadata, WebP and AVIF transforms. The actual local economy/coordinator API scenarios also pass with these overrides. No real database migration or player data change was needed. Malformed preexisting optional-platform lock entries were regenerated/repaired during installation; the final lockfile has no missing-version package entries.
+
+Fresh npm audit now reports **two high affected packages, `image-size` and its parent `vinext`**. This is still not a clean audit. Published Vinext beta.9 was inspected: it bundles `image-size@2.0.2` with the same unsafe ICNS/JXL size-advancement paths. Updating to beta.9 would hide the transitive report without resolving that code. The parser is used for repository metadata assets in the inspected build path; this limited finding is not whole-program proof that every potential ingestion path is safe. Keep untrusted build assets out of these parsers until an actual patch is available.

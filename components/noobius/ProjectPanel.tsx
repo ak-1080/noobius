@@ -68,6 +68,9 @@ export default function ProjectPanel({
   const [data, setData] = useState<ProjectSnapshot | null>(null),
     [error, setError] = useState(''),
     [saving, setSaving] = useState(false);
+  const [historyPages, setHistoryPages] = useState<(string | null)[]>([null]),
+    [historyLoading, setHistoryLoading] = useState(false);
+  const historyCursor = historyPages.at(-1) ?? null;
   const [now, setNow] = useState(Date.now),
     [rack, setRack] = useState('');
   useEffect(() => {
@@ -77,6 +80,7 @@ export default function ProjectPanel({
   useEffect(() => {
     if (!connected) {
       setData(null);
+      setHistoryPages([null]);
       return;
     }
     let alive = true,
@@ -84,8 +88,14 @@ export default function ProjectPanel({
     const refresh = async () => {
       if (pending || document.hidden) return;
       pending = true;
+      setHistoryLoading(true);
       try {
-        const next = await api<ProjectSnapshot>('projects');
+        const next = await api<ProjectSnapshot>(
+          'projects' +
+            (historyCursor
+              ? '?historyCursor=' + encodeURIComponent(historyCursor)
+              : ''),
+        );
         if (alive) {
           setData(next);
           setError('');
@@ -97,6 +107,7 @@ export default function ProjectPanel({
           );
       } finally {
         pending = false;
+        if (alive) setHistoryLoading(false);
       }
     };
     void refresh();
@@ -105,13 +116,14 @@ export default function ProjectPanel({
       alive = false;
       clearInterval(timer);
     };
-  }, [connected, neighborhoodId, busy]);
+  }, [connected, neighborhoodId, busy, historyCursor]);
   const perform = async (action: string, body: Record<string, unknown>) => {
     setSaving(true);
     setError('');
     try {
       const result = await onAction(action, body);
       if (!result) return;
+      setHistoryPages([null]);
       setData(await api<ProjectSnapshot>('projects'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Try again.');
@@ -515,9 +527,15 @@ export default function ProjectPanel({
           </p>
         </>
       )}
-      {data.history.length > 0 && (
+      {(data.history.length > 0 || historyPages.length > 1) && (
         <div className="project-history">
           <h4>Your builds</h4>
+          {!data.history.length && (
+            <p>
+              No builds remain on this page. Check the latest rewards and active
+              builds.
+            </p>
+          )}
           {data.history.map((p) => (
             <div key={p.id}>
               <span>
@@ -579,6 +597,41 @@ export default function ProjectPanel({
               )}
             </div>
           ))}
+          {(historyPages.length > 1 || data.historyNextCursor) && (
+            <nav aria-label="Project history pages">
+              <Button
+                variant="outline"
+                disabled={
+                  disabled || historyLoading || historyPages.length === 1
+                }
+                onClick={() => setHistoryPages((pages) => pages.slice(0, -1))}
+              >
+                Previous builds
+              </Button>
+              <Button
+                variant="outline"
+                disabled={disabled || historyLoading || !data.historyNextCursor}
+                onClick={() => {
+                  if (data.historyNextCursor)
+                    setHistoryPages((pages) => [
+                      ...pages,
+                      data.historyNextCursor!,
+                    ]);
+                }}
+              >
+                More builds
+              </Button>
+              {historyPages.length > 1 && (
+                <button
+                  className="text-action"
+                  onClick={() => setHistoryPages([null])}
+                >
+                  Latest rewards and active builds
+                </button>
+              )}
+            </nav>
+          )}
+          {historyLoading && <output>Updating your builds…</output>}
         </div>
       )}
       <button className="text-action" onClick={onOutage}>

@@ -29,7 +29,9 @@ Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once 
 - `npm run test:campus-api`: D1 crafting, escrow, competing buyers, cosmetics, presence and chat.
 - `npm run test:multiplayer-api`: five-player admission, visits, movement, cooperative jobs, social controls and tab takeover.
 - `npm run test:wallet-api`: separate EVM/Solana saves, signed challenges, replay and account isolation.
-- `node tests/neighborhood-load.mjs`: loopback-only synthetic load probe, not a public-capacity certification.
+- `NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 node tests/neighborhood-load.mjs`: HTTP load probe using the isolated QA database, not ordinary player saves.
+- `NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 npm run test:room-load-api`: ten-neighborhood WebSocket load check against isolated economy/coordinator servers on ports 3003/3004. Local results do not certify hosted capacity.
+- `npm run test:tooling`: isolated migration-loader and local image-binding compatibility checks for the scoped dependency patches.
 - `node --test tests/tycoon-api.test.mjs`: one-free-starter race and durable old-save migration.
 - `node --test tests/onboarding-api.test.mjs`: saved name and combined appearance after a fresh login.
 

@@ -96,14 +96,27 @@ export async function projectSnapshot(
   db: D1Database,
   wallet: string,
   now = Date.now(),
+  historyCursor?: string | null,
 ): Promise<ProjectSnapshot> {
+  let after: { rank: number; time: number; id: string } | null = null;
+  if (historyCursor !== undefined && historyCursor !== null) {
+    const match =
+      typeof historyCursor === 'string' &&
+      historyCursor.length <= 64 &&
+      /^([012]):(\d{1,16}):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.exec(
+        historyCursor,
+      );
+    if (!match || !Number.isSafeInteger(Number(match[2])))
+      return fail('Reload your builds to continue.', 400);
+    after = { rank: Number(match[1]), time: Number(match[2]), id: match[3] };
+  }
   const presence = await requireMembership(db, wallet, undefined, now);
   const unfinished = (
     await db
       .prepare(
-        "SELECT DISTINCT p.id FROM cluster_projects p LEFT JOIN cluster_contributions c ON c.project_id=p.id WHERE p.state='open' AND (p.neighborhood_id=? OR c.wallet=?)",
+        "SELECT p.id FROM cluster_projects p WHERE p.state='open' AND p.work_version=1 AND (p.neighborhood_id=? OR EXISTS(SELECT 1 FROM cluster_contributions mine WHERE mine.project_id=p.id AND mine.wallet=?)) AND EXISTS(SELECT 1 FROM cluster_contributions due WHERE due.project_id=p.id AND due.state='pending' AND due.ready_at<=?)",
       )
-      .bind(presence.neighborhood_id, wallet)
+      .bind(presence.neighborhood_id, wallet, now)
       .all<{ id: string }>()
   ).results;
   for (const project of unfinished)
@@ -129,15 +142,25 @@ export async function projectSnapshot(
           }>()
       ).results
     : [];
-  const history = (
+  const historyRows = (
     await db
-      .prepare(`SELECT p.id,p.neighborhood_id AS neighborhoodId,n.realm,p.variant,p.state,p.benefit_json AS benefitJson,sum(c.units) AS units,
+      .prepare(`WITH history AS (SELECT p.id,p.neighborhood_id AS neighborhoodId,n.realm,p.variant,p.state,p.benefit_json AS benefitJson,sum(c.units) AS units,
     sum(CASE WHEN c.family='service' THEN c.units ELSE 0 END) AS service,
     sum(CASE WHEN c.family='supply' THEN c.units ELSE 0 END) AS supply,
     sum(CASE WHEN c.family='workload' THEN c.units ELSE 0 END) AS workload,
-    EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed
-    FROM cluster_contributions c JOIN cluster_projects p ON p.id=c.project_id JOIN neighborhoods n ON n.id=p.neighborhood_id WHERE c.wallet=? GROUP BY p.id ORDER BY (p.state='completed' AND NOT EXISTS(SELECT 1 FROM cluster_claims done WHERE done.project_id=p.id AND done.wallet=c.wallet)) DESC,p.created_at ASC,p.id ASC LIMIT 30`)
-      .bind(wallet, wallet)
+    EXISTS(SELECT 1 FROM cluster_claims claimed WHERE claimed.project_id=p.id AND claimed.wallet=?) AS claimed,
+    CASE WHEN p.state='completed' AND NOT EXISTS(SELECT 1 FROM cluster_claims done WHERE done.project_id=p.id AND done.wallet=c.wallet) THEN 0 WHEN p.state='open' THEN 1 ELSE 2 END AS historyRank,
+    p.created_at AS createdAt
+    FROM cluster_contributions c JOIN cluster_projects p ON p.id=c.project_id JOIN neighborhoods n ON n.id=p.neighborhood_id WHERE c.wallet=? GROUP BY p.id)
+    SELECT * FROM history${after ? ' WHERE historyRank>? OR (historyRank=? AND (createdAt<? OR (createdAt=? AND id<?)))' : ''}
+    ORDER BY historyRank ASC,createdAt DESC,id DESC LIMIT 31`)
+      .bind(
+        wallet,
+        wallet,
+        ...(after
+          ? [after.rank, after.rank, after.time, after.time, after.id]
+          : []),
+      )
       .all<{
         id: string;
         neighborhoodId: string;
@@ -150,8 +173,12 @@ export async function projectSnapshot(
         service: number;
         supply: number;
         workload: number;
+        historyRank: number;
+        createdAt: number;
       }>()
   ).results;
+  const history = historyRows.slice(0, 30),
+    last = history.at(-1);
   const workloads = row
     ? (
         await db
@@ -179,17 +206,31 @@ export async function projectSnapshot(
     workloads,
     service,
     contributions: contributions.map((c) => ({ ...c, mine: !!c.mine })),
-    history: history.map(({ benefitJson, service, supply, workload, ...p }) => {
-      const benefit = decodeDispatchBenefit(benefitJson);
-      return {
-        ...p,
-        claimed: !!p.claimed,
-        benefit,
-        dispatchUnits: benefit
-          ? { service, supply, workload }[benefit.family]
-          : 0,
-      };
-    }),
+    historyNextCursor:
+      historyRows.length > 30 && last
+        ? `${last.historyRank}:${last.createdAt}:${last.id}`
+        : null,
+    history: history.map(
+      ({
+        benefitJson,
+        service,
+        supply,
+        workload,
+        historyRank: _rank,
+        createdAt: _time,
+        ...p
+      }) => {
+        const benefit = decodeDispatchBenefit(benefitJson);
+        return {
+          ...p,
+          claimed: !!p.claimed,
+          benefit,
+          dispatchUnits: benefit
+            ? { service, supply, workload }[benefit.family]
+            : 0,
+        };
+      },
+    ),
   };
 }
 export async function startProject(

@@ -583,7 +583,14 @@ export async function handleGame(request: Request, action: string) {
       if (!wallet)
         throw new ApiError(401, 'Connect your wallet to join a crew project.');
       await readableRealm(request, wallet);
-      return result(await projectSnapshot(db(), wallet));
+      return result(
+        await projectSnapshot(
+          db(),
+          wallet,
+          Date.now(),
+          new URL(request.url).searchParams.get('historyCursor'),
+        ),
+      );
     }
     if (action === 'directory' || action === 'visit' || action === 'messages') {
       const wallet = await identity(request);
