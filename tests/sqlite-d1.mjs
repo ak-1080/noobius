@@ -2,20 +2,18 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 export function database() {
   const sqlite = new DatabaseSync(':memory:');
-  for (const name of [
-    '0000_spicy_the_watchers',
-    '0001_calm_mister_fear',
-    '0002_fancy_master_mold',
-    '0003_confused_wolfsbane',
-    '0004_typical_puck',
-    '0005_careful_reavers',
-    '0006_daffy_changeling',
-    '0007_oval_malcolm_colcord',
-    '0008_jazzy_marten_broadcloak',
-    '0009_sharp_malice',
-  ])
+  const journal = JSON.parse(
+    readFileSync(
+      new URL('../drizzle/meta/_journal.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  for (const entry of journal.entries)
     sqlite.exec(
-      readFileSync(new URL(`../drizzle/${name}.sql`, import.meta.url), 'utf8'),
+      readFileSync(
+        new URL(`../drizzle/${entry.tag}.sql`, import.meta.url),
+        'utf8',
+      ),
     );
   class Prepared {
     constructor(sql, args = []) {

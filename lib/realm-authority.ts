@@ -18,6 +18,8 @@ export function holdingGuard(walletSql: string, permit?: RealmPermit) {
   if (!permit?.policy) return '0';
   const clock = "(CAST(strftime('%s','now') AS INTEGER)*1000)";
   return `EXISTS(SELECT 1 FROM realm_entitlements entitlement WHERE entitlement.wallet=${walletSql}
+    AND length(entitlement.wallet)=42 AND substr(entitlement.wallet,1,2)='0x'
+    AND substr(entitlement.wallet,3) NOT GLOB '*[^0-9a-fA-F]*'
     AND entitlement.policy=${quote(permit.policy)} AND (
       (entitlement.status='eligible' AND entitlement.next_check_at>${clock}) OR
       (entitlement.status='unavailable' AND entitlement.grace_until>${clock})))`;

@@ -201,7 +201,13 @@ test('migration preserves existing wallets, balances, facilities and legacy pres
   ).run('old', 1, 17, 0, 'campus-1');
   db.exec(
     readFileSync(
-      new URL('../drizzle/0004_typical_puck.sql', import.meta.url),
+      new URL('../drizzle/0004_odd_blackheart.sql', import.meta.url),
+      'utf8',
+    ),
+  );
+  db.exec(
+    readFileSync(
+      new URL('../drizzle/0005_tired_jocasta.sql', import.meta.url),
       'utf8',
     ),
   );

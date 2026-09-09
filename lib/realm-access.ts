@@ -8,13 +8,21 @@ export type TokenPolicy = {
   key: string;
 };
 export type RealmAccess = {
-  status: 'eligible' | 'ineligible' | 'unavailable' | 'unconfigured' | 'test';
+  status:
+    | 'eligible'
+    | 'ineligible'
+    | 'unavailable'
+    | 'unconfigured'
+    | 'unsupported'
+    | 'test';
   allowed: boolean;
   threshold: string;
   checkedAt?: number;
   graceUntil?: number;
   message: string;
 };
+const supportsHoldingAccount = (wallet: string) =>
+  /^0x[a-f0-9]{40}$/i.test(wallet);
 export function tokenPolicy(
   values: Record<string, unknown>,
 ): TokenPolicy | null {
@@ -58,8 +66,10 @@ export async function readTokenHolding(
   wallet: string,
   transport: typeof fetch = fetch,
 ) {
-  if (!/^0x[a-f0-9]{40}$/i.test(wallet))
-    throw new Error('Unsupported account.');
+  if (!supportsHoldingAccount(wallet))
+    throw new Error(
+      'GPU holder verification currently supports Ethereum/EVM accounts only.',
+    );
   let sequence = 0;
   const rpc = async (method: string, params: unknown[]) => {
     const response = await transport(policy.rpcUrl, {
@@ -122,6 +132,17 @@ export async function realmAccess(
   transport: typeof fetch = fetch,
 ): Promise<RealmAccess> {
   const policy = tokenPolicy(values);
+  // The live adapter only verifies EVM holdings. A Solana account cannot reuse
+  // a cached allowance or another wallet's holdings; free gameplay is separate.
+  // Preserve the explicit local-only test mode when no real policy is set.
+  if (!supportsHoldingAccount(wallet) && !(localTest && !policy))
+    return {
+      status: 'unsupported',
+      allowed: false,
+      threshold: policy?.threshold ?? '888',
+      message:
+        'GPU holder access currently supports Ethereum/EVM accounts only. Your saved game stays separate and your free center remains playable.',
+    };
   if (!policy)
     return localTest
       ? {

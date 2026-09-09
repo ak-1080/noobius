@@ -50,7 +50,10 @@ export function publicCampus() {
   return f;
 }
 export const eventAt = (now: number) => Math.floor(now / 600000);
-export const ownRoom = (wallet: string) => 'home-' + wallet.slice(2, 18);
+export const ownRoom = (wallet: string, publicId?: string) =>
+  'home-' +
+  (publicId ??
+    (/^0x[0-9a-f]{40}$/.test(wallet) ? wallet.slice(2, 18) : 'guest'));
 export const validRoom = (room: unknown): room is string =>
   typeof room === 'string' &&
-  /^(campus-[1-3]|home-[a-fA-F0-9]{16})$/.test(room);
+  /^(campus-[1-3]|home-(?:[a-fA-F0-9]{16}|[a-fA-F0-9]{32}))$/.test(room);

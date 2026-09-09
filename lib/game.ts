@@ -5,6 +5,7 @@ export type Equipment = Record<Upgrade, boolean>;
 export type Profile = {
   id?: string;
   wallet: string;
+  publicId?: string;
   name: string;
   credits: number;
   xp: number;

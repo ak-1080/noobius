@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { database } from './sqlite-d1.mjs';
-import { localRealmTest } from '../lib/realm-authority.ts';
+import {
+  localRealmTest,
+  holdingGuard,
+  walletHoldingGuard,
+} from '../lib/realm-authority.ts';
 import {
   joinNeighborhood,
   changeScene,
@@ -98,6 +102,84 @@ test('unconfigured production is closed; local test access is explicitly identif
   assert.equal(
     tokenPolicy({ ...values, NOOBIUS_TOKEN_RPC_URL: 'http://localhost:8000' }),
     null,
+  );
+});
+test('Solana holder access is unsupported without RPC or cached-grace reuse', async () => {
+  const db = fixture(),
+    solana = 'solana:' + '1'.repeat(32),
+    now = Date.now(),
+    rpc = transport(),
+    policy = tokenPolicy(values),
+    permit = { policy: policy.key, localTest: false };
+  db.sqlite
+    .prepare('INSERT INTO players(wallet,name,created_at) VALUES (?,?,0)')
+    .run(solana, 'Solana access test');
+  // Even a stale eligible/grace row must not authorize an unsupported account.
+  db.sqlite
+    .prepare(`INSERT INTO realm_entitlements
+    (wallet,policy,amount,block,status,checked_at,next_check_at,grace_until)
+    VALUES (?,?,?,'0xf4','eligible',?,?,?)`)
+    .run(solana, policy.key, '888000000', now, now + 60000, now + 300000);
+  await assert.rejects(
+    readTokenHolding(policy, solana, rpc.fetcher),
+    /Ethereum\/EVM accounts only/,
+  );
+  for (const status of ['eligible', 'unavailable']) {
+    db.sqlite
+      .prepare('UPDATE realm_entitlements SET status=? WHERE wallet=?')
+      .run(status, solana);
+    const access = await realmAccess(
+      db,
+      solana,
+      values,
+      false,
+      now,
+      rpc.fetcher,
+    );
+    assert.equal(access.status, 'unsupported');
+    assert.equal(access.allowed, false);
+    assert.equal(access.graceUntil, undefined);
+    assert.match(access.message, /Ethereum\/EVM accounts only/);
+    assert.equal(
+      db.sqlite
+        .prepare(`SELECT ${walletHoldingGuard(solana, permit)} AS allowed`)
+        .get().allowed,
+      0,
+    );
+    assert.equal(
+      db.sqlite
+        .prepare(
+          `SELECT ${holdingGuard('p.wallet', permit)} AS allowed FROM players p WHERE wallet=?`,
+        )
+        .get(solana).allowed,
+      0,
+    );
+  }
+  assert.equal(rpc.requests.length, 0);
+  assert.equal(
+    (await realmAccess(db, solana, {}, false, now, rpc.fetcher)).status,
+    'unsupported',
+  );
+  assert.equal(
+    (await realmAccess(db, solana, {}, true, now, rpc.fetcher)).status,
+    'test',
+  );
+  // An eligible EVM account remains its own save and entitlement, never a link.
+  assert.equal(
+    (await realmAccess(db, wallet, values, false, now, rpc.fetcher)).allowed,
+    true,
+  );
+  assert.equal(
+    db.sqlite
+      .prepare(`SELECT ${walletHoldingGuard(wallet, permit)} AS allowed`)
+      .get().allowed,
+    1,
+  );
+  assert.equal(
+    db.sqlite
+      .prepare(`SELECT ${walletHoldingGuard(solana, permit)} AS allowed`)
+      .get().allowed,
+    0,
   );
 });
 test('verified access has bounded RPC grace and confirmed holding loss removes access', async () => {

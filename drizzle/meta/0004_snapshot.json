@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a231cd46-3ece-4e8c-97b1-d9cf5795f0ee",
+  "id": "94833898-4921-49ea-97a4-26518feb61d2",
   "prevId": "2840b86b-1931-4eb7-b41b-24969803254b",
   "tables": {
     "campus_rewards": {
@@ -249,13 +249,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "neighborhood_id": {
-          "name": "neighborhood_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "wallet": {
           "name": "wallet",
           "type": "text",
@@ -285,30 +278,9 @@
             "created_at"
           ],
           "isUnique": false
-        },
-        "idx_messages_neighborhood_time": {
-          "name": "idx_messages_neighborhood_time",
-          "columns": [
-            "neighborhood_id",
-            "created_at"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
-        "crew_messages_neighborhood_id_neighborhoods_id_fk": {
-          "name": "crew_messages_neighborhood_id_neighborhoods_id_fk",
-          "tableFrom": "crew_messages",
-          "tableTo": "neighborhoods",
-          "columnsFrom": [
-            "neighborhood_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "crew_messages_wallet_players_wallet_fk": {
           "name": "crew_messages_wallet_players_wallet_fk",
           "tableFrom": "crew_messages",
@@ -323,53 +295,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "neighborhoods": {
-      "name": "neighborhoods",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "realm": {
-          "name": "realm",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "preferred_band": {
-          "name": "preferred_band",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_neighborhoods_realm_band": {
-          "name": "idx_neighborhoods_realm_band",
-          "columns": [
-            "realm",
-            "preferred_band"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -509,51 +434,6 @@
           "autoincrement": false,
           "default": "'campus-1'"
         },
-        "neighborhood_id": {
-          "name": "neighborhood_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "slot": {
-          "name": "slot",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "client_id": {
-          "name": "client_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "generation": {
-          "name": "generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "sequence": {
-          "name": "sequence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "lease_until": {
-          "name": "lease_until",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "wallet": {
           "name": "wallet",
           "type": "text",
@@ -598,38 +478,9 @@
             "updated_at"
           ],
           "isUnique": false
-        },
-        "idx_presence_neighborhood_slot": {
-          "name": "idx_presence_neighborhood_slot",
-          "columns": [
-            "neighborhood_id",
-            "slot"
-          ],
-          "isUnique": true
-        },
-        "idx_presence_neighborhood_lease": {
-          "name": "idx_presence_neighborhood_lease",
-          "columns": [
-            "neighborhood_id",
-            "lease_until"
-          ],
-          "isUnique": false
         }
       },
       "foreignKeys": {
-        "crew_presence_neighborhood_id_neighborhoods_id_fk": {
-          "name": "crew_presence_neighborhood_id_neighborhoods_id_fk",
-          "tableFrom": "crew_presence",
-          "tableTo": "neighborhoods",
-          "columnsFrom": [
-            "neighborhood_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "crew_presence_wallet_players_wallet_fk": {
           "name": "crew_presence_wallet_players_wallet_fk",
           "tableFrom": "crew_presence",
@@ -646,12 +497,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "valid_neighborhood_slot": {
-          "name": "valid_neighborhood_slot",
-          "value": "\"crew_presence\".\"slot\" BETWEEN 0 AND 4"
-        }
-      }
+      "checkConstraints": {}
     },
     "rate_limits": {
       "name": "rate_limits",
