@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game and Ethereum/EVM + Solana wallet entry were published as **Site version 29** on September 9, 2026 at 05:43 UTC. Source: `a7f26ff7357cbf35c27591d0ee019bd659e10119`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
+The neighborhood game and Ethereum/EVM + Solana wallet entry were published as **Site version 30** on September 9, 2026 at 05:56 UTC. Source: `78de30b377462467ff604a0af212db8e22ba0b0d`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
 
-Deployment `appgdep_6aa0f1f435188191b7ca99a9203ae7c6` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_7afa9984ce848191be32be707e445f40`. The hosted database overview now lists all 18 expected game tables. The existing browser guest save reopened with its previous spendable Compute and stored production intact, and the new Jobs/Equipment/Milestones interface rendered on the hosted page. This is a private playable release, not public multiplayer acceptance.
+Deployment `appgdep_6aa0f50f0ce48191a9759fb9641eed1c` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_72ce5e492f1881919ddcef5f94911eb8`. The hosted database overview now lists all 18 expected game tables. The existing browser guest save reopened with its previous spendable Compute and stored production intact, and the new Jobs/Equipment/Milestones interface rendered on the hosted page. Hosted mouse-wheel zoom out/in and save reopening also passed after the final update. Browser console inspection returned no errors during that smoke check. This is a private playable release, not public multiplayer acceptance.
 
 ## Implemented
 
@@ -59,7 +59,7 @@ Before deployment, a bounded live database read confirmed `players.public_id` an
 
 These are concrete alpha features and local checks. They do not establish console/AAA quality, proven retention, public capacity or a production-ready token economy.
 
-## GPU equipment follow-up
+## GPU equipment follow-up, included in version 30
 
 New GPU projects ask for Fast workloads, Stable service jobs or Efficient supply jobs, alongside the other shared components. Jobs issue a record of the equipment actually used only on successful claim. Generic and specialized reports share the same budget, so one completed job cannot fund two projects. Commons consumes older/general reports first and previews any specialized report it will use. Existing open First light/Launch night/Quiet hours projects retain their original terms. These changes add no token reward multiplier or new migration.
 
