@@ -37,3 +37,7 @@ These are finite, automatic runs: no cancellation, manual pickup or continuing c
 ## Remaining work
 
 Human playtests must evaluate whether these decisions remain worthwhile after upgrades. The 15–300 second loan range and the diagnostic pacing are tuning choices, not proven retention. The first starter loan takes five minutes, so the player should have other useful work available. This pass retains HTTP multiplayer polling and the existing two destinations. Real wallet/device acceptance, hosted load/cost measurement, monitoring, moderation staffing, backup/restore and the exact holder asset policy remain outstanding. No real token payouts or NBIS/Long integration were enabled.
+
+## Publication
+
+Published privately as Site version 36 at 08:17:09 UTC on September 9, 2026, from source `3b32158c38927f3bfd92fb1dd560a2715f4e54bf`. Hosted database inspection confirmed `cluster_service_sessions` and the added project work version. The existing guest game reopened with 880,287 spendable and 408,240 stored Compute; no economic action was taken. No error-level browser messages appeared after publication. This smoke check does not substitute for authenticated multiplayer acceptance.
