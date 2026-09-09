@@ -21,7 +21,7 @@ Connected accounts keep one personal center and join five-player neighborhoods. 
 
 ## Run locally
 
-Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once on a fresh local database**. This applies the seven canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
+Requires Node 22.18 or newer (the `.nvmrc` selects Node 24). Run `npm ci`, then `npm run db:local` **once on a fresh local database**. This applies the eleven canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
 
 - `npm test`: game rules, wallet handshake, navigation, progression, migration preservation, purchase clocks, daily rewards and retry protection.
 - `npm run typecheck` and `npm run build`: TypeScript and the production Worker/browser build.
@@ -36,6 +36,14 @@ Requires Node 22.13 or newer. Run `npm install`, then `npm run db:local` **once 
 - `node --test tests/onboarding-api.test.mjs`: saved name and combined appearance after a fresh login.
 
 API suites create random test-wallet identities on the local server. Do not point mutation tests at production. Authentication rate limits apply; run API suites sequentially.
+
+## GitHub checks
+
+[Noobius checks](https://github.com/ak-1080/noobius/actions/workflows/checks.yml) installs the committed lockfile on clean Ubuntu runners with Node 22 and 24. It runs game/persistence tests, TypeScript, tooling compatibility and the production build on main pushes and pull requests; it can also be started manually. Documentation-only main pushes are skipped.
+
+These checks have read-only repository permissions and no deployment or production database credentials. They do not start the mutation/API/load suites or deploy the game. A passing run is build/rules evidence, not hosted multiplayer, wallet-extension or human playtest acceptance. Existing repository-wide lint and two affected parser packages remain tracked release work; this workflow does not report them as resolved.
+
+Node 22.18 is the minimum because the test suite imports TypeScript directly using [Node’s default type stripping](https://nodejs.org/en/blog/release/v22.18.0). Earlier Node 22 versions require additional flags that these scripts do not supply.
 
 ## Persistence and economy
 
