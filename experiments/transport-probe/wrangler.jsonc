@@ -1,0 +1,10 @@
+{
+  "name": "noobius-transport-proof",
+  "main": "entry.ts",
+  "compatibility_date": "2026-05-15",
+  "durable_objects": {
+    "bindings": [{ "name": "TRANSPORT_PROBE", "class_name": "TransportProbe" }]
+  },
+  "migrations": [{ "tag": "transport-probe-v1", "new_sqlite_classes": ["TransportProbe"] }],
+  "dev": { "port": 3004, "ip": "localhost" }
+}

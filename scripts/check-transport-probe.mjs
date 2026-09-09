@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 
 const origin = process.argv[2] ?? 'http://localhost:3000';
-if (!['http://localhost:3000', 'https://noobius-compute-crew.rivd609.chatgpt.site'].includes(origin))
+if (!['http://localhost:3000', 'http://localhost:3004', 'https://noobius-compute-crew.rivd609.chatgpt.site'].includes(origin))
   throw Error('Use the known local or owner-private Site origin.');
 const headers = process.env.NOOBIUS_SITE_AUTH
   ? { 'OAI-Sites-Authorization': `Bearer ${process.env.NOOBIUS_SITE_AUTH}` }
