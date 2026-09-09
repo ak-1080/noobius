@@ -1,5 +1,5 @@
 'use client';
-import type { ContractFamily } from '@/lib/contracts';
+import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
 import ProjectPanel from './ProjectPanel';
 import { useNeighborhood } from './useNeighborhood';
@@ -119,6 +119,11 @@ export default function NoobiusGame() {
   const game = useNoobius(),
     { profile, shift, mode, busy, error } = game;
   const [focusFamily, setFocusFamily] = useState<ContractFamily | undefined>();
+  const [focusStyle, setFocusStyle] = useState<ModuleStyle | undefined>();
+  useEffect(() => {
+    setFocusFamily(undefined);
+    setFocusStyle(undefined);
+  }, [profile?.wallet]);
   const [jobDrafts, setJobDrafts] = useState<
     Record<string, Record<string, JobDraft>>
   >({});
@@ -918,7 +923,10 @@ export default function NoobiusGame() {
                   key={id}
                   className={`dock-${id}`}
                   onClick={() => {
-                    if (id === 'contracts') setFocusFamily(undefined);
+                    if (id === 'contracts') {
+                      setFocusFamily(undefined);
+                      setFocusStyle(undefined);
+                    }
                     show(id as Panel);
                   }}
                 >
@@ -1243,8 +1251,9 @@ export default function NoobiusGame() {
                     void joinRealm(realm, id, () => show('project'));
                   }}
                   onOutage={() => show('crewjob')}
-                  onJobs={(family) => {
+                  onJobs={(family, style) => {
                     setFocusFamily(family);
+                    setFocusStyle(style);
                     show('contracts');
                   }}
                 />
@@ -1318,7 +1327,11 @@ export default function NoobiusGame() {
               {profile?.facility && panel && panel in PANEL_COPY && (
                 <FacilityPanels
                   focusFamily={focusFamily}
-                  onClearFocus={() => setFocusFamily(undefined)}
+                  focusStyle={focusStyle}
+                  onClearFocus={() => {
+                    setFocusFamily(undefined);
+                    setFocusStyle(undefined);
+                  }}
                   onConnect={() => show('wallet')}
                   onProject={() =>
                     show(mode === 'practice' ? 'world' : 'project')

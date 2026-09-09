@@ -92,7 +92,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'realms',
     title: 'Explore GPU District',
-    text: 'Earn an Operator license with two jobs of each kind, a built module and a completed neighborhood cluster. GPU District adds launch-night and overnight project choices.',
+    text: 'Earn an Operator license with two jobs of each kind, a built module and a completed neighborhood cluster. GPU District adds projects needing Fast workloads, Stable repairs or Efficient deliveries. Select the required equipment before starting the job.',
     image: '/assets/facility.png',
     alt: 'A larger computing facility',
     tip: 'Holder access is checked separately when available. Your free center keeps working, and losing realm access never deletes your equipment or earned rewards.',

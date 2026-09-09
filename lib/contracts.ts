@@ -1,4 +1,5 @@
 import type { Bag, Facility, FacilityAction, ItemId } from './facility.ts';
+import { PROJECT_VARIANTS } from './projects.ts';
 
 export type ContractFamily = 'service' | 'supply' | 'workload';
 export type ModuleStyle = 'standard' | 'fast' | 'efficient' | 'stable';
@@ -246,8 +247,14 @@ export type ContractRun = ContractOffer & {
   nextStepAt: number;
   duration: number;
 };
+export type ReportStyleCounts = Partial<
+  Record<ContractFamily, Partial<Record<ModuleStyle, number>>>
+>;
 export type Career = {
   projectUsed?: Record<ContractFamily, number>;
+  // Only new claims mint typed proof. Old completed totals remain legacy reports.
+  reportStyles?: ReportStyleCounts;
+  projectUsedStyles?: ReportStyleCounts;
   commissioned?: number;
   mastery?: Record<string, Partial<Record<ModuleStyle, number>>>;
   projectDiscoveries?: string[];
@@ -642,6 +649,9 @@ export function applyContract(
     f.compute += run.reward;
     c.reputation += run.reputation;
     c.completed[t.family]++;
+    c.reportStyles ??= {};
+    const reports = (c.reportStyles[t.family] ??= {});
+    reports[run.style] = (reports[run.style] ?? 0) + 1;
     const skill = t.family === 'supply' ? 'engineering' : 'operations';
     f.skills[skill] += run.reputation;
     f.stats.contracts = (f.stats.contracts ?? 0) + 1;
@@ -702,7 +712,7 @@ export function validCareer(value: unknown): value is Career {
     c.projectDiscoveries !== undefined &&
     (!Array.isArray(c.projectDiscoveries) ||
       !c.projectDiscoveries.every((id) =>
-        ['balanced', 'rapid', 'quiet'].includes(id),
+        PROJECT_VARIANTS.some((v) => v.id === id),
       ))
   )
     return false;
@@ -720,6 +730,47 @@ export function validCareer(value: unknown): value is Career {
     !FAMILIES.every((f) => nat(c.completed[f]))
   )
     return false;
+  const styles: ModuleStyle[] = ['standard', 'fast', 'efficient', 'stable'];
+  const validReportCounts = (counts: unknown): counts is ReportStyleCounts =>
+    !!counts &&
+    typeof counts === 'object' &&
+    !Array.isArray(counts) &&
+    Object.entries(counts).every(
+      ([family, byStyle]) =>
+        FAMILIES.includes(family as ContractFamily) &&
+        byStyle &&
+        typeof byStyle === 'object' &&
+        !Array.isArray(byStyle) &&
+        Object.entries(byStyle).every(
+          ([style, n]) => styles.includes(style as ModuleStyle) && nat(n),
+        ),
+    );
+  if (
+    (c.reportStyles !== undefined && !validReportCounts(c.reportStyles)) ||
+    (c.projectUsedStyles !== undefined &&
+      !validReportCounts(c.projectUsedStyles))
+  )
+    return false;
+  for (const family of FAMILIES) {
+    let minted = 0,
+      spent = 0;
+    for (const style of styles) {
+      const amount = c.reportStyles?.[family]?.[style] ?? 0;
+      const used = c.projectUsedStyles?.[family]?.[style] ?? 0;
+      if (used > amount) return false;
+      minted += amount;
+      spent += used;
+    }
+    const aggregateSpent = c.projectUsed?.[family] ?? 0;
+    if (
+      !nat(minted) ||
+      !nat(spent) ||
+      minted > c.completed[family] ||
+      spent > aggregateSpent ||
+      aggregateSpent - spent > c.completed[family] - minted
+    )
+      return false;
+  }
   if (
     !Array.isArray(c.offers) ||
     c.offers.length !== 3 ||

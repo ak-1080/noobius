@@ -7,10 +7,12 @@ import {
   type Controller,
 } from './neighborhoods-server.ts';
 import {
-  PROJECT_VARIANTS,
   PROJECT_INPUTS,
   PROJECT_FAMILIES,
+  projectVariantsFor,
+  projectReportStyle,
   reportsAvailable,
+  consumeProjectReport,
   type Project,
   type ProjectSnapshot,
 } from './projects.ts';
@@ -124,9 +126,12 @@ export async function startProject(
   permit?: RealmPermit,
 ) {
   const presence = await requireMembership(db, wallet, controller, now);
-  const template = PROJECT_VARIANTS.find((v) => v.id === variant);
-  if (!template || (presence.realm !== 'gpu' && variant !== 'balanced'))
-    return fail('Choose a project available in this realm.', 403);
+  if (!presence.realm)
+    return fail('Join a neighborhood before starting a project.', 409);
+  const template = projectVariantsFor(presence.realm).find(
+    (v) => v.id === variant,
+  );
+  if (!template) return fail('Choose a project available in this realm.', 403);
   const neighbors = await db
     .prepare(
       'SELECT count(*) AS n FROM crew_presence WHERE neighborhood_id=? AND lease_until>?',
@@ -215,20 +220,25 @@ export async function contributeProject(
     career = f.career!;
   if (project.progress[family] >= project.required[family])
     return fail('That part is complete. Choose another useful job.');
-  if (reportsAvailable(career, family) < 1)
-    return fail(
-      'Finish a ' +
-        family +
-        ' job first. Each completed job can support one contribution.',
-      400,
-    );
+  // The persisted variant decides proof requirements. Legacy projects retain
+  // their original IDs/requirements, and equipping a module is never proof of work.
+  const reportStyle = projectReportStyle(project.variant, family);
+  const missingReport =
+    'Finish a ' +
+    (reportStyle
+      ? reportStyle.charAt(0).toUpperCase() + reportStyle.slice(1) + ' '
+      : '') +
+    family +
+    ' job first. Each completed job can support one contribution.';
+  if (reportsAvailable(career, family, reportStyle) < 1)
+    return fail(missingReport, 400);
   for (const [key, n] of Object.entries(PROJECT_INPUTS[family]))
     if ((f.inventory[key as ItemId] ?? 0) < n!)
       return fail('Gather or craft the missing components first.', 400);
   for (const [key, n] of Object.entries(PROJECT_INPUTS[family]))
     f.inventory[key as ItemId] = (f.inventory[key as ItemId] ?? 0) - n!;
-  career.projectUsed ??= empty();
-  career.projectUsed[family]++;
+  if (!consumeProjectReport(career, family, reportStyle))
+    return fail(missingReport, 400);
   f.version++;
   project.progress[family]++;
   const complete = PROJECT_FAMILIES.every(

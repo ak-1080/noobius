@@ -1,7 +1,7 @@
 'use client';
 import { canTrade, TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
 import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
-import type { ContractFamily } from '@/lib/contracts';
+import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
 import TycoonBuildPanel from './TycoonBuildPanel';
 import GoalsPanel from './GoalsPanel';
@@ -94,6 +94,7 @@ type Props = {
   onGuide: (object: WorldObject) => void;
   jobTab?: string;
   focusFamily?: ContractFamily;
+  focusStyle?: ModuleStyle;
   onClearFocus?: () => void;
   onProject?: () => void;
   onConnect?: () => void;
@@ -134,6 +135,7 @@ export default function FacilityPanels({
   onGuide,
   jobTab = 'story',
   focusFamily,
+  focusStyle,
   onClearFocus,
   onProject,
   onConnect,
@@ -472,6 +474,7 @@ export default function FacilityPanels({
     return (
       <JobsPanel
         focusFamily={focusFamily}
+        focusStyle={focusStyle}
         onClearFocus={onClearFocus}
         onProject={onProject}
         drafts={drafts}

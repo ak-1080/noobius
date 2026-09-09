@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 
 import {
   ArrowRight,
@@ -53,6 +54,7 @@ type Action = (action: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
 export type JobDraft = { style: ModuleStyle; rack: string };
 type Props = {
   focusFamily?: ContractFamily;
+  focusStyle?: ModuleStyle;
   onClearFocus?: () => void;
   onProject?: () => void;
   drafts?: Record<string, JobDraft>;
@@ -102,7 +104,10 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     t = contractTemplate(run.template),
     { Icon } = familyCopy[t.family];
   const draft = props.drafts?.[run.id] ?? {
-    style: 'standard' as ModuleStyle,
+    style:
+      props.focusStyle && c.loadout.includes(props.focusStyle)
+        ? props.focusStyle
+        : ('standard' as ModuleStyle),
     rack: '',
   };
   const chosenStyle = draft.style,
@@ -166,6 +171,14 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
       </div>
       <h3>{t.name}</h3>
       <p>{t.goal}</p>
+      {props.focusStyle &&
+        (run.state === 'accepted' ? style : run.style) !== props.focusStyle && (
+          <p className="job-note">
+            {run.state === 'accepted'
+              ? `This project needs ${styleName(props.focusStyle)} equipment. Choose it before starting this job.`
+              : `This job started with ${styleName(run.style)} equipment. It still earns its normal rewards; start a ${styleName(props.focusStyle)} job for the project.`}
+          </p>
+        )}
       {run.state === 'accepted' ? (
         <>
           <Materials cost={quote.cost} f={f} />
@@ -477,6 +490,7 @@ export function ModuleWorkshop({
 }
 
 export default function JobsPanel(props: Props) {
+  const [tab, setTab] = useState('board');
   const { facility: f, now, busy, onAction, onBuild, onLocker, onGold } = props,
     c = careerFor(f),
     licensed = operatorLicense(c);
@@ -484,8 +498,23 @@ export default function JobsPanel(props: Props) {
     <div className="jobs-board">
       {props.focusFamily && (
         <div className="job-focus">
-          <strong>Your cluster needs a {props.focusFamily} job.</strong>
-          <p>Complete one, then return to the project with its parts.</p>
+          <strong>
+            Your cluster needs{' '}
+            {props.focusStyle
+              ? `${styleName(props.focusStyle)} ${props.focusFamily} work`
+              : `a ${props.focusFamily} job`}
+            .
+          </strong>
+          <p>
+            {props.focusStyle
+              ? `Equip ${styleName(props.focusStyle)} in Equipment, select it on the job, then start. Claim the finished job and bring its parts back to Margo.`
+              : 'Complete one, then return to the project with its parts.'}
+          </p>
+          {props.focusStyle && (
+            <button className="text-action" onClick={() => setTab('equipment')}>
+              Open Equipment
+            </button>
+          )}
           <button className="text-action" onClick={props.onClearFocus}>
             Show all jobs
           </button>
@@ -508,7 +537,7 @@ export default function JobsPanel(props: Props) {
           </span>
         </div>
       </div>
-      <Tabs defaultValue="board">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="jobs-tabs">
           <TabsTrigger value="board">Job board</TabsTrigger>
           <TabsTrigger value="equipment">Equipment</TabsTrigger>

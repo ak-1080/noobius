@@ -511,9 +511,10 @@ export function WorldPanel({
           <div className="realm-preview">
             <strong>Inside GPU District</strong>
             <p>
-              Choose a client launch or a quiet overnight build. Each asks your
-              crew for a different mix of completed work. Your own center comes
-              with you.
+              Choose a Fast client launch, a Stable overnight build or an
+              Efficient supply project. Finish jobs with that equipment, then
+              bring the completed work back to your crew. Your center stays
+              yours.
             </p>
             <small>
               {access?.status === 'test'

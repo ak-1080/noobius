@@ -20,6 +20,13 @@ import {
 import { actionWorksite } from '../lib/action-authority.ts';
 import { guidanceFor } from '../lib/guidance.ts';
 import { shiftObjective } from '../lib/experience.ts';
+import {
+  consumeProjectReport,
+  previewProjectReport,
+  projectReportStyle,
+  projectVariantsFor,
+  reportsAvailable,
+} from '../lib/projects.ts';
 
 function fixture(at = 0) {
   const f = normalizeFacility(newFacility(at), at);
@@ -342,4 +349,179 @@ test('service diagnosis and verification resolve the physical job site for serve
   for (const type of ['contract-start', 'contract-service'])
     assert.equal(actionWorksite(f, { type, id }).id, target);
   assert.equal(actionWorksite(f, { type: 'contract-claim', id }), undefined);
+});
+
+test('only a claimed job mints style proof, using its committed equipment rather than the current loadout', () => {
+  let f = fixture();
+  f.career.modules = ['fast', 'efficient', 'stable'];
+  f.career.loadout = ['fast', 'efficient'];
+  let id;
+  [f, id] = accept(f, 'workload', 0);
+  f = act(f, 'contract-start', 0, { id, rack: 'rack-a', direction: 'fast' });
+  assert.equal(reportsAvailable(f.career, 'workload', 'fast'), 0);
+  f = act(f, 'module-equip', 1000, { id: 'stable' });
+  assert.ok(!f.career.loadout.includes('fast'));
+  [f] = finish(f, id, 1000);
+  assert.deepEqual(f.career.reportStyles, { workload: { fast: 1 } });
+  assert.equal(reportsAvailable(f.career, 'workload'), 1);
+  assert.equal(reportsAvailable(f.career, 'workload', 'efficient'), 0);
+  assert.ok(validCareer(f.career));
+  assert.throws(
+    () => act(f, 'contract-claim', 100000, { id }),
+    /no longer active/,
+  );
+  assert.equal(reportsAvailable(f.career, 'workload', 'fast'), 1);
+});
+
+test('old completed jobs remain generic reports without backfilling proof from mastery or owned equipment', () => {
+  const f = fixture();
+  f.career.completed.workload = 4;
+  f.career.projectUsed = { service: 0, supply: 0, workload: 1 };
+  f.career.modules = ['fast'];
+  f.career.loadout = ['fast'];
+  f.career.mastery = { 'tiny-model': { fast: 4 } };
+  const migrated = normalizeFacility(f, 1000).career;
+  assert.equal(reportsAvailable(migrated, 'workload'), 3);
+  assert.equal(reportsAvailable(migrated, 'workload', 'fast'), 0);
+  const before = structuredClone(migrated);
+  assert.equal(consumeProjectReport(migrated, 'workload', 'fast'), false);
+  assert.deepEqual(migrated, before);
+  assert.equal(previewProjectReport(migrated, 'workload'), 'legacy');
+  assert.equal(consumeProjectReport(migrated, 'workload'), true);
+  assert.equal(reportsAvailable(migrated, 'workload'), 2);
+  assert.equal(migrated.reportStyles, undefined);
+  assert.equal(migrated.projectUsedStyles, undefined);
+  assert.ok(validCareer(migrated));
+});
+
+test('generic and specialized contributions conserve one shared pool through mixed consumption and reloads', () => {
+  let f = fixture();
+  f.career.completed.workload = 8;
+  f.career.projectUsed = { service: 0, supply: 0, workload: 2 };
+  f.career.reportStyles = {
+    workload: { standard: 1, efficient: 1, fast: 2, stable: 1 },
+  };
+  assert.ok(validCareer(f.career));
+  const spend = (expected, required) => {
+    const before = reportsAvailable(f.career, 'workload');
+    assert.equal(
+      previewProjectReport(f.career, 'workload', required),
+      expected,
+    );
+    assert.equal(consumeProjectReport(f.career, 'workload', required), true);
+    assert.equal(reportsAvailable(f.career, 'workload'), before - 1);
+    assert.ok(validCareer(f.career));
+    f = normalizeFacility(JSON.parse(JSON.stringify(f)), 1000);
+    assert.ok(validCareer(f.career));
+  };
+  spend('legacy');
+  assert.equal(reportsAvailable(f.career, 'workload', 'fast'), 2);
+  spend('standard');
+  spend('efficient');
+  spend('fast', 'fast');
+  spend('stable', 'stable');
+  spend('fast');
+  assert.equal(reportsAvailable(f.career, 'workload'), 0);
+  for (const style of [undefined, 'standard', 'efficient', 'fast', 'stable']) {
+    const before = structuredClone(f.career);
+    assert.equal(previewProjectReport(f.career, 'workload', style), null);
+    assert.equal(consumeProjectReport(f.career, 'workload', style), false);
+    assert.deepEqual(f.career, before);
+  }
+  assert.equal(f.career.projectUsed.workload, 8);
+  assert.deepEqual(f.career.projectUsedStyles.workload, {
+    standard: 1,
+    efficient: 1,
+    fast: 2,
+    stable: 1,
+  });
+});
+
+test('GPU projects require three distinct equipment proofs while saved variants keep their original terms', () => {
+  assert.deepEqual(
+    projectVariantsFor('commons').map((v) => v.id),
+    ['balanced'],
+  );
+  assert.deepEqual(
+    projectVariantsFor('gpu').map((v) => v.id),
+    ['balanced', 'gpu-launch', 'gpu-stability', 'gpu-efficiency'],
+  );
+  for (const [variant, family, style] of [
+    ['gpu-launch', 'workload', 'fast'],
+    ['gpu-stability', 'service', 'stable'],
+    ['gpu-efficiency', 'supply', 'efficient'],
+  ]) {
+    assert.equal(projectReportStyle(variant, family), style);
+    for (const other of ['service', 'supply', 'workload'].filter(
+      (f) => f !== family,
+    ))
+      assert.equal(projectReportStyle(variant, other), undefined);
+  }
+  for (const old of ['balanced', 'rapid', 'quiet'])
+    for (const family of ['service', 'supply', 'workload'])
+      assert.equal(projectReportStyle(old, family), undefined);
+  const career = fixture().career;
+  career.projectDiscoveries = [
+    'balanced',
+    'rapid',
+    'quiet',
+    'gpu-launch',
+    'gpu-stability',
+    'gpu-efficiency',
+  ];
+  assert.ok(validCareer(career));
+});
+
+test('typed report save validation rejects invented, overspent or double-counted pools', () => {
+  const career = fixture().career;
+  career.completed = { service: 3, supply: 4, workload: 8 };
+  career.projectUsed = { service: 1, supply: 0, workload: 2 };
+  career.reportStyles = {
+    service: { stable: 1 },
+    workload: { fast: 2, efficient: 2 },
+  };
+  career.projectUsedStyles = { workload: { fast: 1 } };
+  assert.ok(validCareer(career));
+  for (const mutate of [
+    (c) => {
+      c.reportStyles.workload.fast = 9;
+    },
+    (c) => {
+      c.projectUsedStyles.workload.fast = 3;
+    },
+    (c) => {
+      c.projectUsed.workload = 0;
+    },
+    (c) => {
+      c.projectUsed.workload = 8;
+    },
+    (c) => {
+      c.reportStyles.unknown = { fast: 1 };
+    },
+    (c) => {
+      c.reportStyles.workload.unknown = 1;
+    },
+    (c) => {
+      c.projectUsedStyles.workload.efficient = -1;
+    },
+    (c) => {
+      c.reportStyles.service.stable = 0.5;
+    },
+    (c) => {
+      c.reportStyles = [];
+    },
+    (c) => {
+      c.reportStyles = null;
+    },
+    (c) => {
+      c.projectUsedStyles.workload = [];
+    },
+    (c) => {
+      c.reportStyles.workload.fast = Number.MAX_SAFE_INTEGER + 1;
+    },
+  ]) {
+    const invalid = structuredClone(career);
+    mutate(invalid);
+    assert.equal(validCareer(invalid), false);
+  }
 });

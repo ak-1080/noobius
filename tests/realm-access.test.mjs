@@ -302,7 +302,7 @@ test('GPU writes reject revoked holdings at commit and safe return preserves the
     db,
     wallet,
     controller,
-    'rapid',
+    'gpu-launch',
     now,
     permit,
   );

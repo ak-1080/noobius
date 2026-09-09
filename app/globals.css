@@ -8267,3 +8267,12 @@ a {
 .wallet-family-tabs { width: 100%; margin-bottom: 1rem; }
 .wallet-family-tabs > button { flex: 1; }
 .wallet-help-copy { margin: 1rem 0; font-size: .875rem; line-height: 1.5; }
+
+.project-choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; width:100%; }
+.project-choice { padding:18px; border:1px solid #779fa22b; border-radius:16px; background:#0a202780; display:flex; flex-direction:column; gap:12px; }
+.project-choice h4 { margin:0; font-size:18px; }
+.project-choice p { margin:0; color:var(--muted); font-size:14px; line-height:1.55; }
+.project-choice strong { font-size:13px; color:#c3d1ff; }
+.project-choice button { margin-top:auto; }
+.job-focus .text-action + .text-action { margin-left:18px; }
+@media (max-width:540px) { .project-choice-grid { grid-template-columns:1fr; } }
