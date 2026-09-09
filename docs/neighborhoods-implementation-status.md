@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game and Ethereum/EVM + Solana wallet entry were published as **Site version 31** on September 9, 2026 at 06:14 UTC. Source: `b858a5a8b9e561eb31f882dba65b4234c83583f3`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
+The neighborhood game and Ethereum/EVM + Solana wallet entry, with the job-choice and guidance follow-up below, were published as **Site version 32** on September 9, 2026 at 06:41 UTC. Source: `fcdf5714386f2f650ee80284071abc3890e1ee8c`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
 
-Deployment `appgdep_6aa0f949cdc08191a3ce152f4118ba3f` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_4cdca5c0bc088191bc9ae2fd654a8275`. The hosted database overview now lists all 18 expected game tables. The existing browser guest save reopened with its previous spendable Compute and stored production intact, and the new Jobs/Equipment/Milestones interface rendered on the hosted page. Hosted mouse-wheel zoom out/in and save reopening also passed after the final update. Browser console inspection returned no errors during that smoke check. This is a private playable release, not public multiplayer acceptance.
+Deployment `appgdep_6aa0ff86552081918a5e191c7e106a6d` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_05006b65654081918f70f08d05097f77`. It uses the same database schema and environment revision zero. The previous release's database overview listed all 18 expected game tables; its hosted save reopening, Jobs/Equipment/Milestones rendering, mouse-wheel zoom and console smoke checks passed. This remains a private playable release, not public multiplayer acceptance.
 
 ## Implemented
 
@@ -29,7 +29,7 @@ The $NOOBIUS Exchange remains a preview. There is no live quote, payout request,
 
 | Check | Evidence and scope |
 | --- | --- |
-| Unit and SQLite rules | All 131 tests passed in the default suite, covering gameplay, providers, saves, neighborhoods, projects, social/market rules, holder authorization, race/replay protections and migration reconciliation. |
+| Unit and SQLite rules | All 136 tests passed in the default suite, covering gameplay, guidance/choice comparisons, providers, saves, neighborhoods, projects, social/market rules, holder authorization, race/replay protections and migration reconciliation. |
 | Migration reconciliation | Five of those tests exercise canonical fresh installation and preservation of deployed records, identities, saves and existing escrow. New GPU rules also test old-project completion, frozen equipment proof, report reuse prevention and concurrent claim/revocation failures. |
 | TypeScript and production build | Both passed after reconciliation. This proves the source can compile and package, not that the hosted rollout succeeded. |
 | Local HTTP integration | The new moderation HTTP acceptance test passed against an isolated Worker with an explicit fixture reviewer. The earlier three wallet API tests, one campus API test and one multiplayer API test passed. These use generated-key accounts and local Worker/D1 requests; they do not prove extension dialogs or real-device behavior. |
@@ -87,3 +87,5 @@ This pass repairs a connected set of guidance defects without changing contract 
 Automated coverage now includes 136 passing default-suite tests. New checks cover storage/waiting directions without commands, refill-to-ready instructions, fee/output comparisons, unavailable selections, adaptive recommendations and preservation of all earned stamps. These are correctness checks, not retention evidence. Earlier moderation/wallet HTTP checks were not rerun for this presentation-only pass. Repository-wide lint and the public acceptance items above remain open.
 
 The local browser check verified a goal only filtered offers (zero jobs accepted until the player clicked Accept); a workload required an explicit machine choice and separated its 65 Compute fee from reserved output; the Backup machine selection survived a trip for parts. Guided arrival left the inventory untouched and kept “You’re here” visible; pressing E then awarded two chips. Storing those chips and following the shortage opened Storage with the Chips row highlighted, still awaiting manual withdrawal. The test job was canceled unstarted afterward. Existing spendable and stored Compute were left unchanged. TypeScript, the final production build and scoped lint for the new choice/coach logic passed.
+
+Version 32 deployed successfully at 06:41:23 UTC. Hosted smoke testing reopened the existing guest game, rendered the 18 distinct setups and retained 36-stamp collection explanation, and confirmed the original 880,287 spendable Compute and 408,240 stored Compute remained unchanged. No console errors were reported in this hosted check. The site is still owner-private; no runtime token or moderator configuration changed.
