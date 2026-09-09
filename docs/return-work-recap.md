@@ -21,3 +21,9 @@ The production build, TypeScript and scoped lint for the new recap component, ho
 The existing local guest recap retained 20,267 spendable and 206,640 stored Compute. Its next-goal button opened the expected supply job with zero jobs accepted. A temporary isolated UI fixture rendered the real recap with a ready client job and repair kit, verified exact review destinations and a 350px-wide card, and reported no browser errors. That narrow layout check is not physical-phone acceptance. The fixture was removed before production packaging. No real guest collection, purchase or craft was performed during these checks.
 
 Hosted coordinator activation, actual multi-browser cooperation, human return-session playtests and the public release gates remain open. A clearer recap is not evidence of retention by itself.
+
+## Private release
+
+Site version 45 deployed successfully at `2026-09-09T11:31:38Z`, source `ce942fbcfbfcd280775c1672d978f29bca07ba0a`. Saved version: `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_4578ccff4920819184a7083714f8942f`; deployment: `appgdep_6aa1438e94b48191ace5c7e69ef27a0e`. Archive hash: `sha256:3c8e24a9cf9fdb5fc933e868bc77ade684d884dfa199c63f5638df220176568d` (165 files, 33,484,800 uncompressed bytes). Owner-private access and environment revision zero remained unchanged; no database migration ran. The temporary UI fixture was verified absent from source and packaged JavaScript/JSON.
+
+Hosted verification showed the new recap and next-goal link, retaining 880,287 spendable and 408,240 stored Compute. No collection or spending was performed. There were no browser error entries after this deployment; the earlier local fixture-removal HMR warning was excluded by timestamp.

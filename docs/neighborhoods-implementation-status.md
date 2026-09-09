@@ -2,9 +2,11 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The latest private release is **Site version 44**, deployed September 9, 2026 at 11:15:09 UTC. Source: `ad5a0fecf07494dcef9abe7a8f14349cfb2ca574`, pushed to GitHub main, the work branch and Sites main. Deployment `appgdep_6aa13fb0628c8191a58d4a0b3cc7b147` succeeded with environment revision zero and owner-private access. No migration, holder policy or transport activation changed.
+The latest private release is **Site version 45**, deployed September 9, 2026 at 11:31:38 UTC. Source: `ce942fbcfbfcd280775c1672d978f29bca07ba0a`, pushed to GitHub main, the work branch and Sites main. Deployment `appgdep_6aa1438e94b48191ace5c7e69ef27a0e` succeeded with environment revision zero and owner-private access. No migration, holder policy or transport activation changed.
 
-This release adds paginated build history, prioritizing unclaimed rewards and unfinished work, and avoids per-project finalization reads when no work is due. It retains existing claims, project terms and saved progress. The default suite passes 294 tests; a final focused rerun passes all 26 project/panel tests. Three tooling compatibility checks and two actual local economy/coordinator API scenarios also pass. TypeScript, scoped changed-logic lint and production build passed; the locally packaged artifact was saved against the exact pushed source.
+This release makes the return recap work-aware: saved jobs, crafts and crew assignments appear alongside stored Compute and a useful next goal. It waits for the correct account's neighborhood before appearing, never auto-completes work, and routes visitors home before collection. The default suite passes 303 tests; TypeScript, scoped new-logic lint and the production build also passed. See [return-work evidence](return-work-recap.md).
+
+Version 44's paginated build history and due-work query optimization remain included. Its separate tooling, local Worker/D1 and 50-client checks are recorded below; these were not unnecessarily repeated for a presentation-only increment.
 
 Version 43's planned grant renewal and bounded recovery remain included. The standalone coordinator is validated locally; production activation remains off. See [room coordinator](room-coordinator.md).
 
