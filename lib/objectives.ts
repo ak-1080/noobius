@@ -22,6 +22,13 @@ import {
   type ZoneId,
 } from './facility.ts';
 
+export type GuideView = {
+  inventoryTab?: 'bag' | 'bank';
+  item?: ItemId;
+  jobsTab?: 'board' | 'equipment' | 'progress';
+  family?: import('./contracts.ts').ContractFamily;
+  style?: import('./contracts.ts').ModuleStyle;
+};
 export type NextStep = {
   title: string;
   detail: string;
@@ -31,6 +38,7 @@ export type NextStep = {
   panel?: string;
   repair?: boolean;
   wait?: boolean;
+  view?: GuideView;
 };
 export type Objective = NextStep & {
   chapter: string;

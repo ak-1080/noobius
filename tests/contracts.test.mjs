@@ -16,10 +16,18 @@ import {
   validCareer,
   operatorLicense,
   contractQuote,
+  CONTRACT_TEMPLATES,
+  masteryStamps,
 } from '../lib/contracts.ts';
 import { actionWorksite } from '../lib/action-authority.ts';
-import { guidanceFor } from '../lib/guidance.ts';
+import { arrivalGuidance, guidanceFor } from '../lib/guidance.ts';
 import { shiftObjective } from '../lib/experience.ts';
+import {
+  careerSuggestions,
+  jobSelection,
+  jobSetup,
+  usefulStyles,
+} from '../lib/job-choices.ts';
 import {
   consumeProjectReport,
   previewProjectReport,
@@ -341,6 +349,150 @@ test('all guidance discards commands; following a direction cannot claim or buy 
     assert.equal(guide.target, 'rack-a');
     assert.deepEqual(next, before);
   }
+});
+
+test('storage and waiting directions carry presentation context without executable commands', () => {
+  for (const direction of ['withdraw', 'deposit']) {
+    const step = {
+      title: 'Find parts',
+      detail: 'Use storage',
+      cta: 'Continue',
+      target: 'bank',
+      action: { type: 'bank', direction, item: 'copper', quantity: 3 },
+    };
+    const before = structuredClone(step);
+    const guide = guidanceFor(step);
+    assert.equal(guide.panel, 'inventory');
+    assert.deepEqual(guide.view, {
+      inventoryTab: direction === 'withdraw' ? 'bank' : 'bag',
+      item: 'copper',
+    });
+    assert.equal(guide.action, undefined);
+    assert.deepEqual(step, before);
+  }
+  const waiting = guidanceFor({
+    title: 'Wait for spare parts',
+    detail: 'Refilling',
+    cta: 'Find parts',
+    target: 'scrap-a',
+    wait: true,
+    action: { type: 'gather', id: 'scrap-a' },
+  });
+  assert.equal(waiting.target, 'scrap-a');
+  assert.equal(waiting.wait, true);
+  assert.equal(waiting.cta, 'Show me where');
+  assert.equal(waiting.action, undefined);
+  const refilling = arrivalGuidance(waiting, 'Spare parts', 12000, 5000);
+  assert.match(refilling.detail, /refills in 7s/);
+  const ready = arrivalGuidance(waiting, 'Spare parts', 12000, 12000);
+  assert.match(ready.detail, /Click Spare parts or press E/);
+  assert.equal(ready.action, undefined);
+  assert.equal(ready.cta, 'Back to my goal');
+});
+
+test('job comparisons separate the fee from reserved output and expose real equipment tradeoffs', () => {
+  const f = fixture();
+  const template = contractTemplate('tiny-model');
+  const standard = jobSetup(f, template, 'standard', 'rack-a', 1000);
+  const fast = jobSetup(f, template, 'fast', 'rack-a', 1000);
+  assert.equal(fast.fee, template.reward);
+  assert.equal(fast.fee + fast.reservedOutput, fast.reward);
+  assert.ok(fast.reservedOutput > 0);
+  assert.equal(fast.secondsSaved, standard.duration - fast.duration);
+  assert.ok(fast.secondsSaved > 0);
+  assert.deepEqual(fast.materials, [{ item: 'copper', change: 1 }]);
+  assert.equal(fast.changesTerms, true);
+  assert.equal(
+    jobSetup(f, contractTemplate('loose-link'), 'efficient').changesTerms,
+    false,
+  );
+  const before = structuredClone(f);
+  const meaningful = CONTRACT_TEMPLATES.flatMap((t) => usefulStyles(f, t));
+  assert.equal(meaningful.length, 18);
+  assert.deepEqual(f, before);
+});
+
+test('unavailable draft equipment and machines cannot silently switch to another selection', () => {
+  const f = fixture();
+  f.career.modules = ['fast'];
+  f.career.loadout = [];
+  assert.deepEqual(jobSelection(f, 'fast', 'rack-g'), {
+    style: 'fast',
+    styleAvailable: false,
+    rack: undefined,
+  });
+  assert.equal(jobSelection(f, 'standard', '').rack, undefined);
+  f.career.loadout = ['fast'];
+  assert.deepEqual(jobSelection(f, 'fast', 'rack-b'), {
+    style: 'fast',
+    styleAvailable: true,
+    rack: 'rack-b',
+  });
+  const [accepted, id] = accept(f, 'workload', 0);
+  const running = act(accepted, 'contract-start', 0, {
+    id,
+    rack: 'rack-b',
+    direction: 'fast',
+  });
+  assert.equal(jobSelection(running, 'fast', 'rack-b').rack, undefined);
+  assert.equal(jobSelection(running, 'fast', 'rack-a').rack, 'rack-a');
+});
+
+test('career directions adapt to unlocked equipment and report shortages without modifying saves', () => {
+  const f = fixture();
+  f.stats.gathered = 5;
+  f.stats.crafted = 2;
+  f.career.completed = { service: 2, supply: 0, workload: 0 };
+  assert.equal(shiftObjective(f, f.compute, 0).view.jobsTab, 'equipment');
+  f.career.modules = ['fast', 'efficient', 'stable'];
+  f.career.completed = { service: 8, supply: 8, workload: 8 };
+  f.career.projectUsed = { service: 8, supply: 6, workload: 6 };
+  assert.equal(careerSuggestions(f, f.compute, true)[0].view.family, 'service');
+  f.career.projectUsed.service = 7;
+  assert.equal(shiftObjective(f, f.compute, 0, true).panel, 'project');
+  assert.ok(
+    careerSuggestions(f, f.compute).every((goal) => goal.panel !== 'project'),
+  );
+  const before = structuredClone(f);
+  for (const goal of careerSuggestions(f, f.compute)) {
+    assert.equal(goal.action, undefined);
+    assert.equal(goal.repair, undefined);
+    if (goal.view?.style) {
+      const offer = f.career.offers.find(
+        (o) => contractTemplate(o.template).family === goal.view.family,
+      );
+      assert.ok(
+        usefulStyles(f, contractTemplate(offer.template)).includes(
+          goal.view.style,
+        ),
+      );
+    }
+  }
+  assert.deepEqual(f, before);
+  assert.ok(careerSuggestions(f, f.compute).length <= 3);
+});
+
+test('completed mastery retains all saved stamps and still offers renewable work', () => {
+  const f = fixture();
+  f.stats.gathered = f.stats.crafted = 50;
+  f.career.modules = ['fast', 'efficient', 'stable'];
+  f.career.completed = { service: 20, supply: 20, workload: 20 };
+  f.career.projectUsed = { service: 20, supply: 20, workload: 20 };
+  f.career.mastery = Object.fromEntries(
+    CONTRACT_TEMPLATES.map((t) => [t.id, { fast: 1, efficient: 1, stable: 1 }]),
+  );
+  const before = structuredClone(f);
+  const suggestions = careerSuggestions(f, f.compute, true);
+  assert.equal(suggestions.length, 3);
+  assert.ok(
+    suggestions.every((goal) => goal.panel === 'contracts' && !goal.view.style),
+  );
+  assert.notEqual(
+    shiftObjective(f, f.compute, 0).title,
+    'Choose your next job',
+  );
+  assert.equal(masteryStamps(f.career), 36);
+  assert.deepEqual(f, before);
 });
 
 test('service diagnosis and verification resolve the physical job site for server authority', () => {

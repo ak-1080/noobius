@@ -34,7 +34,6 @@ import {
   careerFor,
   careerLevel,
   completedContracts,
-  contractQuote,
   contractTemplate,
   MODULES,
   CONTRACT_TEMPLATES,
@@ -49,10 +48,22 @@ import {
 import ItemIcon from './ItemIcon';
 import ComputeIcon from './ComputeIcon';
 import GoalsPanel from './GoalsPanel';
+import {
+  careerSuggestions,
+  jobSelection,
+  jobSetup,
+  usefulStyles,
+} from '@/lib/job-choices';
+import type { NextStep } from '@/lib/objectives';
 
 type Action = (action: Omit<FacilityAction, 'requestId'>) => Promise<unknown>;
 export type JobDraft = { style: ModuleStyle; rack: string };
 type Props = {
+  initialTab?: string;
+  practice?: boolean;
+  focusReason?: 'project' | 'goal';
+  onPlan: (step: NextStep) => void;
+  onEquipment?: () => void;
   focusFamily?: ContractFamily;
   focusStyle?: ModuleStyle;
   onClearFocus?: () => void;
@@ -105,7 +116,9 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     { Icon } = familyCopy[t.family];
   const draft = props.drafts?.[run.id] ?? {
     style:
-      props.focusStyle && c.loadout.includes(props.focusStyle)
+      props.focusFamily === t.family &&
+      props.focusStyle &&
+      c.loadout.includes(props.focusStyle)
         ? props.focusStyle
         : ('standard' as ModuleStyle),
     rack: '',
@@ -115,10 +128,13 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
   const setStyle = (style: ModuleStyle) =>
     props.onDraft?.(run.id, { ...draft, style });
   const setRack = (rack: string) => props.onDraft?.(run.id, { ...draft, rack });
-  const style = c.loadout.includes(chosenStyle) ? chosenStyle : 'standard';
-  const racks = availableRacks(f),
-    rack = racks.includes(chosenRack) ? chosenRack : racks[0];
-  const quote = contractQuote(f, t, style, rack, now);
+  const { style, styleAvailable, rack } = jobSelection(
+    f,
+    chosenStyle,
+    chosenRack,
+  );
+  const racks = availableRacks(f);
+  const quote = jobSetup(f, t, style, rack, now);
   const worksite = OBJECTS.find((o) => o.id === t.target)!;
   const atWorksite =
     t.family === 'workload' ||
@@ -171,12 +187,19 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
       </div>
       <h3>{t.name}</h3>
       <p>{t.goal}</p>
-      {props.focusStyle &&
+      {props.focusFamily && props.focusFamily !== t.family && (
+        <p className="job-note">
+          This job uses one of your two slots. Finish it or cancel it before
+          starting another kind of work.
+        </p>
+      )}
+      {props.focusFamily === t.family &&
+        props.focusStyle &&
         (run.state === 'accepted' ? style : run.style) !== props.focusStyle && (
           <p className="job-note">
             {run.state === 'accepted'
-              ? `This project needs ${styleName(props.focusStyle)} equipment. Choose it before starting this job.`
-              : `This job started with ${styleName(run.style)} equipment. It still earns its normal rewards; start a ${styleName(props.focusStyle)} job for the project.`}
+              ? `This goal uses ${styleName(props.focusStyle)} equipment. Choose it before starting this job.`
+              : `This job started with ${styleName(run.style)} equipment. It still earns its normal rewards; start a ${styleName(props.focusStyle)} job for that goal.`}
           </p>
         )}
       {run.state === 'accepted' ? (
@@ -193,6 +216,11 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                 <NativeSelectOption value="standard">
                   Standard
                 </NativeSelectOption>
+                {!styleAvailable && (
+                  <NativeSelectOption value={style} disabled>
+                    {styleName(style)} · not equipped
+                  </NativeSelectOption>
+                )}
                 {c.loadout.map((s) => (
                   <NativeSelectOption key={s} value={s}>
                     {styleName(s)}
@@ -208,41 +236,81 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                   value={rack ?? ''}
                   onChange={(e) => setRack(e.target.value)}
                 >
-                  {racks.length ? (
+                  <NativeSelectOption value="">
+                    {!racks.length
+                      ? 'No machine available'
+                      : chosenRack && !rack
+                        ? 'Previous machine unavailable — choose another'
+                        : 'Choose a machine'}
+                  </NativeSelectOption>
+                  {racks.length > 0 &&
                     racks.map((id) => (
                       <NativeSelectOption key={id} value={id}>
-                        {OBJECTS.find((o) => o.id === id)?.name ?? id}
+                        {OBJECTS.find((o) => o.id === id)?.name ?? id} · level{' '}
+                        {f.builds[id]}
                       </NativeSelectOption>
-                    ))
-                  ) : (
-                    <NativeSelectOption value="">
-                      No machine available
-                    </NativeSelectOption>
-                  )}
+                    ))}
                 </NativeSelect>
               </label>
             )}
           </div>
+          <div className="setup-comparison">
+            <strong>Client preference: {styleName(t.favored)}</strong>
+            <span>Compared with Standard</span>
+            {style === 'standard' ? (
+              <p>Standard uses the base time and parts shown here.</p>
+            ) : !quote.changesTerms ? (
+              <p>
+                {styleName(style)} does not change this job’s time, parts or
+                reputation. Its report still records your chosen equipment.
+              </p>
+            ) : (
+              <ul>
+                {quote.secondsSaved !== 0 && (
+                  <li>
+                    {Math.abs(quote.secondsSaved)}s{' '}
+                    {quote.secondsSaved > 0 ? 'sooner' : 'longer'}
+                  </li>
+                )}
+                {quote.materials.map(({ item, change }) => (
+                  <li key={item}>
+                    {Math.abs(change)} {change < 0 ? 'fewer' : 'extra'}{' '}
+                    {ITEMS[item].name.toLowerCase()}
+                  </li>
+                ))}
+                {quote.reputationBonus > 0 && (
+                  <li>
+                    +{quote.reputationBonus} reputation for the client’s
+                    preferred setup
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
           <div className="job-payout">
             <span>
-              <ComputeIcon size={20} /> {quote.reward} Compute
+              <ComputeIcon size={20} /> {quote.fee} Compute job fee
             </span>
             <span>+{quote.reputation} reputation</span>
-            {quote.duration > 0 && (
-              <span>
-                <Clock3 size={15} />
-                {quote.duration}s
-              </span>
-            )}
+            <span>
+              <Clock3 size={15} />
+              {quote.duration}s
+            </span>
           </div>
           {t.family === 'workload' && (
             <p className="job-note">
-              This machine pauses its ordinary production during the batch. The
-              client payment includes that output.
+              {rack
+                ? `${quote.reservedOutput} Compute replaces this machine’s paused output. Total payment: ${quote.reward} Compute.`
+                : 'Choose the machine to reserve. Its paused output is included in the payment; a bigger rack does not increase the job fee.'}{' '}
+              Your other machines keep producing.
             </p>
           )}
           <div className="job-actions">
-            {!canPay(f.inventory, quote.cost) ? (
+            {!styleAvailable ? (
+              <Button className="primary-action" onClick={props.onEquipment}>
+                Equip {styleName(style)} or choose Standard
+              </Button>
+            ) : !canPay(f.inventory, quote.cost) ? (
               <Button
                 className="primary-action"
                 onClick={() => onParts(quote.cost)}
@@ -409,7 +477,9 @@ export function ModuleWorkshop({
   facility: f,
   busy,
   onAction,
-}: Pick<Props, 'facility' | 'busy' | 'onAction'>) {
+  onParts,
+  onBuild,
+}: Pick<Props, 'facility' | 'busy' | 'onAction' | 'onParts' | 'onBuild'>) {
   const career = careerFor(f),
     count = completedContracts(career);
   return (
@@ -481,6 +551,24 @@ export function ModuleWorkshop({
                     ? 'Build module'
                     : 'Keep completing jobs'}
               </Button>
+              {!owned && learned && !canPay(f.inventory, m.cost) && (
+                <Button
+                  className="outline-button"
+                  disabled={busy}
+                  onClick={() => onParts(m.cost)}
+                >
+                  Find module parts <Navigation size={16} />
+                </Button>
+              )}
+              {!owned && learned && f.compute < m.price && (
+                <button
+                  className="text-action"
+                  disabled={busy}
+                  onClick={onBuild}
+                >
+                  Need {m.price - f.compute} more Compute · open your center
+                </button>
+              )}
             </article>
           );
         })}
@@ -490,16 +578,24 @@ export function ModuleWorkshop({
 }
 
 export default function JobsPanel(props: Props) {
-  const [tab, setTab] = useState('board');
+  const [tab, setTab] = useState(props.initialTab ?? 'board');
   const { facility: f, now, busy, onAction, onBuild, onLocker, onGold } = props,
     c = careerFor(f),
     licensed = operatorLicense(c);
+  const nextGoals = careerSuggestions(f, f.compute, !props.practice).filter(
+    (goal) =>
+      goal.panel === 'project' ||
+      goal.view?.jobsTab === 'equipment' ||
+      goal.view?.style,
+  );
   return (
     <div className="jobs-board">
       {props.focusFamily && (
         <div className="job-focus">
           <strong>
-            Your cluster needs{' '}
+            {props.focusReason === 'goal'
+              ? 'Your selected goal:'
+              : 'Your cluster needs'}{' '}
             {props.focusStyle
               ? `${styleName(props.focusStyle)} ${props.focusFamily} work`
               : `a ${props.focusFamily} job`}
@@ -507,8 +603,10 @@ export default function JobsPanel(props: Props) {
           </strong>
           <p>
             {props.focusStyle
-              ? `Equip ${styleName(props.focusStyle)} in Equipment, select it on the job, then start. Claim the finished job and bring its parts back to Margo.`
-              : 'Complete one, then return to the project with its parts.'}
+              ? `Equip ${styleName(props.focusStyle)} in Equipment, select it on the job, then start. ${props.focusReason === 'goal' ? 'Compare the setup, finish the job and claim your stamp.' : 'Claim the finished job and bring its parts back to Margo.'}`
+              : props.focusReason === 'goal'
+                ? 'Choose a job below. Finish it and collect its payment and report.'
+                : 'Complete one, then return to the project with its parts.'}
           </p>
           {props.focusStyle && (
             <button className="text-action" onClick={() => setTab('equipment')}>
@@ -532,9 +630,7 @@ export default function JobsPanel(props: Props) {
             Level {careerLevel(c)} · {c.reputation} reputation ·{' '}
             {completedContracts(c)} jobs completed
           </span>
-          <span className={(c.commissioned ?? 0) > 0 ? 'done' : ''}>
-            {Math.min(1, c.commissioned ?? 0)}/1 cluster commissioned
-          </span>
+          <span>{c.commissioned ?? 0} clusters commissioned</span>
         </div>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
@@ -544,21 +640,54 @@ export default function JobsPanel(props: Props) {
           <TabsTrigger value="progress">Milestones</TabsTrigger>
         </TabsList>
         <TabsContent value="board">
+          {!props.focusFamily && !c.active.length && nextGoals.length > 0 && (
+            <div className="next-goal-choices">
+              <h3>What will you work toward?</h3>
+              <div>
+                {nextGoals.map((choice) => (
+                  <button
+                    key={choice.title}
+                    onClick={() =>
+                      choice.panel === 'project'
+                        ? props.onProject?.()
+                        : props.onPlan(choice)
+                    }
+                  >
+                    <strong>{choice.title}</strong>
+                    <span>{choice.detail}</span>
+                    <small>
+                      {choice.reward} <ArrowRight size={14} />
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {props.focusFamily &&
+            c.active.length >= 2 &&
+            !c.active.some(
+              (run) =>
+                contractTemplate(run.template).family === props.focusFamily,
+            ) && (
+              <p className="job-note">
+                Both job slots are in use. Your current work is shown below;
+                finish one or cancel an unstarted job to make room.
+              </p>
+            )}
           <div className="job-section-heading">
             <h3>Your work</h3>
             <span>{c.active.length}/2 different jobs accepted</span>
           </div>
           {c.active.length ? (
             <div className="active-jobs">
-              {c.active
-                .filter(
-                  (run) =>
-                    !props.focusFamily ||
-                    contractTemplate(run.template).family === props.focusFamily,
-                )
-                .map((run) => (
-                  <ActiveJob key={run.id} {...props} run={run} />
-                ))}
+              {c.active.map((run) => (
+                <ActiveJob
+                  key={run.id}
+                  {...props}
+                  onEquipment={() => setTab('equipment')}
+                  run={run}
+                />
+              ))}
             </div>
           ) : (
             <div className="jobs-empty">
@@ -640,7 +769,9 @@ export default function JobsPanel(props: Props) {
             <p>
               Complete two jobs of each kind, build a module and commission a
               neighborhood cluster. Your equipment and savings stay yours as you
-              progress.
+              progress.{' '}
+              {props.practice &&
+                'Neighborhood clusters require a connected wallet account. No tokens are needed; guest practice saves stay separate.'}
             </p>
             <div>
               {(['service', 'supply', 'workload'] as const).map((family) => (
@@ -665,21 +796,40 @@ export default function JobsPanel(props: Props) {
           </div>
         </TabsContent>
         <TabsContent value="equipment">
-          <ModuleWorkshop facility={f} busy={busy} onAction={onAction} />
+          <ModuleWorkshop
+            facility={f}
+            busy={busy}
+            onAction={onAction}
+            onParts={props.onParts}
+            onBuild={onBuild}
+          />
         </TabsContent>
         <TabsContent value="progress">
           <div className="mastery-collection">
             <h3>Master your equipment</h3>
             <p>
-              {masteryStamps(c)}/36 stamps. Finish each kind of job using Fast,
-              Efficient and Stable modules.
+              {CONTRACT_TEMPLATES.reduce(
+                (n, t) =>
+                  n +
+                  usefulStyles(f, t).filter(
+                    (style) => (c.mastery?.[t.id]?.[style] ?? 0) > 0,
+                  ).length,
+                0,
+              )}
+              /
+              {CONTRACT_TEMPLATES.reduce(
+                (n, t) => n + usefulStyles(f, t).length,
+                0,
+              )}{' '}
+              distinct setups completed. These combinations change the time,
+              materials or reputation for a job.
             </p>
             <div className="mastery-grid">
               {CONTRACT_TEMPLATES.map((t) => (
                 <div key={t.id}>
                   <strong>{t.name}</strong>
                   <span>
-                    {(['fast', 'efficient', 'stable'] as const).map((style) => (
+                    {usefulStyles(f, t).map((style) => (
                       <i
                         key={style}
                         title={style}
@@ -695,6 +845,14 @@ export default function JobsPanel(props: Props) {
                 </div>
               ))}
             </div>
+            <details className="optional-stamps">
+              <summary>All stamps retained · {masteryStamps(c)}/36</summary>
+              <p>
+                Other equipment combinations can also earn collection stamps,
+                even when their job terms match Standard. Every stamp you
+                already earned still counts toward your room colors and trophy.
+              </p>
+            </details>
             <h4>Your center display</h4>
             <p>
               Six stamps unlock room colors. Eighteen stamps and three

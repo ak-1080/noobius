@@ -7,7 +7,7 @@ import { REALMS } from '@/lib/neighborhoods';
 import ComputeIcon from './ComputeIcon';
 import { shortWalletAddress } from '@/lib/wallet-identity';
 import ObjectiveCoach from './ObjectiveCoach';
-import { guidanceFor, type Guidance } from '@/lib/guidance';
+import { arrivalGuidance, guidanceFor, type Guidance } from '@/lib/guidance';
 import WalletPicker from './WalletPicker';
 import { QuickGuide } from './PlayGuide';
 import TokenExchange from './TokenExchange';
@@ -84,9 +84,15 @@ import FacilityPanels, {
   PANEL_COPY,
   type ExpansionPanel,
 } from './FacilityPanels';
-import { resolveObjective, type NextStep } from '@/lib/objectives';
+import {
+  resolveObjective,
+  type NextStep,
+  type GuideView,
+} from '@/lib/objectives';
 import {
   ZONES,
+  OBJECTS,
+  ITEMS,
   newFacility,
   modules,
   type FacilityAction,
@@ -120,9 +126,12 @@ export default function NoobiusGame() {
     { profile, shift, mode, busy, error } = game;
   const [focusFamily, setFocusFamily] = useState<ContractFamily | undefined>();
   const [focusStyle, setFocusStyle] = useState<ModuleStyle | undefined>();
+  const [focusReason, setFocusReason] = useState<'project' | 'goal'>('project');
+  const [panelView, setPanelView] = useState<GuideView>();
   useEffect(() => {
     setFocusFamily(undefined);
     setFocusStyle(undefined);
+    setPanelView(undefined);
   }, [profile?.wallet]);
   const [jobDrafts, setJobDrafts] = useState<
     Record<string, Record<string, JobDraft>>
@@ -142,6 +151,7 @@ export default function NoobiusGame() {
   const travelPending = useRef(false);
   const pendingStep = useRef<Guidance | null>(null);
   const [followingStep, setFollowingStep] = useState<Guidance | null>(null);
+  const [arrivedStep, setArrivedStep] = useState<Guidance | null>(null);
   const updatePendingStep = (step: Guidance | null) => {
     pendingStep.current = step;
     setFollowingStep(step);
@@ -206,6 +216,7 @@ export default function NoobiusGame() {
     setPanel(null);
     setGuideCommand(null);
     updatePendingStep(null);
+    setArrivedStep(null);
   };
   const goWorld = async (next: string, arrived?: () => void) => {
     if (mode === 'practice') {
@@ -295,8 +306,14 @@ export default function NoobiusGame() {
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
   const currentJob = shift?.jobs.find((j) => j.id === activeJob);
   const rankTarget = nextRank(profile?.xp ?? 0);
-  const objective = shiftObjective(facility, profile?.credits ?? 0, now);
+  const objective = shiftObjective(
+    facility,
+    profile?.credits ?? 0,
+    now,
+    mode === 'wallet',
+  );
   const briefing = nextBriefing(facility);
+  const arrivedObject = OBJECTS.find((o) => o.id === arrivedStep?.target);
   const incident = activeIncident(facility, now);
   const storedCompute = storedComputeNow(facility, now);
   const readyDaily = dailyRewardReady(facility, now);
@@ -405,9 +422,11 @@ export default function NoobiusGame() {
   }, [panel]);
   const stopFollowing = () => {
     updatePendingStep(null);
+    setArrivedStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
   };
-  const openPanel = (p: Panel, selected?: WorldObject) => {
+  const openPanel = (p: Panel, selected?: WorldObject, view?: GuideView) => {
+    setArrivedStep(null);
     if (pendingStep.current) stopFollowing();
     game.setError('');
     if (p !== panel) {
@@ -417,9 +436,15 @@ export default function NoobiusGame() {
     if ((p === 'badge' || p === 'profile') && profile) setName(profile.name);
     if (p === 'facility' || p === 'map') setSelectedObject(selected ?? null);
     if (p === 'appearance') setLockerPreview(undefined);
+    setPanelView(view);
+    if (p === 'contracts' && view) {
+      setFocusFamily(view.family);
+      setFocusStyle(view.style);
+      setFocusReason('goal');
+    }
     setPanel(p);
   };
-  const show = (p: Panel, selected?: WorldObject) => {
+  const show = (p: Panel, selected?: WorldObject, view?: GuideView) => {
     if (
       room !== 'home' &&
       p &&
@@ -435,10 +460,10 @@ export default function NoobiusGame() {
         'outage',
       ].includes(p)
     ) {
-      void goWorld('home', () => openPanel(p, selected));
+      void goWorld('home', () => openPanel(p, selected, view));
       return;
     }
-    openPanel(p, selected);
+    openPanel(p, selected, view);
   };
   const play = async () => {
     game.setError('');
@@ -498,7 +523,7 @@ export default function NoobiusGame() {
     return ok;
   };
   const executeStep = (step: NextStep) => {
-    if (step.wait || busy) return;
+    if (busy) return;
     if (room !== 'home') {
       void goWorld('home', () => runGuidance(step));
       return;
@@ -506,6 +531,7 @@ export default function NoobiusGame() {
     runGuidance(step);
   };
   const runGuidance = (step: NextStep) => {
+    setArrivedStep(null);
     updatePendingStep(null);
     setGuideCommand({ id: '', revision: Date.now() });
     setPanel(null);
@@ -513,7 +539,7 @@ export default function NoobiusGame() {
     if (guide.target && !worldUnavailable) {
       updatePendingStep(guide);
       setGuideCommand({ id: guide.target, revision: Date.now() });
-    } else if (guide.panel) show(guide.panel as Panel);
+    } else if (guide.panel) show(guide.panel as Panel, undefined, guide.view);
     else game.setNotice(guide.detail);
   };
   const interact = (object: WorldObject) => {
@@ -553,10 +579,10 @@ export default function NoobiusGame() {
       const step = pendingStep.current;
       updatePendingStep(null);
       if (step.panel) {
-        show(step.panel as Panel, object);
+        show(step.panel as Panel, object, step.view);
         return;
       }
-      game.setNotice(`${object.name}. Click it or press E to interact.`);
+      setArrivedStep(step);
       return;
     }
     if (object.id === 'margo' && briefing?.id === 'welcome') {
@@ -587,7 +613,14 @@ export default function NoobiusGame() {
         ...facility,
         seen: [...facility.seen, 'intro:' + briefing.id],
       };
-      executeStep(shiftObjective(next, profile?.credits ?? 0, Date.now()));
+      executeStep(
+        shiftObjective(
+          next,
+          profile?.credits ?? 0,
+          Date.now(),
+          mode === 'wallet',
+        ),
+      );
     }
   };
   const closePuzzle = () => {
@@ -758,7 +791,11 @@ export default function NoobiusGame() {
               zoomCommand={zoomCommand}
               travelCommand={travelCommand}
               guideCommand={guideCommand}
-              objectiveId={room === 'home' ? objective.target : undefined}
+              objectiveId={
+                room === 'home'
+                  ? (arrivedStep?.target ?? objective.target)
+                  : undefined
+              }
               workEvent={workEvent}
               onUnavailable={() => {
                 setWorldUnavailable(true);
@@ -766,6 +803,7 @@ export default function NoobiusGame() {
               }}
               onCancelGuide={() => {
                 updatePendingStep(null);
+                setArrivedStep(null);
               }}
             />
           )}
@@ -837,6 +875,18 @@ export default function NoobiusGame() {
               <ObjectiveCoach
                 objective={objective}
                 following={followingStep}
+                arrived={
+                  arrivedStep
+                    ? arrivalGuidance(
+                        arrivedStep,
+                        arrivedObject?.item
+                          ? `the ${ITEMS[arrivedObject.item].name.toLowerCase()} pile`
+                          : arrivedObject?.name ?? 'the station',
+                        facility.cooldowns[arrivedStep.target ?? ''] ?? 0,
+                        now,
+                      )
+                    : null
+                }
                 busy={busy}
                 onFollow={followObjective}
                 onStop={stopFollowing}
@@ -1253,6 +1303,7 @@ export default function NoobiusGame() {
                   onOutage={() => show('crewjob')}
                   onJobs={(family, style) => {
                     setFocusFamily(family);
+                    setFocusReason('project');
                     setFocusStyle(style);
                     show('contracts');
                   }}
@@ -1326,6 +1377,9 @@ export default function NoobiusGame() {
               )}
               {profile?.facility && panel && panel in PANEL_COPY && (
                 <FacilityPanels
+                  view={panelView}
+                  focusReason={focusReason}
+                  onPlan={executeStep}
                   focusFamily={focusFamily}
                   focusStyle={focusStyle}
                   onClearFocus={() => {
@@ -1354,7 +1408,7 @@ export default function NoobiusGame() {
                   onAction={act}
                   onMarket={game.marketAction}
                   onPanel={(p, selected) => show(p, selected)}
-                  key={panel}
+                  key={`${panel}:${panelView?.inventoryTab ?? ''}:${panelView?.item ?? ''}:${panelView?.jobsTab ?? ''}`}
                   objective={objective}
                   jobTab="story"
                   onFollow={followObjective}

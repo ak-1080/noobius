@@ -13,17 +13,19 @@ import ComputeIcon from './ComputeIcon';
 export default function ObjectiveCoach({
   objective,
   following,
+  arrived,
   busy,
   onFollow,
   onStop,
 }: {
   objective: Objective;
   following: NextStep | null;
+  arrived: NextStep | null;
   busy: boolean;
   onFollow: () => void;
   onStop: () => void;
 }) {
-  const step = following ?? objective;
+  const step = following ?? arrived ?? objective;
   const collecting = ['compute-harvest', 'compute-collect'].includes(
     step.action?.type ?? '',
   );
@@ -38,12 +40,18 @@ export default function ObjectiveCoach({
           : step.action?.type === 'compute-upgrade'
             ? Sparkles
             : Navigation;
-  const action = busy ? 'Working…' : following ? 'Stop walking' : guidanceFor(step).cta;
+  const action = busy
+    ? 'Working…'
+    : following
+      ? 'Stop walking'
+      : arrived
+        ? arrived.cta
+        : guidanceFor(step).cta;
 
   return (
     <button
       className={`objective-hud next-action ${following ? 'is-guiding' : ''}`}
-      onClick={following ? onStop : onFollow}
+      onClick={following || arrived ? onStop : onFollow}
       disabled={busy}
       aria-label={`${step.title}. ${action}`}
     >
@@ -51,7 +59,13 @@ export default function ObjectiveCoach({
         <Icon size={22} />
       </span>
       <span className="next-action-copy">
-        <small>{following ? 'On our way' : 'Your next move'}</small>
+        <small>
+          {following
+            ? 'On our way'
+            : arrived
+              ? 'You’re here'
+              : 'Your next move'}
+        </small>
         <strong>{step.title}</strong>
         <span className="next-action-detail">
           {following ? 'Noobius is following the glowing path.' : step.detail}
@@ -62,7 +76,11 @@ export default function ObjectiveCoach({
         </span>
       </span>
       <i className="objective-meter" aria-hidden="true">
-        <i style={{ width: `${following ? 100 : objective.progress}%` }} />
+        <i
+          style={{
+            width: `${following || arrived ? 100 : objective.progress}%`,
+          }}
+        />
       </i>
     </button>
   );

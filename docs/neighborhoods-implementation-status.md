@@ -56,6 +56,7 @@ Before deployment, a bounded live database read confirmed `players.public_id` an
 4. Establish monitoring, alert ownership, dependency patching, report review/support and a rehearsed hosted backup/restore and compatible rollback path before public access.
 5. Configure real holder verification only after the exact asset policy is confirmed, then accept the GPU project journey in actual browsers. Solana token verification requires a separate implementation.
 6. Run longer human first-session and return-session playtests. Clarity, enjoyable cooperation and reasons to return are not established by passing tests or adding more rooms.
+7. Strengthen post-upgrade choices using the actual economy. The choice audit found a fully upgraded center produces 6,804 Compute/minute, dwarfing ordinary job fees. GPU specialist projects currently provide typed-report objectives and backlog disposal, but no distinct ongoing operating benefit. Improving the presentation does not close that game-design gap.
 
 These are concrete alpha features and local checks. They do not establish console/AAA quality, proven retention, public capacity or a production-ready token economy.
 
@@ -70,3 +71,19 @@ The project board explains the required setup before starting and links to the m
 The checkout now includes an explicitly authorized report queue with server-side wallet checks, saved review evidence, bounded pages and atomic dismiss/remove decisions. The console clears cached reports on tab hiding and revalidates on focus; requests time out after 20 seconds. Unit/SQLite tests and real local HTTP tests passed; the unauthenticated browser view displayed the correct access restriction. A real moderator wallet and full authenticated browser acceptance remain unconfigured. Before the additive migration, live bounded reads confirmed both `players` and `player_reports` are empty with no further page. This is a narrow preflight, not a hosted backup/restore rehearsal. See [moderation operations](moderation.md).
 
 Version 31 deployment succeeded at 06:14:46 UTC. A live schema read confirmed all three new review fields, with no report records. Hosted environment revision remains zero: no fixture or real moderator allowlist was enabled. Local state was snapshotted before its additive migration; this does not constitute a hosted recovery drill.
+
+## Job-choice and guidance follow-up
+
+This pass repairs a connected set of guidance defects without changing contract prices, timers, saved equipment, report budgets or token settlement:
+
+- All accepted jobs remain visible when a goal filters the offers. A full two-slot board explains which existing jobs need finishing or cancellation.
+- Missing-parts directions still work during replenishment. Arrival keeps a readable instruction and live refill countdown on the coach; clicking that coach only dismisses guidance. Gathering, crafting, purchases and claims remain explicit actions.
+- Storage guidance opens the correct tab and highlights the requested item. The guide carries display context, never an executable bank transaction.
+- Jobs show the client's favored equipment, exact differences from Standard, and the job fee separately from reimbursement for reserved machine output. An unavailable draft cannot silently switch to another machine or module. Unstarted drafts are retained across menus within the session, not promised across reloads.
+- Equipment offers missing-parts directions and identifies Compute shortages. Explicit equipment goals clear old project filters; ordinary returns from a worksite retain the player's context.
+- After the first gather/craft, the coach recommends unlocked equipment, needed reports or unearned setups from current offers. Shared-cluster suggestions are limited to connected accounts. The board avoids duplicating ordinary offers as extra goal cards.
+- The primary mastery grid highlights the 18 combinations that change actual job terms. All 36 collection stamps and existing cosmetic qualifications remain intact; mechanically neutral combinations are described as optional collection entries.
+
+Automated coverage now includes 136 passing default-suite tests. New checks cover storage/waiting directions without commands, refill-to-ready instructions, fee/output comparisons, unavailable selections, adaptive recommendations and preservation of all earned stamps. These are correctness checks, not retention evidence. Earlier moderation/wallet HTTP checks were not rerun for this presentation-only pass. Repository-wide lint and the public acceptance items above remain open.
+
+The local browser check verified a goal only filtered offers (zero jobs accepted until the player clicked Accept); a workload required an explicit machine choice and separated its 65 Compute fee from reserved output; the Backup machine selection survived a trip for parts. Guided arrival left the inventory untouched and kept “You’re here” visible; pressing E then awarded two chips. Storing those chips and following the shortage opened Storage with the Chips row highlighted, still awaiting manual withdrawal. The test job was canceled unstarted afterward. Existing spendable and stored Compute were left unchanged. TypeScript, the final production build and scoped lint for the new choice/coach logic passed.

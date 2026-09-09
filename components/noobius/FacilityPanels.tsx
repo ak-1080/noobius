@@ -53,7 +53,7 @@ import {
 } from '@/lib/facility';
 import type { Profile } from '@/lib/game';
 import { api } from './useNoobius';
-import type { Objective } from '@/lib/objectives';
+import type { Objective, GuideView, NextStep } from '@/lib/objectives';
 export type ExpansionPanel =
   | 'map'
   | 'inventory'
@@ -76,6 +76,7 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   rewards: ['Compute', 'Your game balance.'],
 };
 type Props = {
+  view?: GuideView;
   panel: ExpansionPanel;
   profile: Profile;
   selected: WorldObject | null;
@@ -95,6 +96,8 @@ type Props = {
   jobTab?: string;
   focusFamily?: ContractFamily;
   focusStyle?: ModuleStyle;
+  focusReason?: 'project' | 'goal';
+  onPlan: (step: NextStep) => void;
   onClearFocus?: () => void;
   onProject?: () => void;
   onConnect?: () => void;
@@ -117,6 +120,7 @@ function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   );
 }
 export default function FacilityPanels({
+  view,
   panel,
   profile,
   selected,
@@ -136,6 +140,8 @@ export default function FacilityPanels({
   jobTab = 'story',
   focusFamily,
   focusStyle,
+  focusReason,
+  onPlan,
   onClearFocus,
   onProject,
   onConnect,
@@ -276,7 +282,14 @@ export default function FacilityPanels({
             <strong>{energyNow(f, now)}</strong> suit energy
           </span>
         </div>
-        <Tabs defaultValue="bag">
+        {view?.item && (
+          <p className="inventory-focus-note">
+            {view.inventoryTab === 'bank' ? 'Take' : 'Store'}{' '}
+            {ITEMS[view.item].name.toLowerCase()} using the highlighted row. You
+            choose the quantity.
+          </p>
+        )}
+        <Tabs defaultValue={view?.inventoryTab ?? 'bag'}>
           <TabsList className="expansion-tabs">
             <TabsTrigger value="bag">Backpack</TabsTrigger>
             <TabsTrigger value="bank">Storage</TabsTrigger>
@@ -290,7 +303,10 @@ export default function FacilityPanels({
                       ((where === 'bag' ? f.inventory : f.bank)[id] ?? 0) > 0,
                   )
                   .map((id) => (
-                    <div className="inventory-item" key={id}>
+                    <div
+                      className={`inventory-item ${view?.item === id ? 'is-guided-item' : ''}`}
+                      key={id}
+                    >
                       <span
                         className="item-icon"
                         style={{
@@ -473,6 +489,10 @@ export default function FacilityPanels({
   if (panel === 'contracts')
     return (
       <JobsPanel
+        initialTab={view?.jobsTab}
+        practice={profile.wallet === 'practice'}
+        focusReason={focusReason}
+        onPlan={onPlan}
         focusFamily={focusFamily}
         focusStyle={focusStyle}
         onClearFocus={onClearFocus}
