@@ -1,4 +1,5 @@
 'use client';
+import { shortWalletAddress } from '@/lib/wallet-identity';
 import { useState } from 'react';
 import { ArrowDown, ArrowRight, Check, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -74,9 +75,7 @@ export default function TokenExchange({
       <div className="exchange-wallet">
         <Wallet size={18} />
         <span>
-          {connected
-            ? wallet.slice(0, 6) + '…' + wallet.slice(-4)
-            : 'Choose your wallet'}
+          {connected ? shortWalletAddress(wallet) : 'Choose your wallet'}
         </span>
         {!connected && <button onClick={onConnect}>Connect</button>}
       </div>

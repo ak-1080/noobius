@@ -1,4 +1,5 @@
 'use client';
+import { publicPlayerId } from '@/lib/wallet-identity';
 import TycoonBuildPanel from './TycoonBuildPanel';
 import GoalsPanel from './GoalsPanel';
 import RoomProgressPanel from './RoomProgressPanel';
@@ -495,14 +496,14 @@ export default function FacilityPanels({
                   disabled={busy || remoteBusy || profile.wallet === 'practice'}
                   onClick={() =>
                     market(
-                      l.owner === profile.wallet.slice(2, 18)
+                      l.owner === publicPlayerId(profile)
                         ? 'listing-cancel'
                         : 'listing-buy',
                       { id: l.id },
                     )
                   }
                 >
-                  {l.owner === profile.wallet.slice(2, 18) ? 'Cancel' : 'Buy'}
+                  {l.owner === publicPlayerId(profile) ? 'Cancel' : 'Buy'}
                 </Button>
               </div>
             ))

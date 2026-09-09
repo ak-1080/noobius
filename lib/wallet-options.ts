@@ -1,3 +1,4 @@
+import type { WalletEcosystem } from './wallet-identity.ts';
 export type Provider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on?: (name: string, fn: (...args: any[]) => void) => void;
@@ -14,6 +15,7 @@ export type WalletOption = {
   name: string;
   provider: Provider;
   rdns?: string;
+  ecosystem?: WalletEcosystem;
 };
 export const WALLET_CATALOG = [
   { id: 'metamask', name: 'MetaMask', url: 'https://metamask.io/download/' },

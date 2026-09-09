@@ -120,6 +120,8 @@ test('the actual wallet handshake requests accounts, signs readable hex, checks 
     'personal_sign',
     'eth_accounts',
     'eth_chainId',
+    'eth_accounts',
+    'eth_chainId',
   ]);
 });
 test('switching accounts mid-signature never calls verify', async () => {

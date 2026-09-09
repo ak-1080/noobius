@@ -7489,3 +7489,11 @@ a {
   background: #c3f289;
   box-shadow: 0 0 0 3px #183b37;
 }
+
+/* Wallet entry keeps guest play accessible while making saved accounts primary. */
+.wallet-guest-entry { display: block; margin: 1rem auto 0; border: 0; background: transparent; color: #d8e2e9; font: inherit; font-size: 1rem; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.wallet-guest-entry:disabled { opacity: .5; cursor: default; }
+.wallet-guest-entry:focus-visible { outline: 2px solid #b9edff; outline-offset: 6px; }
+.wallet-family-tabs { width: 100%; margin-bottom: 1rem; }
+.wallet-family-tabs > button { flex: 1; }
+.wallet-help-copy { margin: 1rem 0; font-size: .875rem; line-height: 1.5; }

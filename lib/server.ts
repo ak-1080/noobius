@@ -3,6 +3,8 @@ import { facilityReceipt } from './game-feedback';
 import { env } from 'cloudflare:workers';
 import { getAddress, isAddress, verifyMessage } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
+import { accountKey, walletAddress } from './wallet-identity';
+import { solanaSignInMessage, verifySolanaMessage } from './solana-auth';
 import {
   activateJob,
   answerJob,
@@ -129,6 +131,7 @@ async function rate(
 }
 type PlayerRow = {
   wallet: string;
+  public_id: string | null;
   name: string;
   credits: number;
   xp: number;
@@ -194,6 +197,7 @@ async function player(wallet: string): Promise<Profile> {
   }
   return {
     wallet: p.wallet,
+    publicId: p.public_id ?? p.wallet.slice(2, 18),
     name: p.name,
     credits: p.credits,
     xp: p.xp,
@@ -327,7 +331,7 @@ export async function handleGame(request: Request, action: string) {
         throw new ApiError(400, 'Choose a campus or a facility.');
       const people = await db()
         .prepare(
-          'SELECT substr(p.wallet,3,16) AS id,p.name,c.x,c.z,p.facility_state FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.room=? AND c.updated_at>? LIMIT 30',
+          'SELECT COALESCE(p.public_id,substr(p.wallet,3,16)) AS id,p.name,c.x,c.z,p.facility_state FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.room=? AND c.updated_at>? LIMIT 30',
         )
         .bind(room, Date.now() - 10000)
         .all<any>();
@@ -373,7 +377,7 @@ export async function handleGame(request: Request, action: string) {
     if (action === 'directory') {
       const rows = await db()
         .prepare(
-          'SELECT substr(p.wallet,3,16) AS id,p.name, p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE c.updated_at>? ORDER BY c.updated_at DESC LIMIT 30',
+          'SELECT COALESCE(p.public_id,substr(p.wallet,3,16)) AS id,p.name, p.facility_state FROM players p JOIN crew_presence c ON c.wallet=p.wallet WHERE c.updated_at>? ORDER BY c.updated_at DESC LIMIT 30',
         )
         .bind(Date.now() - 120000)
         .all<any>();
@@ -389,11 +393,11 @@ export async function handleGame(request: Request, action: string) {
     }
     if (action === 'visit') {
       const owner = new URL(request.url).searchParams.get('owner');
-      if (!owner || !/^[a-fA-F0-9]{16}$/.test(owner))
+      if (!owner || !/^(?:[a-fA-F0-9]{16}|[a-fA-F0-9]{32})$/.test(owner))
         throw new ApiError(400, 'Choose a facility from the directory.');
       const row = await db()
         .prepare(
-          'SELECT name,facility_state FROM players WHERE substr(wallet,3,16)=?',
+          'SELECT name,facility_state FROM players WHERE COALESCE(public_id,substr(wallet,3,16))=?',
         )
         .bind(owner)
         .first<any>();
@@ -424,7 +428,7 @@ export async function handleGame(request: Request, action: string) {
       const wallet = await identity(request);
       const rows = await db()
         .prepare(
-          "SELECT l.id,substr(l.wallet,3,16) AS owner,p.name,l.item,l.quantity,l.price FROM market_listings l JOIN players p ON p.wallet=l.wallet WHERE l.status='open' AND (l.wallet=? OR l.id IN (SELECT id FROM market_listings WHERE status='open' ORDER BY created_at DESC LIMIT 50)) ORDER BY l.created_at DESC",
+          "SELECT l.id,COALESCE(p.public_id,substr(p.wallet,3,16)) AS owner,p.name,l.item,l.quantity,l.price FROM market_listings l JOIN players p ON p.wallet=l.wallet WHERE l.status='open' AND (l.wallet=? OR l.id IN (SELECT id FROM market_listings WHERE status='open' ORDER BY created_at DESC LIMIT 50)) ORDER BY l.created_at DESC",
         )
         .bind(wallet ?? '')
         .all();
@@ -453,29 +457,40 @@ export async function handleGame(request: Request, action: string) {
         : 600,
   );
   if (action === 'nonce') {
+    const ecosystem = body.ecosystem ?? 'evm';
     if (
       typeof body.address !== 'string' ||
-      !isAddress(body.address) ||
-      !Number.isSafeInteger(body.chainId) ||
-      Number(body.chainId) < 1
+      (ecosystem !== 'evm' && ecosystem !== 'solana') ||
+      (ecosystem === 'evm' &&
+        (!isAddress(body.address) ||
+          !Number.isSafeInteger(body.chainId) ||
+          Number(body.chainId) < 1))
     )
-      throw new ApiError(400, 'Select an Ethereum-compatible wallet account.');
-    const wallet = getAddress(body.address),
-      secret = token(),
+      throw new ApiError(400, 'Select a supported Ethereum or Solana account.');
+    let wallet: string;
+    try {
+      wallet = accountKey(body.address, ecosystem);
+    } catch {
+      throw new ApiError(400, 'Select a valid wallet account.');
+    }
+    const secret = token(),
       now = Date.now(),
       siteOrigin = origin(request);
-    const message = createSiweMessage({
-      address: wallet,
-      chainId: Number(body.chainId),
-      domain: new URL(siteOrigin).host,
-      uri: siteOrigin,
-      version: '1',
-      nonce: token(),
-      issuedAt: new Date(now),
-      expirationTime: new Date(now + 300000),
-      statement:
-        'Sign in to Noobius to save your game progress. This does not authorize transactions or token spending.',
-    });
+    const message =
+      ecosystem === 'solana'
+        ? solanaSignInMessage(body.address, siteOrigin, token(), now)
+        : createSiweMessage({
+            address: getAddress(body.address),
+            chainId: Number(body.chainId),
+            domain: new URL(siteOrigin).host,
+            uri: siteOrigin,
+            version: '1',
+            nonce: token(),
+            issuedAt: new Date(now),
+            expirationTime: new Date(now + 300000),
+            statement:
+              'Sign in to Noobius to save your game progress. This does not authorize transactions or token spending.',
+          });
     const old = cookieValue(request, CHALLENGE_COOKIE);
     if (old)
       await db()
@@ -486,7 +501,7 @@ export async function handleGame(request: Request, action: string) {
       .prepare(
         'INSERT INTO challenges (token_hash,wallet,message,expires_at) VALUES (?,?,?,?)',
       )
-      .bind(await hash(secret), wallet.toLowerCase(), message, now + 300000)
+      .bind(await hash(secret), wallet, message, now + 300000)
       .run();
     return result({ message }, 200, {
       'Set-Cookie': cookie(request, CHALLENGE_COOKIE, secret, 300),
@@ -497,11 +512,11 @@ export async function handleGame(request: Request, action: string) {
     if (
       !secret ||
       typeof body.signature !== 'string' ||
-      !/^0x[a-fA-F0-9]{130}$/.test(body.signature)
+      !/^0x(?:[a-fA-F0-9]{128}|[a-fA-F0-9]{130})$/.test(body.signature)
     )
       throw new ApiError(
         401,
-        'The login expired or the wallet signature is unsupported. Connect again using a standard wallet account.',
+        'The login expired or the wallet signature is unsupported. Connect again.',
       );
     const tokenHash = await hash(secret),
       challenge = await db()
@@ -509,7 +524,7 @@ export async function handleGame(request: Request, action: string) {
           'SELECT wallet,message FROM challenges WHERE token_hash=? AND expires_at>?',
         )
         .bind(tokenHash, Date.now())
-        .first<{ wallet: `0x${string}`; message: string }>();
+        .first<{ wallet: string; message: string }>();
     if (!challenge)
       throw new ApiError(
         401,
@@ -520,11 +535,18 @@ export async function handleGame(request: Request, action: string) {
       throw new ApiError(401, 'This login belongs to another site.');
     let valid = false;
     try {
-      valid = await verifyMessage({
-        address: challenge.wallet,
-        message: challenge.message,
-        signature: body.signature as `0x${string}`,
-      });
+      valid = challenge.wallet.startsWith('solana:')
+        ? await verifySolanaMessage(
+            walletAddress(challenge.wallet),
+            challenge.message,
+            body.signature,
+          )
+        : /^0x[a-fA-F0-9]{130}$/.test(body.signature) &&
+          (await verifyMessage({
+            address: challenge.wallet as `0x${string}`,
+            message: challenge.message,
+            signature: body.signature as `0x${string}`,
+          }));
     } catch {
       /* invalid signature */
     }
@@ -546,22 +568,38 @@ export async function handleGame(request: Request, action: string) {
       );
     const session = token(),
       now = Date.now();
-    await db().batch([
-      db()
-        .prepare(
-          'INSERT OR IGNORE INTO players (wallet,name,created_at) VALUES (?,?,?)',
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await db().batch([
+          db()
+            .prepare(
+              'INSERT INTO players (wallet,name,created_at,public_id) VALUES (?,?,?,?) ON CONFLICT(wallet) DO NOTHING',
+            )
+            .bind(
+              challenge.wallet,
+              'Noob ' + challenge.wallet.slice(-5).toUpperCase(),
+              now,
+              challenge.wallet.startsWith('solana:')
+                ? crypto.randomUUID().replaceAll('-', '')
+                : null,
+            ),
+          db()
+            .prepare(
+              'INSERT INTO sessions (token_hash,wallet,expires_at) VALUES (?,?,?)',
+            )
+            .bind(await hash(session), challenge.wallet, now + 7 * 86400000),
+        ]);
+        break;
+      } catch (error) {
+        // Retry only an opaque public-ID collision, never swallow other failures.
+        if (
+          attempt >= 2 ||
+          !(error instanceof Error) ||
+          !error.message.includes('players.public_id')
         )
-        .bind(
-          challenge.wallet,
-          'Noob ' + challenge.wallet.slice(-5).toUpperCase(),
-          now,
-        ),
-      db()
-        .prepare(
-          'INSERT INTO sessions (token_hash,wallet,expires_at) VALUES (?,?,?)',
-        )
-        .bind(await hash(session), challenge.wallet, now + 7 * 86400000),
-    ]);
+          throw error;
+      }
+    }
     const headers = new Headers({ 'Cache-Control': 'no-store' });
     headers.append(
       'Set-Cookie',

@@ -10,6 +10,7 @@ export const players = sqliteTable(
   'players',
   {
     wallet: text('wallet').primaryKey(),
+    publicId: text('public_id'),
     name: text('name').notNull(),
     credits: integer('credits').notNull().default(0),
     xp: integer('xp').notNull().default(0),
@@ -22,7 +23,10 @@ export const players = sqliteTable(
     facilityVersion: integer('facility_version').notNull().default(0),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [index('idx_players_best_score').on(t.bestScore)],
+  (t) => [
+    index('idx_players_best_score').on(t.bestScore),
+    uniqueIndex('idx_players_public_id').on(t.publicId),
+  ],
 );
 export const sessions = sqliteTable(
   'sessions',
