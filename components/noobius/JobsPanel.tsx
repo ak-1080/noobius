@@ -36,7 +36,7 @@ import {
   careerLevel,
   completedContracts,
   eligibleContracts,
-  contractTemplate,
+  contractFor,
   MODULES,
   CONTRACT_TEMPLATES,
   masteryStamps,
@@ -103,14 +103,26 @@ function JobOffer({
   onAction,
 }: Pick<Props, 'facility' | 'busy' | 'onAction'> & { offer: ContractOffer }) {
   const c = careerFor(f),
-    original = contractTemplate(offer.template);
+    original = contractFor(offer);
   const [chosen, setChosen] = useState(offer.template);
   const options = eligibleContracts(c, f, original.family);
-  const selected = options.find((t) => t.id === chosen) ?? original;
   const changed = chosen !== offer.template;
+  const selected = changed ? options.find((t) => t.id === chosen) : original;
   const tickets = c.dispatchChoices?.[original.family] ?? [];
   const accepted = c.active.some((run) => run.id === offer.id);
   const { Icon, title } = familyCopy[original.family];
+  if (!selected)
+    return (
+      <article className="client-job">
+        <p>This job choice is no longer available.</p>
+        <Button
+          className="outline-button"
+          onClick={() => setChosen(offer.template)}
+        >
+          Return to your saved offer
+        </Button>
+      </article>
+    );
   const preview = jobSetup(f, selected, 'standard');
   return (
     <article className="client-job">
@@ -148,6 +160,12 @@ function JobOffer({
       <small className="job-client">{selected.client}</small>
       <h3>{selected.name}</h3>
       <p>{selected.description}</p>
+      <p>{selected.goal}</p>
+      {!changed &&
+        (offer.termsVersion ?? 1) === 1 &&
+        ['cooling-call', 'field-stock'].includes(offer.template) && (
+          <small>Saved offer · original parts and reward</small>
+        )}
       <Materials cost={selected.cost} f={f} />
       <div className="job-payout">
         <span>
@@ -219,7 +237,7 @@ function Materials({ cost, f }: { cost: Bag; f: Facility }) {
 function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
   const { facility: f, now, busy, onAction, onParts, onGuide } = props;
   const c = careerFor(f),
-    t = contractTemplate(run.template),
+    t = contractFor(run),
     { Icon } = familyCopy[t.family];
   const draft = props.drafts?.[run.id] ?? {
     style:
@@ -849,8 +867,7 @@ export default function JobsPanel(props: Props) {
           {props.focusFamily &&
             c.active.length >= 2 &&
             !c.active.some(
-              (run) =>
-                contractTemplate(run.template).family === props.focusFamily,
+              (run) => contractFor(run).family === props.focusFamily,
             ) && (
               <p className="job-note">
                 Both job slots are in use. Your current work is shown below;
@@ -912,11 +929,11 @@ export default function JobsPanel(props: Props) {
               .filter(
                 (o) =>
                   !props.focusFamily ||
-                  contractTemplate(o.template).family === props.focusFamily,
+                  contractFor(o).family === props.focusFamily,
               )
               .map((o) => (
                 <JobOffer
-                  key={`${o.id}:${o.template}:${(c.dispatchChoices?.[contractTemplate(o.template).family] ?? []).join(',')}`}
+                  key={`${o.id}:${o.template}:${o.termsVersion ?? 1}:${(c.dispatchChoices?.[contractFor(o).family] ?? []).join(',')}`}
                   offer={o}
                   facility={f}
                   busy={busy}

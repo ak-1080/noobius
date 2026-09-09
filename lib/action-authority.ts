@@ -1,4 +1,4 @@
-import { careerFor, contractTemplate } from './contracts.ts';
+import { careerFor, contractFor } from './contracts.ts';
 import {
   OBJECTS,
   activeIncident,
@@ -19,7 +19,7 @@ export function actionWorksite(
     return OBJECTS.find((o) => o.id === activeIncident(f)?.rack);
   if (action.type === 'contract-start' || action.type === 'contract-service') {
     const run = careerFor(f).active.find((r) => r.id === action.id);
-    const template = run && contractTemplate(run.template);
+    const template = run && contractFor(run);
     if (template && template.family !== 'workload')
       return OBJECTS.find((o) => o.id === template.target);
   }

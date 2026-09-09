@@ -1,4 +1,9 @@
-import { canPay, itemCount, type Facility } from './facility.ts';
+import {
+  canPay,
+  itemCount,
+  type Facility,
+  type CraftVariant,
+} from './facility.ts';
 import {
   resolveObjective,
   type Objective,
@@ -7,6 +12,25 @@ import {
 
 // Preparing supplies is client guidance, separate from the saved tracked job.
 // Every gather, craft, pickup and job start remains an explicit action.
+export function withBoardVariant(
+  plan: PartsRequest,
+  variant: CraftVariant,
+): PartsRequest {
+  return { ...plan, boardVariant: variant };
+}
+export function nestedPartsPlan(
+  parent: PartsRequest | undefined,
+  request: PartsRequest,
+): PartsRequest {
+  if (
+    parent?.source?.panel !== 'contracts' ||
+    request.source?.panel !== 'crafting'
+  )
+    return request;
+  return request.boardVariant === undefined
+    ? parent
+    : withBoardVariant(parent, request.boardVariant);
+}
 export function partsPlanObjective(
   f: Facility,
   credits: number,

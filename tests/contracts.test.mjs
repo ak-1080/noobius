@@ -408,8 +408,16 @@ test('job comparisons separate payment from lost idle output and expose real equ
     false,
   );
   const before = structuredClone(f);
-  const meaningful = CONTRACT_TEMPLATES.flatMap((t) => usefulStyles(f, t));
-  assert.equal(meaningful.length, 18);
+  // A whole pump cannot be reduced by a raw-material saving module.
+  assert.ok(
+    usefulStyles(f, contractTemplate('cooling-call', 1)).includes('efficient'),
+  );
+  assert.ok(
+    !usefulStyles(f, contractTemplate('cooling-call')).includes('efficient'),
+  );
+  assert.ok(
+    usefulStyles(f, contractTemplate('cooling-call')).includes('stable'),
+  );
   assert.deepEqual(f, before);
 });
 

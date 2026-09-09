@@ -14,6 +14,7 @@ import {
   ContractError,
   newCareer,
   reservedProduction,
+  validContractTerms,
   type Career,
 } from './contracts.ts';
 
@@ -39,6 +40,7 @@ export type ZoneId =
   | 'core';
 export type SkillId = 'salvaging' | 'engineering' | 'operations';
 export type Bag = Partial<Record<ItemId, number>>;
+export type CraftVariant = 'standard' | 'recovered';
 export type Facility = {
   career?: Career;
   economyVersion?: number;
@@ -62,6 +64,7 @@ export type Facility = {
   craft: {
     id?: string;
     recipe: string;
+    variant?: CraftVariant;
     startedAt?: number;
     readyAt: number;
     quantity?: number;
@@ -564,7 +567,7 @@ export const RECIPES: {
     seconds: 10,
     skill: 2,
     zone: 'thermal',
-    description: 'Expand the cooling budget for a bigger cluster.',
+    description: 'Replace worn cooling equipment and fill field supply orders.',
   },
   {
     id: 'battery',
@@ -586,6 +589,30 @@ export const RECIPES: {
     description: 'Restores 35 suit energy on Hot Zone expeditions.',
   },
 ];
+export function validCraftVariant(recipe: string, variant: unknown) {
+  return (
+    RECIPES.some((r) => r.id === recipe) &&
+    (variant === undefined ||
+      variant === 'standard' ||
+      (recipe === 'board' && variant === 'recovered'))
+  );
+}
+export function recipeFor(
+  id: string,
+  variant?: CraftVariant,
+): (typeof RECIPES)[number] {
+  if (!validCraftVariant(id, variant))
+    throw new FacilityError('Choose an available recipe and parts route.');
+  const recipe = RECIPES.find((r) => r.id === id)!;
+  return variant === 'recovered'
+    ? {
+        ...recipe,
+        cost: { scrap: 4, fiber: 2, core: 1 },
+        zone: 'core',
+        skill: 2,
+      }
+    : recipe;
+}
 export const STORY = [
   {
     id: 'welcome',
@@ -779,6 +806,17 @@ export function normalizeFacility(
   saved: Partial<Facility>,
   now = Date.now(),
 ): Facility {
+  if (saved.career !== undefined && !validContractTerms(saved.career))
+    throw new FacilityError(
+      'This save contains unsupported job terms. Refresh before playing.',
+    );
+  if (
+    saved.craft &&
+    !validCraftVariant(saved.craft.recipe, saved.craft.variant)
+  )
+    throw new FacilityError(
+      'This save contains unsupported crafting work. Refresh before playing.',
+    );
   if (
     saved.projectReservations !== undefined &&
     !validProjectReservations(saved.projectReservations)
@@ -1015,6 +1053,7 @@ export type FacilityAction = {
   rack?: string;
   template?: string;
   dispatchTicket?: string;
+  variant?: CraftVariant;
   requestId: string;
 };
 export class FacilityError extends Error {}
@@ -1280,8 +1319,8 @@ export function applyFacility(
         break;
       }
       case 'craft': {
-        const recipe = RECIPES.find((r) => r.id === action.id);
-        if (!recipe || !f.unlocked.includes(recipe.zone))
+        const recipe = recipeFor(action.id ?? '', action.variant);
+        if (!f.unlocked.includes(recipe.zone))
           throw new FacilityError('Unlock the recipe’s department first.');
         if (f.craft)
           throw new FacilityError('Collect your finished craft first.');
@@ -1293,6 +1332,9 @@ export function applyFacility(
         f.craft = {
           id: crypto.randomUUID(),
           recipe: recipe.id,
+          ...(action.variant === 'recovered'
+            ? { variant: action.variant }
+            : {}),
           quantity,
           startedAt: now,
           readyAt: now + quote.seconds * 1000,

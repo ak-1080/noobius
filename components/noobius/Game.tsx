@@ -2,7 +2,12 @@
 import { worldWork, workEffectTarget } from '@/lib/world-work';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
-import { partsPlanObjective } from '@/lib/parts-plan';
+import {
+  partsPlanObjective,
+  nestedPartsPlan,
+  withBoardVariant,
+} from '@/lib/parts-plan';
+import type { CraftVariant } from '@/lib/facility';
 import ProjectPanel from './ProjectPanel';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
@@ -141,7 +146,10 @@ export default function NoobiusGame() {
     Record<string, Record<string, JobDraft>>
   >({});
   const [craftDrafts, setCraftDrafts] = useState<
-    Record<string, { recipe?: ItemId; quantity: number }>
+    Record<
+      string,
+      { recipe?: ItemId; quantity: number; variant?: CraftVariant }
+    >
   >({});
   const [partsPlans, setPartsPlans] = useState<
     Record<string, PartsRequest | undefined>
@@ -454,7 +462,11 @@ export default function NoobiusGame() {
     if (p === 'crafting' && view?.recipe && profile) {
       setCraftDrafts((previous) => ({
         ...previous,
-        [profile.wallet]: { recipe: view.recipe, quantity: view.quantity ?? 1 },
+        [profile.wallet]: {
+          recipe: view.recipe,
+          quantity: view.quantity ?? 1,
+          variant: view.recipeVariant,
+        },
       }));
     }
     if (p === 'contracts' && view) {
@@ -1482,6 +1494,11 @@ export default function NoobiusGame() {
                   }
                   drafts={jobDrafts[profile.wallet] ?? {}}
                   craftDraft={craftDrafts[profile.wallet]}
+                  craftPurpose={
+                    partsObjective && partsPlan?.source?.panel === 'contracts'
+                      ? partsPlan.source.label
+                      : undefined
+                  }
                   onCraftDraft={(draft) => {
                     setCraftDrafts((previous) => ({
                       ...previous,
@@ -1491,6 +1508,14 @@ export default function NoobiusGame() {
                       setPartsPlans((previous) => ({
                         ...previous,
                         [profile.wallet]: undefined,
+                      }));
+                    else if (partsPlan && draft.recipe === 'board')
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: withBoardVariant(
+                          partsPlan,
+                          draft.variant ?? 'standard',
+                        ),
                       }));
                   }}
                   onDraft={(id, draft) => {
@@ -1528,12 +1553,10 @@ export default function NoobiusGame() {
                   onHelp={(request) => {
                     if (busy) return;
                     // Nested recipe trips retain the originating client job.
-                    const plan =
-                      partsObjective &&
-                      partsPlan?.source?.panel === 'contracts' &&
-                      request.source?.panel === 'crafting'
-                        ? partsPlan
-                        : request;
+                    const plan = nestedPartsPlan(
+                      partsObjective ? partsPlan : undefined,
+                      request,
+                    );
                     setPartsPlans((previous) => ({
                       ...previous,
                       [profile.wallet]: plan,

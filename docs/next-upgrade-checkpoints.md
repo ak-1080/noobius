@@ -18,7 +18,7 @@ Authorization audit: `crew_presence` is checked inside facility, shared work, pr
 
 ## Recurring uses for neglected materials
 
-Pump, fiber and core currently lack sufficient recurring use. Candidate design, still requiring implementation and balance validation:
+Implemented in the recurring-materials increment; see [behavior and verification](recurring-materials-upgrade.md). Live balance and return-session validation remain required:
 
 - New cooling-call terms consume one pump and pay 135 Compute. The NPC-replacement margin remains 44 under the reviewed costs.
 - New field-stock terms replace the repair kit with a pump, keep the board and power cell, and pay 380 Compute, preserving the reviewed 135 replacement margin.

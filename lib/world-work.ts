@@ -1,4 +1,4 @@
-import { contractTemplate, type ContractRun } from './contracts.ts';
+import { contractFor, type ContractRun } from './contracts.ts';
 import {
   ITEMS,
   OBJECTS,
@@ -33,7 +33,7 @@ const progress = (
     ? null
     : Math.min(1, Math.max(0, (now - start) / (end - start)));
 export const contractWorksite = (run: ContractRun) =>
-  run.rack ?? contractTemplate(run.template).target;
+  run.rack ?? contractFor(run).target;
 
 /** Read-only presentation. Visitors never receive the owner's private work. */
 export function worldWork(
@@ -44,7 +44,7 @@ export function worldWork(
   if (!visible) return [];
   const signals: WorldWork[] = [];
   for (const run of f.career?.active ?? []) {
-    const template = contractTemplate(run.template),
+    const template = contractFor(run),
       service = template.family === 'service';
     if (template.family === 'workload' && !run.rack) continue;
     const ready =
@@ -115,7 +115,11 @@ export function worldWork(
       caption: `${craft.quantity ?? 1} × ${name} · ${ready ? 'ready' : remaining(craft.readyAt, now)}`,
       progress: ready ? 1 : progress(craft.startedAt, craft.readyAt, now),
       panel: 'crafting',
-      view: { recipe: craft.recipe as ItemId, quantity: craft.quantity ?? 1 },
+      view: {
+        recipe: craft.recipe as ItemId,
+        quantity: craft.quantity ?? 1,
+        ...(craft.variant ? { recipeVariant: craft.variant } : {}),
+      },
     });
   }
   if (f.workload) {

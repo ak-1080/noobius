@@ -40,6 +40,7 @@ import {
   buildCost,
   canPay,
   craftQuote,
+  recipeFor,
   capacity,
   computePerTick,
   modules,
@@ -55,6 +56,7 @@ import {
   type WorldObject,
   type ItemId,
   type Bag,
+  type CraftVariant,
 } from '@/lib/facility';
 import type { Profile } from '@/lib/game';
 import { api } from './useNoobius';
@@ -113,8 +115,13 @@ type Props = {
   onConnect?: () => void;
   drafts?: Record<string, JobDraft>;
   onDraft?: (id: string, draft: JobDraft) => void;
-  craftDraft?: { recipe?: ItemId; quantity: number };
-  onCraftDraft?: (draft: { recipe?: ItemId; quantity: number }) => void;
+  craftDraft?: { recipe?: ItemId; quantity: number; variant?: CraftVariant };
+  craftPurpose?: string;
+  onCraftDraft?: (draft: {
+    recipe?: ItemId;
+    quantity: number;
+    variant?: CraftVariant;
+  }) => void;
 };
 function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   return (
@@ -160,6 +167,7 @@ export default function FacilityPanels({
   drafts,
   onDraft,
   craftDraft,
+  craftPurpose,
   onCraftDraft,
 }: Props) {
   const workbench = OBJECTS.find((object) => object.id === 'workbench')!;
@@ -189,7 +197,7 @@ export default function FacilityPanels({
     }),
     [reporting, setReporting] = useState<string | null>(null),
     [reportReason, setReportReason] = useState('Spam');
-  const craftQuantity = craftDraft?.quantity ?? 1;
+  const craftQuantity = f.craft?.quantity ?? craftDraft?.quantity ?? 1;
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -409,7 +417,16 @@ export default function FacilityPanels({
     return (
       <div className="crafting-panel">
         {!atWorkbench && (
-          <Button className="primary-action" onClick={() => onGuide(workbench)}>
+          <Button
+            className="primary-action"
+            onClick={() =>
+              onGuide(workbench, {
+                recipe: craftDraft?.recipe,
+                quantity: craftQuantity,
+                recipeVariant: craftDraft?.variant,
+              })
+            }
+          >
             Go to workbench <ArrowRight size={18} />
           </Button>
         )}
@@ -452,6 +469,8 @@ export default function FacilityPanels({
             <span>
               <strong>
                 {f.craft.quantity ?? 1} × {ITEMS[f.craft.recipe as ItemId].name}
+                {f.craft.recipe === 'board' &&
+                  ` · ${f.craft.variant === 'recovered' ? 'Recovered' : 'Standard'} parts`}
               </strong>
               <small>
                 {now < f.craft.readyAt
@@ -499,7 +518,14 @@ export default function FacilityPanels({
                 Number(b.id === craftDraft?.recipe) -
                 Number(a.id === craftDraft?.recipe),
             )
-            .map((r) => {
+            .map((base) => {
+              const variant =
+                base.id === 'board'
+                  ? f.craft?.recipe === 'board'
+                    ? (f.craft.variant ?? 'standard')
+                    : (craftDraft?.variant ?? 'standard')
+                  : undefined;
+              const r = recipeFor(base.id, variant);
               const quote = craftQuote(r, craftQuantity);
               const open =
                 f.unlocked.includes(r.zone) &&
@@ -511,7 +537,11 @@ export default function FacilityPanels({
                 >
                   {r.id === craftDraft?.recipe && (
                     <p className="muted-small">
-                      Your selected recipe · {craftQuantity} parts
+                      {craftPurpose
+                        ? `For ${craftPurpose}`
+                        : 'Your selected recipe'}{' '}
+                      · {craftQuantity} part{craftQuantity === 1 ? '' : 's'}
+                      {variant === 'recovered' && ' · Recovered parts'}
                     </p>
                   )}
                   <div className="recipe-title">
@@ -526,6 +556,31 @@ export default function FacilityPanels({
                       <p>{r.description}</p>
                     </div>
                   </div>
+                  {r.id === 'board' && !f.craft && (
+                    <label className="dispatch-picker">
+                      Parts route
+                      <NativeSelect
+                        aria-label="Board parts route"
+                        value={variant}
+                        disabled={busy}
+                        onChange={(e) =>
+                          onCraftDraft?.({
+                            recipe: 'board',
+                            quantity: craftQuantity,
+                            variant: e.target.value as CraftVariant,
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="standard">
+                          Standard parts
+                        </NativeSelectOption>
+                        <NativeSelectOption value="recovered">
+                          Recovered parts
+                        </NativeSelectOption>
+                      </NativeSelect>
+                      <small>Same board. Different ingredients.</small>
+                    </label>
+                  )}
                   <Parts cost={quote.cost} bag={f.inventory} />
                   {open && !canPay(f.inventory, quote.cost) && !f.craft && (
                     <button
@@ -534,13 +589,21 @@ export default function FacilityPanels({
                         onCraftDraft?.({
                           recipe: r.id,
                           quantity: craftQuantity,
+                          variant,
                         });
                         onHelp({
                           items: quote.cost,
+                          ...(r.id === 'board'
+                            ? { boardVariant: variant }
+                            : {}),
                           source: {
                             label: `${craftQuantity} × ${r.name}`,
                             panel: 'crafting',
-                            view: { recipe: r.id, quantity: craftQuantity },
+                            view: {
+                              recipe: r.id,
+                              quantity: craftQuantity,
+                              recipeVariant: variant,
+                            },
                           },
                         });
                       }}
@@ -551,6 +614,9 @@ export default function FacilityPanels({
                   <div className="recipe-bottom">
                     <small>
                       {quote.seconds}s · Engineering {r.skill}
+                      {skillLevel(f.skills.engineering) < r.skill
+                        ? ' required'
+                        : ''}
                       {!f.unlocked.includes(r.zone)
                         ? ` · Open ${ZONES.find((z) => z.id === r.zone)?.name}`
                         : ''}
@@ -569,6 +635,7 @@ export default function FacilityPanels({
                           type: 'craft',
                           id: r.id,
                           quantity: craftQuantity,
+                          variant,
                         })
                       }
                     >

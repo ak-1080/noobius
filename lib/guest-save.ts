@@ -5,7 +5,7 @@ import {
   ITEMS,
   OBJECTS,
   OUTFITS,
-  RECIPES,
+  validCraftVariant,
   ZONES,
   normalizeFacility,
   type Facility,
@@ -146,7 +146,7 @@ function facility(v: unknown): v is Facility {
     v.craft !== null &&
     !(
       record(v.craft) &&
-      RECIPES.some((r) => r.id === v.craft.recipe) &&
+      validCraftVariant(v.craft.recipe, v.craft.variant) &&
       number(v.craft.readyAt) &&
       (v.craft.startedAt === undefined ||
         (number(v.craft.startedAt) && v.craft.startedAt < v.craft.readyAt)) &&

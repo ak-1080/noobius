@@ -3,6 +3,7 @@ import {
   ITEMS,
   OBJECTS,
   RECIPES,
+  recipeFor,
   STORY,
   ZONES,
   rackPrice,
@@ -13,6 +14,7 @@ import {
   skillLevel,
   storyValue,
   type Bag,
+  type CraftVariant,
   type Facility,
   type FacilityAction,
   type ItemId,
@@ -28,9 +30,11 @@ export type GuideView = {
   jobId?: string;
   moduleId?: import('./contracts.ts').ModuleStyle;
   recipe?: ItemId;
+  recipeVariant?: CraftVariant;
   quantity?: number;
 };
 export type PartsRequest = {
+  boardVariant?: CraftVariant;
   items?: Bag;
   build?: string;
   recipe?: ItemId;
@@ -92,6 +96,13 @@ export function resolveObjective(
     cta: f.craft && now < f.craft.readyAt ? 'Making…' : 'Collect part',
     target: 'workbench',
     action: { type: 'collect', id: f.craft?.id },
+    view: f.craft
+      ? {
+          recipe: f.craft.recipe as ItemId,
+          quantity: f.craft.quantity ?? 1,
+          ...(f.craft.variant ? { recipeVariant: f.craft.variant } : {}),
+        }
+      : undefined,
     wait: !!f.craft && now < f.craft.readyAt,
   });
   const gather = (id: ItemId): NextStep => {
@@ -166,7 +177,8 @@ export function resolveObjective(
   };
   const make = (id: ItemId, requested = 1): NextStep => {
     if (f.craft) return bench();
-    const r = RECIPES.find((r) => r.id === id)!;
+    const variant = id === 'board' ? request?.boardVariant : undefined;
+    const r = recipeFor(id, variant);
     if (!f.unlocked.includes(r.zone)) return unlock(r.zone);
     if (skillLevel(f.skills.engineering) < r.skill) return make('kit');
     // A large component goal may need several explicit bench visits. Keep
@@ -194,11 +206,20 @@ export function resolveObjective(
     return (
       parts(cost) ?? {
         title: `Make ${quantity} × ${r.name.toLowerCase()}`,
-        detail: `${batchNote}Your parts are ready. Takes ${r.seconds * quantity} seconds at the workbench.`,
+        detail: `${batchNote}${variant === 'recovered' ? 'Recovered parts. ' : ''}Your parts are ready. Takes ${r.seconds * quantity} seconds at the workbench.`,
         cta: 'Make this part',
         target: 'workbench',
-        action: { type: 'craft', id, quantity },
-        view: { recipe: id, quantity },
+        action: {
+          type: 'craft',
+          id,
+          quantity,
+          ...(variant ? { variant } : {}),
+        },
+        view: {
+          recipe: id,
+          quantity,
+          ...(variant ? { recipeVariant: variant } : {}),
+        },
       }
     );
   };

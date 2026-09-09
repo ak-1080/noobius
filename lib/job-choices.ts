@@ -3,7 +3,7 @@ import {
   careerFor,
   completedContracts,
   contractQuote,
-  contractTemplate,
+  contractFor,
   MODULES,
   type ContractTemplate,
   type ModuleStyle,
@@ -135,15 +135,15 @@ export function careerSuggestions(
   const offers = c.offers
     .filter((offer) => !c.active.some((run) => run.id === offer.id))
     .sort((a, b) => {
-      const fa = contractTemplate(a.template).family,
-        fb = contractTemplate(b.template).family;
+      const fa = contractFor(a).family,
+        fb = contractFor(b).family;
       return (
         reportsAvailable(c, fa) - reportsAvailable(c, fb) ||
         c.completed[fa] - c.completed[fb]
       );
     });
   for (const offer of offers) {
-    const t = contractTemplate(offer.template);
+    const t = contractFor(offer);
     const style = usefulStyles(f, t).find(
       (s) => c.modules.includes(s) && !c.mastery?.[t.id]?.[s],
     );

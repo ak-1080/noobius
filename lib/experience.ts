@@ -1,5 +1,5 @@
 import { introReady, modules, type Facility } from './facility.ts';
-import { careerFor, contractTemplate } from './contracts.ts';
+import { careerFor, contractFor } from './contracts.ts';
 import { resolveObjective } from './objectives.ts';
 import type { Objective } from './objectives.ts';
 import { tycoonObjective } from './tycoon.ts';
@@ -55,7 +55,7 @@ export function shiftObjective(
   const current =
     career.active.find((r) => r.id === career.selected) ?? career.active[0];
   if (current) {
-    const template = contractTemplate(current.template);
+    const template = contractFor(current);
     const ready =
       current.state === 'ready' ||
       (current.readyAt !== null && current.readyAt <= now);

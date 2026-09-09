@@ -26,7 +26,8 @@ export type ContractTemplate = {
   requiredZone?: string;
 };
 
-export const CONTRACT_TEMPLATES: ContractTemplate[] = [
+// Existing offers keep these terms, including ones not yet accepted.
+const ORIGINAL_CONTRACT_TEMPLATES: ContractTemplate[] = [
   {
     id: 'loose-link',
     family: 'service',
@@ -210,6 +211,26 @@ export const CONTRACT_TEMPLATES: ContractTemplate[] = [
   },
 ];
 
+export const CONTRACT_TEMPLATES: ContractTemplate[] =
+  ORIGINAL_CONTRACT_TEMPLATES.map((t) =>
+    t.id === 'cooling-call'
+      ? {
+          ...t,
+          goal: 'Replace the coolant pump, then test the system.',
+          cost: { pump: 1 },
+          reward: 135,
+        }
+      : t.id === 'field-stock'
+        ? {
+            ...t,
+            goal: 'Deliver a coolant pump, board and power cell.',
+            cost: { pump: 1, board: 1, battery: 1 },
+            reward: 380,
+            requiredZone: 'thermal',
+          }
+        : t,
+  );
+
 export const MODULES = [
   {
     id: 'fast',
@@ -239,7 +260,11 @@ export const MODULES = [
   },
 ] as const;
 
-export type ContractOffer = { id: string; template: string };
+export type ContractOffer = {
+  id: string;
+  template: string;
+  termsVersion?: 1 | 2;
+};
 export type ContractRun = ContractOffer & {
   quoteVersion?: 1 | 2;
   quantity?: number;
@@ -324,8 +349,29 @@ export function serviceChallenge(run: Pick<ContractRun, 'id' | 'template'>) {
     .reduce((n, char) => (n * 31 + char.charCodeAt(0)) >>> 0, 0);
   return FAULTS[seed % FAULTS.length];
 }
-export const contractTemplate = (id: string) =>
-  CONTRACT_TEMPLATES.find((t) => t.id === id)!;
+export const contractTemplate = (id: string, termsVersion: 1 | 2 = 2) =>
+  (termsVersion === 1 ? ORIGINAL_CONTRACT_TEMPLATES : CONTRACT_TEMPLATES).find(
+    (t) => t.id === id,
+  )!;
+export const contractFor = (
+  saved: Pick<ContractOffer, 'template' | 'termsVersion'>,
+) => contractTemplate(saved.template, saved.termsVersion ?? 1);
+export function validContractTerms(c: Career) {
+  const entries = [...c.offers, ...c.active];
+  return (
+    entries.every(
+      (o) =>
+        o.termsVersion === undefined ||
+        o.termsVersion === 1 ||
+        o.termsVersion === 2,
+    ) &&
+    c.active.every((r) =>
+      c.offers.every(
+        (o) => o.id !== r.id || (o.termsVersion ?? 1) === (r.termsVersion ?? 1),
+      ),
+    )
+  );
+}
 export const completedContracts = (c: Career) =>
   FAMILIES.reduce((sum, family) => sum + c.completed[family], 0);
 export const operatorLicense = (c: Career) =>
@@ -354,7 +400,7 @@ export function eligibleContracts(
       t.family === family &&
       t.qualification <= completedContracts(c) &&
       (!t.requiredZone || f.unlocked.includes(t.requiredZone as never)) &&
-      (!t.cost.battery || f.skills.engineering >= 20),
+      (!(t.cost.battery || t.cost.pump) || f.skills.engineering >= 20),
   );
 }
 function refill(c: Career, f: Pick<Facility, 'unlocked' | 'skills'>) {
@@ -363,7 +409,11 @@ function refill(c: Career, f: Pick<Facility, 'unlocked' | 'skills'>) {
       continue;
     const eligible = eligibleContracts(c, f, family);
     const template = eligible[c.serial % eligible.length];
-    c.offers.push({ id: `contract-${c.serial++}`, template: template.id });
+    c.offers.push({
+      id: `contract-${c.serial++}`,
+      template: template.id,
+      termsVersion: 2,
+    });
   }
 }
 
@@ -566,7 +616,7 @@ export function applyContract(
       (o) => o.id === a.id && !c.active.some((r) => r.id === o.id),
     );
     if (!offer) fail('That offer has already been taken.');
-    const t = contractTemplate(offer.template);
+    const t = contractFor(offer);
     if (t.family === 'workload' && !Object.values(f.builds).some((v) => v > 0))
       fail('Build your free starter machine first.');
     let acceptedTemplate = t;
@@ -591,6 +641,7 @@ export function applyContract(
         (id) => id !== a.dispatchTicket,
       );
       offer.template = replacement.id;
+      offer.termsVersion = 2;
     }
     c.active.push({
       ...offer,
@@ -617,7 +668,7 @@ export function applyContract(
   const run = c.active.find((r) => r.id === a.id);
   if (!run)
     fail('This job is no longer active. Its reward cannot be claimed again.');
-  const t = contractTemplate(run.template);
+  const t = contractFor(run);
   if (a.type === 'contract-track') {
     c.selected = run.id;
     return { message: 'Directions are on your screen.', xp: 0 };
@@ -884,7 +935,10 @@ export function validCareer(value: unknown): value is Career {
         /^contract-[1-9]\d*$/.test(o.id) &&
         Number.isSafeInteger(Number(o.id.slice(9))) &&
         Number(o.id.slice(9)) < c.serial &&
-        CONTRACT_TEMPLATES.some((t) => t.id === o.template),
+        CONTRACT_TEMPLATES.some((t) => t.id === o.template) &&
+        (o.termsVersion === undefined ||
+          o.termsVersion === 1 ||
+          o.termsVersion === 2),
     )
   )
     return false;
@@ -895,7 +949,12 @@ export function validCareer(value: unknown): value is Career {
     return false;
   if (
     !c.active.every((r) =>
-      c.offers.some((o) => o.id === r.id && o.template === r.template),
+      c.offers.some(
+        (o) =>
+          o.id === r.id &&
+          o.template === r.template &&
+          (o.termsVersion ?? 1) === (r.termsVersion ?? 1),
+      ),
     )
   )
     return false;
