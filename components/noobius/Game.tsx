@@ -1,5 +1,6 @@
 'use client';
 import ComputeIcon from './ComputeIcon';
+import { publicPlayerId, shortWalletAddress } from '@/lib/wallet-identity';
 import ObjectiveCoach from './ObjectiveCoach';
 import WalletPicker from './WalletPicker';
 import { QuickGuide } from './PlayGuide';
@@ -156,7 +157,9 @@ export default function NoobiusGame() {
   const [connection, setConnection] = useState('Connecting');
   const inCampus = room.startsWith('campus-');
   const roomId =
-    room === 'home' ? ownRoom(profile?.wallet ?? 'practice') : room;
+    room === 'home'
+      ? ownRoom(profile?.wallet ?? 'practice', profile?.publicId)
+      : room;
   const campusFacility = publicCampus();
   for (const w of shared?.work ?? [])
     if (w.completedAt && w.station !== 'network')
@@ -268,9 +271,7 @@ export default function NoobiusGame() {
           'campus?room=' + encodeURIComponent(roomId),
         );
         if (alive) {
-          setPeople(
-            d.people.filter((p) => p.id !== profile.wallet.slice(2, 18)),
-          );
+          setPeople(d.people.filter((p) => p.id !== publicPlayerId(profile)));
           setShared(d.world);
           setConnection('Connected');
         }
@@ -651,8 +652,8 @@ export default function NoobiusGame() {
             {game.initializing
               ? 'Loading…'
               : profile && profile.wallet !== 'practice'
-                ? profile.wallet.slice(0, 6) + '…' + profile.wallet.slice(-4)
-                : 'Connect'}
+                ? shortWalletAddress(profile.wallet)
+                : 'Connect wallet'}
           </Button>
         </header>
       )}
@@ -665,19 +666,31 @@ export default function NoobiusGame() {
           <p>Someone has to keep the future online.</p>
           <Button
             className="play-button"
-            onClick={play}
+            onClick={() =>
+              profile && profile.wallet !== 'practice'
+                ? void play()
+                : show('wallet')
+            }
             disabled={busy || game.initializing}
           >
             {busy
               ? 'Clocking in…'
-              : profile?.wallet === 'practice' &&
-                  profile.facility?.seen.includes('intro:identity')
-                ? 'Continue my game'
-                : profile && shift && !shift.completedAt
-                  ? 'Resume shift'
-                  : 'Play now'}
+              : profile && profile.wallet !== 'practice'
+                ? 'Continue game'
+                : 'Connect wallet & play'}
             <ArrowRight size={20} />
           </Button>
+          {(!profile || profile.wallet === 'practice') && (
+            <button
+              className="wallet-guest-entry"
+              disabled={busy || game.initializing}
+              onClick={() => void play()}
+            >
+              {profile?.facility?.seen.includes('intro:identity')
+                ? 'Continue guest game'
+                : 'Play as guest'}
+            </button>
+          )}
         </main>
       ) : (
         <main
@@ -1378,7 +1391,9 @@ export default function NoobiusGame() {
                   error={error}
                   isPractice={profile?.wallet === 'practice'}
                   onConnect={async (wallet) => {
-                    if (await game.connect(wallet)) show('badge');
+                    if (await game.connect(wallet)) {
+                      if (await game.start()) setPanel(null);
+                    }
                   }}
                   onBackToGame={() => {
                     if (profile?.wallet === 'practice') {

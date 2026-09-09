@@ -6,7 +6,19 @@ import {
   repairLoot,
   type FacilityAction,
 } from '@/lib/facility';
-import { signInWallet } from '@/lib/wallet';
+import { signInWallet, signInSolanaWallet } from '@/lib/wallet';
+import { getWallets } from '@wallet-standard/app';
+import {
+  solanaWalletProvider,
+  supportsSolanaWallet,
+  type StandardWallet,
+} from '@/lib/solana-wallet';
+import {
+  accountKey,
+  accountEcosystem,
+  matchesAccount,
+  type WalletEcosystem,
+} from '@/lib/wallet-identity';
 import { facilityReceipt, type FacilityReceipt } from '@/lib/game-feedback';
 import {
   GUEST_SAVE_KEY,
@@ -223,8 +235,9 @@ export function useNoobius() {
       name: string,
       provider: Provider,
       rdns?: string,
+      ecosystem?: WalletEcosystem,
     ) => {
-      found = mergeWalletOption(found, { id, name, provider, rdns });
+      found = mergeWalletOption(found, { id, name, provider, rdns, ecosystem });
       setWallets(found);
     };
     const announce = (event: Event) => {
@@ -252,10 +265,48 @@ export function useNoobius() {
           add('injected' + found.length, legacyWalletName(provider), provider);
       }
     }, 300);
+    const registry = getWallets();
+    const adapters = new Map<
+      StandardWallet,
+      { id: string; provider: Provider }
+    >();
+    let nextSolanaId = 0;
+    const refreshSolana = () => {
+      found = found.filter((option) => option.ecosystem !== 'solana');
+      for (const wallet of registry.get()) {
+        if (!supportsSolanaWallet(wallet)) continue;
+        if (!adapters.has(wallet))
+          adapters.set(wallet, {
+            id: 'solana-' + nextSolanaId++,
+            provider: solanaWalletProvider(wallet),
+          });
+        const adapted = adapters.get(wallet)!;
+        found.push({
+          ...adapted,
+          name: wallet.name.slice(0, 40),
+          ecosystem: 'solana',
+        });
+      }
+      setWallets(found);
+    };
+    const offRegister = registry.on('register', refreshSolana);
+    const offUnregister = registry.on('unregister', (...removed) => {
+      for (const wallet of removed) {
+        if (adapters.get(wallet)?.provider === providerRef.current) {
+          listeners.current?.();
+          providerRef.current = null;
+        }
+        adapters.delete(wallet);
+      }
+      refreshSolana();
+    });
+    refreshSolana();
     return () => {
       alive = false;
       clearTimeout(fallback);
       window.removeEventListener('eip6963:announceProvider', announce);
+      offRegister();
+      offUnregister();
       listeners.current?.();
     };
   }, [apply]);
@@ -364,49 +415,100 @@ export function useNoobius() {
     },
     [apply],
   );
+  const watchWallet = useCallback((option: WalletOption, wallet: string) => {
+    listeners.current?.();
+    const p = option.provider;
+    providerRef.current = p;
+    const changed = (accounts?: unknown) => {
+      if (providerRef.current !== p || state.current.profile?.wallet !== wallet)
+        return;
+      if (matchesAccount(accounts, wallet)) return;
+      generation.current++;
+      appliedRevision.current++;
+      state.current = { profile: null, shift: null, mode: 'lobby' };
+      listeners.current?.();
+      setProfile(null);
+      setShift(null);
+      setMode('lobby');
+      setError('Wallet changed. Sign in again to load the correct saved game.');
+      void api('logout', { expectedWallet: wallet }).catch(() => {});
+    };
+    p.on?.('accountsChanged', changed);
+    p.on?.('chainChanged', changed);
+    listeners.current = () => {
+      p.removeListener?.('accountsChanged', changed);
+      p.removeListener?.('chainChanged', changed);
+      if (providerRef.current === p) providerRef.current = null;
+    };
+    return changed;
+  }, []);
   const connect = async (option: WalletOption) =>
     run(async () => {
-      const p = option.provider;
-      const { data, address } = await signInWallet(
-        p,
-        (address, chainId) =>
-          api<{ message: string }>('nonce', { address, chainId }),
-        (signature) => api('verify', { signature }),
-      );
-      if (operationGeneration.current !== generation.current) return;
-      apply(data);
+      let verified: GameData | undefined;
+      const verify = async (signature: string) => {
+        const data = await api<GameData>('verify', { signature });
+        verified = data;
+        return data;
+      };
+      let result: { data: GameData; address: string };
+      try {
+        result =
+          option.ecosystem === 'solana'
+            ? await signInSolanaWallet(
+                option.provider,
+                (address) =>
+                  api<{ message: string }>('nonce', {
+                    address,
+                    ecosystem: 'solana',
+                  }),
+                verify,
+              )
+            : await signInWallet(
+                option.provider,
+                (address, chainId) =>
+                  api<{ message: string }>('nonce', {
+                    address,
+                    chainId,
+                    ecosystem: 'evm',
+                  }),
+                verify,
+              );
+      } catch (error) {
+        // A wallet change during verification must not leave a newly-issued session active.
+        if (verified?.profile)
+          await api('logout', {
+            expectedWallet: verified.profile.wallet,
+          }).catch(() => {});
+        throw error;
+      }
+      if (operationGeneration.current !== generation.current) {
+        if (result.data.profile)
+          await api('logout', {
+            expectedWallet: result.data.profile.wallet,
+          }).catch(() => {});
+        return;
+      }
+      const wallet = accountKey(result.address, option.ecosystem ?? 'evm');
+      if (result.data.profile?.wallet !== wallet)
+        throw new Error(
+          'The wallet login returned a different account. Sign in again.',
+        );
+      apply(result.data);
       setMode('lobby');
       pending.current = null;
       try {
-        localStorage.setItem('noobius-wallet', option.name);
+        localStorage.setItem(
+          'noobius-wallet',
+          JSON.stringify({
+            name: option.name,
+            rdns: option.rdns,
+            ecosystem: option.ecosystem ?? 'evm',
+          }),
+        );
       } catch {
         /* Remembering the provider is optional. */
       }
-      listeners.current?.();
-      providerRef.current = p;
-      const changed = (accounts?: unknown) => {
-        if (
-          Array.isArray(accounts) &&
-          accounts[0]?.toLowerCase() === address.toLowerCase()
-        )
-          return;
-        generation.current++;
-        setProfile(null);
-        setShift(null);
-        setMode('lobby');
-        setError(
-          'Wallet changed. Reconnect to load the correct employee badge.',
-        );
-        void api('logout', { expectedWallet: address.toLowerCase() }).catch(
-          () => {},
-        );
-      };
-      p.on?.('accountsChanged', changed);
-      p.on?.('chainChanged', changed);
-      listeners.current = () => {
-        p.removeListener?.('accountsChanged', changed);
-        p.removeListener?.('chainChanged', changed);
-      };
+      watchWallet(option, wallet);
       return true;
     });
 
@@ -418,51 +520,52 @@ export function useNoobius() {
       providerRef.current
     )
       return;
-    let alive = true;
-    let remembered: string | null = null;
+    let remembered: {
+      name?: string;
+      rdns?: string;
+      ecosystem?: string;
+    } | null = null;
     try {
-      remembered = localStorage.getItem('noobius-wallet');
+      const stored = localStorage.getItem('noobius-wallet');
+      if (stored) {
+        try {
+          remembered = JSON.parse(stored);
+        } catch {
+          remembered = { name: stored, ecosystem: 'evm' };
+        }
+      }
     } catch {
-      /* Wallet discovery still works without browser storage. */
+      /* Session restoration works without provider storage. */
     }
-    const chosen = wallets.find((w) => w.name === remembered);
+    if (!remembered || typeof remembered !== 'object') return;
+    const family = accountEcosystem(profile.wallet);
+    const chosen = wallets.find(
+      (option) =>
+        (option.ecosystem ?? 'evm') === family &&
+        (remembered!.ecosystem ?? 'evm') === family &&
+        (remembered!.rdns
+          ? option.rdns === remembered!.rdns
+          : option.name === remembered!.name),
+    );
     if (!chosen) return;
-    const p = chosen.provider;
-    const changed = (accounts?: unknown) => {
-      if (
-        Array.isArray(accounts) &&
-        accounts[0]?.toLowerCase() === profile.wallet
-      )
-        return;
-      generation.current++;
-      setProfile(null);
-      setShift(null);
-      setMode('lobby');
-      setError('Wallet changed. Reconnect to load the correct employee badge.');
-      void api('logout', { expectedWallet: profile.wallet }).catch(() => {});
-    };
-    p.request({ method: 'eth_accounts' })
+    let alive = true;
+    const changed = watchWallet(chosen, profile.wallet);
+    // Read already-authorized accounts only; never request connection or signing on reload.
+    chosen.provider
+      .request({
+        method: family === 'solana' ? 'solana_accounts' : 'eth_accounts',
+      })
       .then((accounts) => {
-        if (!alive) return;
-        if (
-          Array.isArray(accounts) &&
-          accounts[0]?.toLowerCase() === profile.wallet
-        ) {
-          providerRef.current = p;
-          p.on?.('accountsChanged', changed);
-          p.on?.('chainChanged', changed);
-          listeners.current = () => {
-            p.removeListener?.('accountsChanged', changed);
-            p.removeListener?.('chainChanged', changed);
-            providerRef.current = null;
-          };
-        } else changed(accounts);
+        // An empty initial read can mean the extension has not restored its
+        // authorization yet. Actual disconnect events still invalidate above.
+        if (alive && Array.isArray(accounts) && accounts.length)
+          changed(accounts);
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [profile?.wallet, wallets]);
+  }, [profile?.wallet, wallets, watchWallet]);
   const logout = () =>
     run(async () => {
       await api('logout', { expectedWallet: state.current.profile?.wallet });

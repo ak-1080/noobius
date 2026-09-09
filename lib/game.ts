@@ -4,6 +4,7 @@ export type Upgrade = 'scanner' | 'visor' | 'tracer';
 export type Equipment = Record<Upgrade, boolean>;
 export type Profile = {
   wallet: string;
+  publicId?: string;
   name: string;
   credits: number;
   xp: number;

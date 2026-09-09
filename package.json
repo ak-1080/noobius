@@ -12,16 +12,19 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --test tests/game.test.mjs tests/wallet.test.mjs tests/navigation.test.mjs tests/facility.test.mjs tests/tycoon.test.mjs tests/guest-save.test.mjs tests/game-feedback.test.mjs",
+    "test": "node --test tests/game.test.mjs tests/wallet.test.mjs tests/navigation.test.mjs tests/facility.test.mjs tests/tycoon.test.mjs tests/guest-save.test.mjs tests/game-feedback.test.mjs tests/solana-wallet.test.mjs",
     "test:api": "node --test tests/api.test.mjs",
     "typecheck": "tsc --noEmit",
-    "db:local": "wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0000_spicy_the_watchers.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0001_calm_mister_fear.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0002_fancy_master_mold.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0003_confused_wolfsbane.sql",
+    "db:local": "wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0000_spicy_the_watchers.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0001_calm_mister_fear.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0002_fancy_master_mold.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0003_confused_wolfsbane.sql && wrangler d1 execute DB --local --config .openai/wrangler.local.json --persist-to .wrangler/state --file drizzle/0004_odd_blackheart.sql",
     "test:campus-api": "node --test tests/facility-api.test.mjs",
-    "test:multiplayer-api": "node --test tests/multiplayer-api.test.mjs"
+    "test:multiplayer-api": "node --test tests/multiplayer-api.test.mjs",
+    "test:wallet-api": "node --test tests/multichain-api.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
+    "@scure/base": "1.2.6",
     "@shadcn/react": "0.3.0",
+    "@wallet-standard/app": "1.1.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",

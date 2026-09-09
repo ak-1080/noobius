@@ -32,7 +32,7 @@ API suites create random test-wallet identities on the local server. Do not poin
 
 ## Persistence and economy
 
-Wallet login uses an origin-bound, expiring, single-use SIWE message. It costs no gas. Standard Ethereum accounts through EIP-6963/injected providers are supported. Contract-wallet validation and WalletConnect QR pairing are not implemented; mobile login needs a compatible wallet browser. The app never handles private keys.
+Wallet login supports Ethereum/EVM accounts through EIP-6963/injected providers and Solana accounts through Wallet Standard. The server verifies an origin-bound, expiring, single-use message (SIWE for EVM, Ed25519 for Solana). Login costs no gas and needs no token balance. Each ecosystem/account has its own save; existing Ethereum saves retain their identifiers. Contract-wallet validation and WalletConnect QR pairing are not implemented; mobile login needs a compatible wallet browser and separate acceptance testing. The app never handles private keys. Run `npm run test:wallet-api` against an isolated local server for multichain authentication and persistence coverage.
 
 D1 stores accounts, sessions, facility state, shifts, listings, messages and presence. The server validates prices, rewards, recipes, cooldowns and gates. Version checks and conditional D1 updates protect purchases and marketplace settlement from duplicate requests and concurrent updates. Compute is the authoritative spendable balance; a separate migration flag settles legacy production at the old rate before the new clock starts. Existing money, cosmetics, inventory and unfinished work are preserved.
 
