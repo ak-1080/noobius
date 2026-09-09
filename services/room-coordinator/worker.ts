@@ -39,7 +39,13 @@ type Outbox = {
   grant: string;
   checkpoint: RoomMotionCheckpoint;
   expiresAt: number;
+  reconciled?: boolean;
+  retryAt?: number;
+  attempts?: number;
 };
+const RECOVERY_BATCH = 2;
+const RECOVERY_SCAN = 32;
+const OUTBOX_ADMISSION_LIMIT = 64;
 class ServiceFailure extends Error {
   status: number;
   constructor(status: number) {
@@ -103,6 +109,9 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   >();
   private config: RoomAuthConfig;
   private closed = new WeakSet<WebSocket>();
+  private draining = new WeakSet<WebSocket>();
+  private maintaining = new WeakSet<WebSocket>();
+  private recovery: Promise<void> | null = null;
   private rates = new Map<WebSocket, { at: number; count: number }>();
   private lastBroadcastAt = 0;
   private admission = Promise.resolve();
@@ -111,50 +120,59 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     super(ctx, env);
     this.config = configuration(env);
     void ctx.blockConcurrencyWhile(async () => {
-      // Reconcile the durable outbox before rebuilding any motion state. An
-      // outstanding request may already have committed before a restart.
-      const pending = await ctx.storage.list<Outbox>({ prefix: 'checkpoint:' });
-      for (const [key, value] of pending) {
-        if (Date.now() > value.expiresAt + 60000) {
-          await ctx.storage.delete(key);
-          continue;
-        }
-        try {
-          await this.service({
-            operation: 'movement-checkpoint',
-            grant: value.grant,
-            ...value.checkpoint,
-          });
-          await ctx.storage.delete(key);
-        } catch (e) {
-          if (terminal(e)) await ctx.storage.delete(key);
-        }
-      }
-      for (const ws of ctx.getWebSockets()) {
-        const a = ws.deserializeAttachment() as Attachment;
-        if (
-          a.phase !== 'ready' ||
-          !a.grant ||
-          (await ctx.storage.get('checkpoint:' + a.grant))
-        ) {
-          ws.close(1012, 'Reconnect to recover your room.');
-          continue;
-        }
-        try {
-          const authority = await this.service<RoomAuthority>({
-            operation: 'authority-refresh',
-            grant: a.grant,
-          });
-          a.connectionId = crypto.randomUUID();
-          ws.serializeAttachment(a);
-          this.actors.set(ws, this.actor(a.grant, a.connectionId, authority));
-          this.joined(ws, 'rebase');
-        } catch {
-          ws.close(1012, 'Reconnect to recover your room.');
-        }
-      }
-      if (ctx.getWebSockets().length || pending.size)
-        await ctx.storage.setAlarm(Date.now() + 1000);
+      // Live sockets get priority and recover concurrently. A long orphan
+      // backlog must not exhaust another player's ten-second writer lease.
+      await Promise.all(
+        ctx.getWebSockets().map(async (ws) => {
+          const a = ws.deserializeAttachment() as Attachment;
+          if (a.phase !== 'ready' || !a.grant) {
+            ws.close(1012, 'Reconnect to recover your room.');
+            return;
+          }
+          try {
+            const key = 'checkpoint:' + a.grant;
+            const pending = await ctx.storage.get<Outbox>(key);
+            // Replay the same immutable checkpoint before reading its position.
+            // An orphan already in the release phase must not become a writer.
+            if (pending?.reconciled) throw new ServiceFailure(409);
+            if (pending) {
+              await this.service({
+                operation: 'movement-checkpoint',
+                grant: pending.grant,
+                ...pending.checkpoint,
+              });
+              await ctx.storage.delete(key);
+            }
+            const authority = await this.service<RoomAuthority>({
+              operation: 'authority-refresh',
+              grant: a.grant,
+            });
+            a.connectionId = crypto.randomUUID();
+            ws.serializeAttachment(a);
+            this.actors.set(ws, this.actor(a.grant, a.connectionId, authority));
+            this.joined(ws, 'rebase');
+          } catch {
+            ws.close(1012, 'Reconnect to recover your room.');
+            if (!(await ctx.storage.get('checkpoint:' + a.grant))) {
+              try {
+                await this.service({
+                  operation: 'authority-release',
+                  grant: a.grant,
+                });
+              } catch {
+                /* A failed restore still loses its writer lease within ten seconds. */
+              }
+            }
+          }
+        }),
+      );
+      // The same bounded recovery handles restart and ordinary disconnects.
+      // Run it in the alarm, after initialization has released the input gate.
+      if (
+        ctx.getWebSockets().length ||
+        (await ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })).size
+      )
+        await ctx.storage.setAlarm(Date.now() + 1);
     });
   }
   private async service<T = Record<string, unknown>>(
@@ -195,6 +213,17 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       player: a.authority.player,
       membership: a.authority.membership,
       inputSequence: a.motion.inputSequence,
+      authorizedUntil: a.authority.authorizedUntil,
+      workFrozen: !!a.authority.frozenCheckpoint,
+      serverNow: nowFor(a),
+    });
+  }
+  private publishAuthority(ws: WebSocket, a: Actor) {
+    if (this.closed.has(ws) || this.actors.get(ws) !== a) return;
+    send(ws, {
+      type: 'authority',
+      connectionId: a.connectionId,
+      membership: a.authority.membership,
       authorizedUntil: a.authority.authorizedUntil,
       workFrozen: !!a.authority.frozenCheckpoint,
       serverNow: nowFor(a),
@@ -289,6 +318,8 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     }
     // Movement is synchronous and does not wait behind background D1 writes.
     // Action captures freeze RoomMotion before their first await instead.
+    // A deliberate departure captures its final position before any await.
+    if (this.draining.has(ws)) return;
     if (body.type === 'move') {
       const a = this.actors.get(ws);
       if (
@@ -319,6 +350,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       return;
     }
     await this.enqueue(ws, async () => {
+      if (this.draining.has(ws)) return;
       const attachment = ws.deserializeAttachment() as Attachment;
       if (attachment.phase === 'joining') {
         if (body.type !== 'join' || !allowed(body, ['type', 'ticket']))
@@ -336,6 +368,17 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         await previous;
         try {
           if (this.closed.has(ws) || ws.readyState !== WebSocket.OPEN) return;
+          // Backpressure reconnect churn without deleting uncertain writes.
+          // The existing five actors can still finish their own checkpoints.
+          if (
+            (
+              await this.ctx.storage.list({
+                prefix: 'checkpoint:',
+                limit: OUTBOX_ADMISSION_LIMIT,
+              })
+            ).size >= OUTBOX_ADMISSION_LIMIT
+          )
+            throw new ServiceFailure(503);
           const result = await this.service<RoomAuthority & { grant: string }>({
             operation: 'ticket-consume',
             ticket: body.ticket,
@@ -448,28 +491,45 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         return;
       }
       if (body.type === 'leave' && allowed(body, ['type', 'connectionId'])) {
-        if (a.authority.frozenCheckpoint && !a.motion.pendingCheckpoint) {
-          const authority = await this.service<RoomAuthority>({
-            operation: 'authority-refresh',
-            grant: a.grant,
-          });
-          const update = a.motion.refreshAuthority(authority, nowFor(a));
-          if (!update.accepted) throw new ServiceFailure(409);
-          a.authority = authority;
-          updateClock(a, authority);
-        }
-        if (!a.motion.pendingCheckpoint && nowFor(a) >= a.authority.frozenUntil)
-          a.motion.captureCheckpoint(crypto.randomUUID());
-        if (a.motion.pendingCheckpoint) await this.flush(ws);
-        await this.service({ operation: 'authority-release', grant: a.grant });
-        this.actors.delete(ws);
-        send(ws, { type: 'released', connectionId: a.connectionId });
-        ws.close(1000, 'Left room.');
-        this.broadcast();
+        await this.retire(ws, a, false);
         return;
       }
       throw new ServiceFailure(400);
     });
+  }
+  private async retire(ws: WebSocket, a: Actor, renew: boolean) {
+    this.draining.add(ws);
+    // A background checkpoint may predate the latest accepted input. Finish
+    // it, then capture the final position with movement now stopped.
+    if (a.motion.pendingCheckpoint) await this.flush(ws);
+    if (this.closed.has(ws) || this.actors.get(ws) !== a) return;
+    if (a.authority.frozenCheckpoint) {
+      const authority = await this.service<RoomAuthority>({
+        operation: 'authority-refresh',
+        grant: a.grant,
+      });
+      const update = a.motion.refreshAuthority(authority, nowFor(a));
+      if (!update.accepted || update.rebased) throw new ServiceFailure(409);
+      a.authority = authority;
+      updateClock(a, authority);
+    }
+    // A live work barrier already committed this position and must not be
+    // overwritten. Releasing the grant also invalidates its remaining proof.
+    if (!a.authority.frozenCheckpoint) {
+      a.motion.captureCheckpoint(crypto.randomUUID());
+      await this.flush(ws);
+    }
+    await this.service({ operation: 'authority-release', grant: a.grant });
+    if (this.actors.get(ws) === a) this.actors.delete(ws);
+    send(ws, {
+      type: renew ? 'renew' : 'released',
+      connectionId: a.connectionId,
+    });
+    ws.close(
+      renew ? 1012 : 1000,
+      renew ? 'Reconnect to renew room access.' : 'Left room.',
+    );
+    this.broadcast();
   }
   private async flush(ws: WebSocket) {
     const a = this.actors.get(ws)!;
@@ -498,14 +558,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     if (this.closed.has(ws) || this.actors.get(ws) !== a) {
       await this.service({ operation: 'authority-release', grant: a.grant });
     } else {
-      send(ws, {
-        type: 'authority',
-        connectionId: a.connectionId,
-        membership: a.authority.membership,
-        authorizedUntil: a.authority.authorizedUntil,
-        workFrozen: !!a.authority.frozenCheckpoint,
-        serverNow: nowFor(a),
-      });
+      this.publishAuthority(ws, a);
     }
     return {
       checkpoint: saved.checkpoint,
@@ -516,7 +569,6 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     };
   }
   async alarm() {
-    const jobs = [];
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment;
       if (attachment.phase !== 'ready') {
@@ -525,13 +577,15 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         continue;
       }
       const a = this.actors.get(ws);
-      if (!a) continue;
-      jobs.push(
+      if (!a || this.maintaining.has(ws)) continue;
+      this.maintaining.add(ws);
+      this.ctx.waitUntil(
         this.enqueue(ws, async () => {
-          if (nowFor(a) >= a.authority.expiresAt - 5000) {
-            send(ws, { type: 'renew', connectionId: a.connectionId });
-            ws.close(1012, 'Reconnect to renew room access.');
-            this.actors.delete(ws);
+          if (this.actors.get(ws) !== a || this.draining.has(ws)) return;
+          if (nowFor(a) >= a.authority.expiresAt - 15000) {
+            // Allow the short work barrier to finish before planned renewal.
+            if (nowFor(a) < a.authority.frozenUntil) return;
+            await this.retire(ws, a, true);
             return;
           }
           if (a.motion.pendingCheckpoint) {
@@ -544,47 +598,98 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             operation: 'authority-refresh',
             grant: a.grant,
           });
+          if (this.closed.has(ws) || this.actors.get(ws) !== a) return;
           const refreshed = a.motion.refreshAuthority(authority, nowFor(a));
           if (!refreshed.accepted || refreshed.rebased)
             throw new ServiceFailure(409);
           a.authority = authority;
           updateClock(a, authority);
+          // The browser's lease must not wait for a second network round trip.
+          this.publishAuthority(ws, a);
           a.motion.captureCheckpoint(crypto.randomUUID());
           await this.flush(ws);
-        }),
+        }).finally(() => this.maintaining.delete(ws)),
       );
     }
-    await Promise.all(jobs);
-    const pending = await this.ctx.storage.list<Outbox>({
-      prefix: 'checkpoint:',
-    });
-    for (const [key, value] of pending)
-      if (![...this.actors.values()].some((a) => a.grant === value.grant)) {
-        if (Date.now() > value.expiresAt + 60000) {
-          await this.ctx.storage.delete(key);
-          continue;
-        }
-        try {
-          await this.service({
-            operation: 'movement-checkpoint',
-            grant: value.grant,
-            ...value.checkpoint,
-          });
-          await this.ctx.storage.delete(key);
-          await this.service({
-            operation: 'authority-release',
-            grant: value.grant,
-          });
-        } catch (e) {
-          if (terminal(e)) await this.ctx.storage.delete(key);
-        }
-      }
+    // Do not await network queues in the alarm handler: a slow orphan or one
+    // busy socket must not delay the next tick for every other player. Pending
+    // I/O keeps the Durable Object active; each queue has at most one upkeep
+    // job, and the recovery pass is bounded and never overlaps itself.
+    if (!this.recovery) {
+      this.recovery = this.recoverOrphans()
+        .catch(() =>
+          console.warn(JSON.stringify({ event: 'room-recovery-delayed' })),
+        )
+        .finally(() => {
+          this.recovery = null;
+        });
+      this.ctx.waitUntil(this.recovery);
+    }
     this.broadcast();
     if (
       this.ctx.getWebSockets().length ||
       (await this.ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })).size
     )
       await this.ctx.storage.setAlarm(Date.now() + 1000);
+  }
+  private async recoverOrphans() {
+    const cursor = await this.ctx.storage.get<string>('recovery-cursor');
+    let pending = await this.ctx.storage.list<Outbox>({
+      prefix: 'checkpoint:',
+      limit: RECOVERY_SCAN,
+      ...(cursor ? { startAfter: cursor } : {}),
+    });
+    if (!pending.size && cursor)
+      pending = await this.ctx.storage.list<Outbox>({
+        prefix: 'checkpoint:',
+        limit: RECOVERY_SCAN,
+      });
+    const jobs: Promise<void>[] = [];
+    for (const [key, value] of pending) {
+      await this.ctx.storage.put('recovery-cursor', key);
+      if ([...this.actors.values()].some((a) => a.grant === value.grant))
+        continue;
+      if (Date.now() > value.expiresAt + 60000) {
+        await this.ctx.storage.delete(key);
+        continue;
+      }
+      if ((value.retryAt ?? 0) > Date.now()) continue;
+      jobs.push(this.recoverOrphan(key, value));
+      if (jobs.length === RECOVERY_BATCH) break;
+    }
+    await Promise.all(jobs);
+  }
+  private async recoverOrphan(key: string, value: Outbox) {
+    try {
+      if (!value.reconciled) {
+        try {
+          await this.service({
+            operation: 'movement-checkpoint',
+            grant: value.grant,
+            ...value.checkpoint,
+          });
+        } catch (error) {
+          if (!terminal(error)) throw error;
+        }
+        // Retain a durable release obligation even when checkpoint replay is
+        // terminal or release itself fails after a successful reconciliation.
+        value.reconciled = true;
+        await this.ctx.storage.put(key, value);
+      }
+      try {
+        await this.service({
+          operation: 'authority-release',
+          grant: value.grant,
+        });
+      } catch (error) {
+        if (!terminal(error)) throw error;
+      }
+      await this.ctx.storage.delete(key);
+    } catch {
+      value.attempts = Math.min(6, (value.attempts ?? 0) + 1);
+      value.retryAt = Date.now() + Math.min(30000, 1000 * 2 ** value.attempts);
+      await this.ctx.storage.put(key, value);
+    }
   }
   async webSocketClose(ws: WebSocket) {
     this.closed.add(ws);

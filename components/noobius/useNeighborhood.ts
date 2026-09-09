@@ -48,7 +48,7 @@ export function useNeighborhood(
     retryAt = useRef(0),
     metadataAt = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve()),
-    syncing = useRef(false),
+    syncing = useRef<number | null>(null),
     preferredRealm = useRef<RealmId>('commons');
   const socket = useRef<RoomClient | null>(null),
     peers = useRef<NeighborhoodSnapshot['people']>([]);
@@ -209,14 +209,32 @@ export function useNeighborhood(
           setCanMove(ready);
           setStatus(ready ? 'Connected' : 'Syncing…');
         },
-        onDisconnect: () => {
+        onDisconnect: (reason) => {
           if (version !== epoch.current || socket.current !== room) return;
           socket.current = null;
           peers.current = [];
           publish();
           setCanMove(false);
           setStatus('Reconnecting…');
-          retryAt.current = Date.now() + retryDelay(++failures.current);
+          if (reason === 'renew') {
+            // The coordinator saved and released this grant. Replace it while
+            // the membership is live, without ordinary failure backoff.
+            retryAt.current = 0;
+            void enqueue(async () => {
+              if (!current.current || stopped.current) return false;
+              if (socket.current) return socket.current.ready;
+              try {
+                if (!(await readState(true)) || version !== epoch.current)
+                  return false;
+                return connectRoom();
+              } catch (e) {
+                if (version === epoch.current) failure(e);
+                return false;
+              }
+            });
+          } else {
+            retryAt.current = Date.now() + retryDelay(++failures.current);
+          }
         },
       });
       socket.current = room;
@@ -284,6 +302,7 @@ export function useNeighborhood(
       version = epoch.current;
     try {
       if (socket.current && !(await releaseRoom())) return false;
+      if (version !== epoch.current) return false;
       const first = !current.current;
       let data = await api<NeighborhoodSnapshot>('neighborhood-join', {
         expectedWallet: owner.wallet,
@@ -322,6 +341,7 @@ export function useNeighborhood(
       const version = epoch.current;
       try {
         if (socket.current && !(await releaseRoom())) return false;
+        if (version !== epoch.current) return false;
         const data = await api<NeighborhoodSnapshot>('neighborhood-scene', {
           ...controllerBody(),
           scene,
@@ -372,7 +392,12 @@ export function useNeighborhood(
   const travel = <T>(operation: () => Promise<T>): Promise<T | undefined> => {
     const version = epoch.current;
     const result = queue.current.then(async () => {
-      if (version !== epoch.current || !(await releaseRoom())) return undefined;
+      if (
+        version !== epoch.current ||
+        !(await releaseRoom()) ||
+        version !== epoch.current
+      )
+        return undefined;
       try {
         return await operation();
       } finally {
@@ -404,6 +429,10 @@ export function useNeighborhood(
   };
   useEffect(() => {
     epoch.current++;
+    // A previous wallet's HTTP request may still be pending. Its epoch guards
+    // discard the result; new work must not wait behind that request.
+    queue.current = Promise.resolve();
+    syncing.current = null;
     reset();
     stopped.current = false;
     preferredRealm.current = 'commons';
@@ -428,19 +457,21 @@ export function useNeighborhood(
     const effectEpoch = epoch.current;
     const refresh = async () => {
       if (
-        syncing.current ||
+        effectEpoch !== epoch.current ||
+        syncing.current === effectEpoch ||
         stopped.current ||
         document.hidden ||
         Date.now() < retryAt.current
       )
         return;
-      syncing.current = true;
+      syncing.current = effectEpoch;
       try {
         await enqueue(async () => {
           if (!current.current) return joinNow(preferredRealm.current);
           if (current.current.roomTransport === 'socket') {
             if (!socket.current || Date.now() - metadataAt.current >= 5000)
               await readState(!socket.current);
+            if (effectEpoch !== epoch.current) return false;
             if (current.current?.roomTransport === 'socket')
               return socket.current ? true : connectRoom();
             // A server-side switch can disable transport. Release or wait for
@@ -450,11 +481,15 @@ export function useNeighborhood(
           }
           return true;
         });
-        if (current.current?.roomTransport !== 'socket') await syncNow();
+        if (
+          effectEpoch === epoch.current &&
+          current.current?.roomTransport !== 'socket'
+        )
+          await syncNow();
       } catch (e) {
         if (epoch.current === effectEpoch) failure(e);
       } finally {
-        syncing.current = false;
+        if (syncing.current === effectEpoch) syncing.current = null;
       }
     };
     void refresh();

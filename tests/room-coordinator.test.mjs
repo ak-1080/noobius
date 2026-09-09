@@ -74,8 +74,24 @@ class RoomMotionMock {
   constructor(authority) {
     this.position = { x: authority.membership.x, z: authority.membership.z };
     this.sequence = authority.membership.sequence;
+    this.authority = authority;
+  }
+  move(input) {
+    this.inputSequence = input.inputSequence;
+    this.position = { x: input.x, z: input.z };
+    return { accepted: true, corrected: false, position: this.position };
   }
   captureCheckpoint(id, intent) {
+    assert.equal(
+      this.pendingCheckpoint,
+      null,
+      'Do not replace an uncertain checkpoint',
+    );
+    assert.equal(
+      this.authority.frozenCheckpoint,
+      null,
+      'Refresh a frozen authority before capturing',
+    );
     this.pendingCheckpoint = {
       id,
       baseSequence: this.sequence,
@@ -85,9 +101,14 @@ class RoomMotionMock {
     };
     return this.pendingCheckpoint;
   }
-  applyCheckpointAck(receipt) {
+  applyCheckpointAck(receipt, authority) {
     this.pendingCheckpoint = null;
     this.sequence = receipt.sequence;
+    this.authority = authority;
+    return { accepted: true, rebased: false };
+  }
+  refreshAuthority(authority) {
+    this.authority = authority;
     return { accepted: true, rebased: false };
   }
 }
@@ -100,28 +121,35 @@ const modules = {
   },
   '../../lib/room-motion.ts': { RoomMotion: RoomMotionMock },
 };
-const sandbox = {
-  exports: {},
-  require(id) {
-    if (!(id in modules))
-      throw new Error('Unexpected import in coordinator mock: ' + id);
-    return modules[id];
-  },
-  console,
-  Date,
-  crypto,
-  structuredClone,
-  WebSocket: WebSocketMock,
-  Request,
-  Response,
-  URL,
-  AbortSignal,
-  fetch() {
-    throw new Error('Unexpected network call in coordinator test');
-  },
-};
-vm.runInNewContext(output, sandbox, { filename: sourcePath });
-const NeighborhoodRoom = sandbox.exports.NeighborhoodRoom;
+function roomClass(clock) {
+  class VirtualDate extends Date {
+    static now() {
+      return clock.now;
+    }
+  }
+  const sandbox = {
+    exports: {},
+    require(id) {
+      if (!(id in modules))
+        throw new Error('Unexpected import in coordinator mock: ' + id);
+      return modules[id];
+    },
+    console,
+    Date: VirtualDate,
+    crypto,
+    structuredClone,
+    WebSocket: WebSocketMock,
+    Request,
+    Response,
+    URL,
+    AbortSignal,
+    fetch() {
+      throw new Error('Unexpected network call in coordinator test');
+    },
+  };
+  vm.runInNewContext(output, sandbox, { filename: sourcePath });
+  return sandbox.exports.NeighborhoodRoom;
+}
 
 function deferred() {
   let resolve, reject;
@@ -132,8 +160,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
-function authority(sequence) {
-  const now = Date.now();
+function authority(sequence, now = Date.now()) {
   return {
     player: {
       id: 'same-player',
@@ -161,10 +188,12 @@ function authority(sequence) {
     frozenCheckpoint: null,
   };
 }
-async function fixture() {
-  const values = new Map(),
-    sockets = [],
+async function fixture(options = {}) {
+  const clock = { now: options.now ?? Date.now() };
+  const values = new Map(options.values),
+    sockets = [...(options.sockets ?? [])],
     initialization = [],
+    backgroundJobs = [],
     alarms = [];
   const ctx = {
     storage: {
@@ -177,9 +206,12 @@ async function fixture() {
       async delete(key) {
         return values.delete(key);
       },
-      async list({ prefix = '', limit = Infinity } = {}) {
+      async list({ prefix = '', limit = Infinity, startAfter = '' } = {}) {
         return new Map(
-          [...values].filter(([key]) => key.startsWith(prefix)).slice(0, limit),
+          [...values]
+            .filter(([key]) => key.startsWith(prefix) && key > startAfter)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(0, limit),
         );
       },
       async setAlarm(at) {
@@ -191,6 +223,9 @@ async function fixture() {
       initialization.push(result);
       return result;
     },
+    waitUntil(job) {
+      backgroundJobs.push(job);
+    },
     getWebSockets() {
       return sockets.filter((ws) => ws.readyState !== WebSocketMock.CLOSED);
     },
@@ -198,15 +233,92 @@ async function fixture() {
       sockets.push(ws);
     },
   };
+  const NeighborhoodRoom = roomClass(clock);
+  if (options.service) NeighborhoodRoom.prototype.service = options.service;
   const room = new NeighborhoodRoom(ctx, {});
-  await Promise.all(initialization);
+  const rawAlarm = room.alarm.bind(room);
+  // Most assertions inspect completed work. Keep a separate raw handler for
+  // tests that verify alarms keep dispatching while network jobs are pending.
+  room.alarm = async () => {
+    const start = backgroundJobs.length;
+    await rawAlarm();
+    await Promise.all(backgroundJobs.slice(start));
+  };
+  const initialized = Promise.all(initialization);
+  if (options.waitForInitialization !== false) await initialized;
   const socket = () => {
     const ws = new WebSocketMock();
     sockets.push(ws);
     return ws;
   };
-  return { room, ctx, values, sockets, socket, alarms };
+  return {
+    room,
+    ctx,
+    values,
+    sockets,
+    socket,
+    alarms,
+    clock,
+    initialized,
+    rawAlarm,
+    backgroundJobs,
+  };
 }
+
+function installActor(f, grant, initial = authority(1, f.clock.now)) {
+  const ws = f.socket();
+  ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant });
+  const actor = f.room.actor(grant, ws.attachment.connectionId, initial);
+  f.room.actors.set(ws, actor);
+  return { ws, actor };
+}
+
+function outbox(grant, now, overrides = {}) {
+  return {
+    grant,
+    checkpoint: {
+      id: crypto.randomUUID(),
+      baseSequence: 1,
+      inputSequence: 2,
+      x: 0.5,
+      z: 17,
+      ...overrides,
+    },
+    expiresAt: now + 300_000,
+  };
+}
+
+function savedCheckpoint(body, initial, now) {
+  const next = {
+    ...initial,
+    serverNow: now,
+    authorizedUntil: Math.min(now + 10_000, initial.expiresAt),
+    writerUntil: Math.min(now + 10_000, initial.expiresAt),
+    frozenUntil: body.intent ? now + 3000 : 0,
+    frozenCheckpoint: body.intent ? body.id : null,
+    membership: {
+      ...initial.membership,
+      sequence: body.baseSequence + 1,
+      x: body.x,
+      z: body.z,
+    },
+  };
+  return {
+    checkpoint: {
+      id: body.id,
+      inputSequence: body.inputSequence,
+      sequence: body.baseSequence + 1,
+      x: body.x,
+      z: body.z,
+      committedAt: now,
+      frozenUntil: next.frozenUntil,
+    },
+    authority: next,
+  };
+}
+
+const checkpointCount = (f) =>
+  [...f.values.keys()].filter((key) => key.startsWith('checkpoint:')).length;
 
 test(
   'an older delayed admission cannot evict the latest reconnect',
@@ -346,5 +458,638 @@ test(
       [grant],
       'The orphaned writer lease was left active after successful reconciliation',
     );
+  },
+);
+
+test(
+  'renewal saves the final position and releases before reconnecting',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture();
+    const initial = authority(1, f.clock.now);
+    initial.expiresAt = f.clock.now + 15_000;
+    const { ws, actor } = installActor(f, 'renewing-grant', initial);
+    actor.motion.position = { x: 0.5, z: 17 };
+    actor.motion.inputSequence = 3;
+    const response = deferred(),
+      calls = [],
+      events = [];
+    const originalSend = ws.send.bind(ws);
+    ws.send = (raw) => {
+      events.push(JSON.parse(raw).type);
+      originalSend(raw);
+    };
+    f.room.service = async (body) => {
+      calls.push(body);
+      events.push(body.operation);
+      if (body.operation === 'authority-refresh') return initial;
+      if (body.operation === 'movement-checkpoint') return response.promise;
+      if (body.operation === 'authority-release') return { released: true };
+      throw new Error('Unexpected renewal operation');
+    };
+    const renewal = f.room.alarm();
+    await nextTurn();
+    const captured = calls.find(
+      (body) => body.operation === 'movement-checkpoint',
+    );
+    assert.ok(
+      captured,
+      'Begin saving the final position fifteen seconds before expiry',
+    );
+    assert.deepEqual({ x: captured.x, z: captured.z }, { x: 0.5, z: 17 });
+    assert.equal(captured.inputSequence, 3);
+    assert.equal(
+      events.includes('renew'),
+      false,
+      'Do not reconnect before durable save',
+    );
+
+    await f.room.webSocketMessage(
+      ws,
+      JSON.stringify({
+        type: 'move',
+        connectionId: actor.connectionId,
+        inputSequence: 4,
+        x: 0.6,
+        z: 17,
+      }),
+    );
+    assert.deepEqual(
+      actor.motion.position,
+      { x: 0.5, z: 17 },
+      'Renewal must freeze further movement',
+    );
+    assert.equal(
+      ws.readyState,
+      WebSocketMock.OPEN,
+      'A queued move must not interrupt the final save',
+    );
+    response.resolve(savedCheckpoint(captured, initial, f.clock.now));
+    await renewal;
+    assert.equal(checkpointCount(f), 0);
+    assert.equal(f.room.actors.size, 0);
+    assert.equal(ws.closes.at(-1)?.code, 1012);
+    assert.ok(
+      events.indexOf('authority-release') >
+        events.indexOf('movement-checkpoint'),
+    );
+    assert.ok(events.indexOf('renew') > events.indexOf('authority-release'));
+  },
+);
+
+test(
+  'renewal retains the original uncertain checkpoint after a transient failure',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture();
+    const initial = authority(1, f.clock.now);
+    initial.expiresAt = f.clock.now + 15_000;
+    const { actor } = installActor(f, 'uncertain-renewal', initial);
+    const pending = actor.motion.captureCheckpoint(crypto.randomUUID());
+    const calls = [];
+    f.room.service = async (body) => {
+      calls.push(body);
+      if (body.operation === 'authority-refresh') return initial;
+      if (body.operation === 'movement-checkpoint')
+        throw new TypeError('Response lost');
+      if (body.operation === 'authority-release') return { released: true };
+      throw new Error('Unexpected renewal operation');
+    };
+    await f.room.alarm();
+    const retained = f.values.get('checkpoint:uncertain-renewal');
+    assert.ok(
+      retained,
+      'A transient failure must leave a recoverable outbox record',
+    );
+    assert.deepEqual(retained.checkpoint, pending);
+    assert.equal(
+      calls.some((body) => body.operation === 'authority-release'),
+      false,
+    );
+    assert.ok(
+      calls
+        .filter((body) => body.operation === 'movement-checkpoint')
+        .every((body) => body.id === pending.id),
+      'Retries must keep the same checkpoint identity',
+    );
+  },
+);
+
+test(
+  'renewal clears an expired action freeze before its final checkpoint',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture();
+    const initial = authority(1, f.clock.now);
+    initial.expiresAt = f.clock.now + 15_000;
+    initial.frozenUntil = f.clock.now;
+    initial.frozenCheckpoint = crypto.randomUUID();
+    const { ws } = installActor(f, 'frozen-renewal', initial);
+    const cleared = { ...initial, frozenUntil: 0, frozenCheckpoint: null };
+    const calls = [];
+    f.room.service = async (body) => {
+      calls.push(body);
+      if (body.operation === 'authority-refresh') return cleared;
+      if (body.operation === 'movement-checkpoint')
+        return savedCheckpoint(body, cleared, f.clock.now);
+      if (body.operation === 'authority-release') return { released: true };
+      throw new Error('Unexpected renewal operation');
+    };
+    await f.room.alarm();
+    const operations = calls.map((body) => body.operation);
+    assert.ok(
+      operations.indexOf('authority-refresh') >= 0,
+      'Observe the cleared durable action barrier',
+    );
+    assert.ok(
+      operations.indexOf('movement-checkpoint') >
+        operations.indexOf('authority-refresh'),
+    );
+    assert.equal(
+      operations.filter((op) => op === 'movement-checkpoint').length,
+      1,
+    );
+    assert.equal(operations.at(-1), 'authority-release');
+    assert.ok(ws.sent.some((body) => body.type === 'renew'));
+  },
+);
+
+test(
+  'planned renewal lets a live work freeze finish before releasing its grant',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture();
+    const initial = authority(1, f.clock.now);
+    initial.expiresAt = f.clock.now + 15_000;
+    initial.frozenUntil = f.clock.now + 3000;
+    initial.frozenCheckpoint = crypto.randomUUID();
+    const { ws, actor } = installActor(f, 'working-at-renewal', initial);
+    const calls = [];
+    f.room.service = async (body) => {
+      calls.push(body.operation);
+      const fresh = {
+        ...initial,
+        serverNow: f.clock.now,
+        authorizedUntil: Math.min(initial.expiresAt, f.clock.now + 10_000),
+        writerUntil: Math.min(initial.expiresAt, f.clock.now + 10_000),
+        ...(f.clock.now >= initial.frozenUntil
+          ? { frozenUntil: 0, frozenCheckpoint: null }
+          : {}),
+      };
+      if (body.operation === 'authority-refresh') return fresh;
+      if (body.operation === 'movement-checkpoint')
+        return savedCheckpoint(body, fresh, f.clock.now);
+      if (body.operation === 'authority-release') return { released: true };
+      throw new Error('Unexpected renewal operation');
+    };
+
+    await f.room.alarm();
+    assert.equal(calls.includes('authority-release'), false);
+    assert.equal(calls.includes('movement-checkpoint'), false);
+    assert.equal(
+      ws.sent.some((body) => body.type === 'renew'),
+      false,
+    );
+    assert.equal(ws.readyState, WebSocketMock.OPEN);
+    assert.equal(f.room.actors.get(ws), actor);
+
+    f.clock.now = initial.frozenUntil;
+    await f.room.alarm();
+    assert.deepEqual(calls, [
+      'authority-refresh',
+      'movement-checkpoint',
+      'authority-release',
+    ]);
+    assert.equal(checkpointCount(f), 0);
+    assert.equal(f.room.actors.size, 0);
+    assert.ok(ws.sent.some((body) => body.type === 'renew'));
+    assert.equal(ws.closes.at(-1)?.code, 1012);
+  },
+);
+
+test(
+  'orphan recovery is bounded, concurrent, and fair while actors renew',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture();
+    const { ws, actor } = installActor(f, 'healthy-grant');
+    for (let i = 0; i < 5; i++) {
+      const value = outbox('orphan-' + i, f.clock.now);
+      f.values.set('checkpoint:' + value.grant, value);
+    }
+    const attempted = [],
+      firstBatch = [],
+      releases = [];
+    let active = 0,
+      peak = 0;
+    f.room.service = async (body) => {
+      if (body.grant === actor.grant) {
+        if (body.operation === 'authority-refresh')
+          return {
+            ...actor.authority,
+            serverNow: f.clock.now,
+            authorizedUntil: f.clock.now + 10_000,
+            writerUntil: f.clock.now + 10_000,
+          };
+        if (body.operation === 'movement-checkpoint')
+          return savedCheckpoint(body, actor.authority, f.clock.now);
+      }
+      if (body.operation === 'movement-checkpoint') {
+        attempted.push(body.grant);
+        active++;
+        peak = Math.max(peak, active);
+        if (firstBatch.length < 2) {
+          const gate = deferred();
+          firstBatch.push(gate);
+          await gate.promise;
+        }
+        active--;
+        throw new TypeError('Transient recovery timeout');
+      }
+      if (body.operation === 'authority-release') {
+        releases.push(body.grant);
+        return { released: true };
+      }
+      throw new Error('Unexpected recovery operation');
+    };
+    const firstAlarm = f.room.alarm();
+    await nextTurn();
+    assert.equal(
+      active,
+      2,
+      'Two orphan retries should run together instead of serially',
+    );
+    f.clock.now += 2500;
+    for (const gate of firstBatch) gate.resolve();
+    await firstAlarm;
+    assert.equal(
+      attempted.length,
+      2,
+      'Limit each alarm to two orphan attempts',
+    );
+    assert.equal(peak, 2);
+    assert.equal(
+      checkpointCount(f),
+      5,
+      'Transient failures retain every checkpoint',
+    );
+    assert.equal(releases.length, 0);
+    assert.ok(f.alarms.at(-1) < actor.authority.authorizedUntil);
+
+    for (let i = 0; i < 4 && new Set(attempted).size < 5; i++) {
+      f.clock.now += 1000;
+      const before = attempted.length;
+      await f.room.alarm();
+      assert.ok(
+        attempted.length - before <= 2,
+        'Keep later alarm batches bounded',
+      );
+    }
+    assert.equal(
+      new Set(attempted).size,
+      5,
+      'Earlier transient failures must not starve later orphans',
+    );
+    assert.equal(ws.readyState, WebSocketMock.OPEN);
+    assert.equal(f.room.actors.get(ws), actor);
+    assert.ok(actor.authority.authorizedUntil > f.clock.now);
+  },
+);
+
+test(
+  'slow orphan success does not postpone live renewal or duplicate network jobs',
+  { timeout: 3000 },
+  async () => {
+    const f = await fixture(),
+      base = f.clock.now;
+    const { ws, actor } = installActor(f, 'healthy-during-recovery');
+    const initial = actor.authority,
+      originalDeadline = initial.authorizedUntil;
+    const value = outbox('slow-orphan', base);
+    f.values.set('checkpoint:' + value.grant, value);
+    const orphanSave = deferred(),
+      orphanRelease = deferred();
+    const liveRefresh = deferred(),
+      liveSave = deferred(),
+      calls = [];
+    let refreshStarted, saveStarted, captured, firstAuthorityAt;
+    const originalSend = ws.send.bind(ws);
+    ws.send = (raw) => {
+      if (
+        JSON.parse(raw).type === 'authority' &&
+        firstAuthorityAt === undefined
+      )
+        firstAuthorityAt = f.clock.now;
+      originalSend(raw);
+    };
+    f.room.service = async (body) => {
+      calls.push(body);
+      if (body.grant === value.grant)
+        return body.operation === 'movement-checkpoint'
+          ? orphanSave.promise
+          : orphanRelease.promise;
+      if (body.operation === 'authority-refresh') {
+        refreshStarted = f.clock.now;
+        return liveRefresh.promise;
+      }
+      if (body.operation === 'movement-checkpoint') {
+        saveStarted = f.clock.now;
+        captured = body;
+        return liveSave.promise;
+      }
+      throw new Error('Unexpected operation during slow recovery');
+    };
+    const tick = async (elapsed) => {
+      f.clock.now = base + elapsed;
+      let returned = false;
+      const dispatched = f.rawAlarm().then(() => {
+        returned = true;
+      });
+      await nextTurn();
+      assert.equal(
+        returned,
+        true,
+        'The alarm must return while network work is pending',
+      );
+      await dispatched;
+      assert.equal(f.alarms.at(-1), f.clock.now + 1000);
+    };
+
+    await tick(1000);
+    await tick(2000);
+    await tick(3000);
+    f.clock.now = base + 3400;
+    orphanSave.resolve({});
+    await nextTurn();
+    await tick(4000);
+    await tick(5000);
+    assert.equal(
+      refreshStarted,
+      base + 5000,
+      'Live renewal must start while the orphan release is still waiting',
+    );
+
+    f.clock.now = base + 5800;
+    orphanRelease.resolve({ released: true });
+    await nextTurn();
+    await tick(6000);
+    await tick(7000);
+    f.clock.now = base + 7400;
+    liveRefresh.resolve({
+      ...initial,
+      serverNow: refreshStarted,
+      authorizedUntil: refreshStarted + 10_000,
+      writerUntil: refreshStarted + 10_000,
+    });
+    await nextTurn();
+    assert.ok(
+      firstAuthorityAt !== undefined && firstAuthorityAt <= base + 7500,
+      'Publish refreshed authority before waiting for the movement checkpoint',
+    );
+    await tick(8000);
+    await tick(9000);
+    f.clock.now = base + 9800;
+    liveSave.resolve(savedCheckpoint(captured, actor.authority, saveStarted));
+    await Promise.all(f.backgroundJobs);
+
+    assert.ok(firstAuthorityAt <= base + 7500);
+    assert.ok(
+      firstAuthorityAt < originalDeadline,
+      'Renew the browser deadline before its existing authority expires',
+    );
+    assert.equal(
+      calls.filter(
+        (body) =>
+          body.grant === value.grant &&
+          body.operation === 'movement-checkpoint',
+      ).length,
+      1,
+    );
+    assert.equal(
+      calls.filter(
+        (body) =>
+          body.grant === value.grant && body.operation === 'authority-release',
+      ).length,
+      1,
+    );
+    assert.equal(
+      calls.filter(
+        (body) =>
+          body.grant === actor.grant && body.operation === 'authority-refresh',
+      ).length,
+      1,
+    );
+    assert.equal(
+      calls.filter(
+        (body) =>
+          body.grant === actor.grant &&
+          body.operation === 'movement-checkpoint',
+      ).length,
+      1,
+    );
+    assert.equal(ws.readyState, WebSocketMock.OPEN);
+    assert.equal(checkpointCount(f), 0);
+  },
+);
+
+test(
+  'restart restores live sockets concurrently before unrelated orphan work',
+  { timeout: 3000 },
+  async () => {
+    const now = Date.now(),
+      calls = [],
+      sockets = [],
+      responses = new Map();
+    for (let i = 0; i < 5; i++) {
+      const ws = new WebSocketMock(),
+        grant = 'live-' + i;
+      ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant });
+      sockets.push(ws);
+      responses.set(grant, deferred());
+    }
+    const values = Array.from({ length: 20 }, (_, i) => {
+      const value = outbox('orphan-' + i.toString().padStart(2, '0'), now);
+      return ['checkpoint:' + value.grant, value];
+    });
+    const f = await fixture({
+      now,
+      sockets,
+      values,
+      waitForInitialization: false,
+      service: async (body) => {
+        calls.push(body);
+        if (body.operation === 'authority-refresh' && responses.has(body.grant))
+          return responses.get(body.grant).promise;
+        throw new TypeError('Orphan authority unavailable');
+      },
+    });
+    await nextTurn();
+    assert.deepEqual(
+      calls.map((body) => body.grant).sort((a, b) => a.localeCompare(b)),
+      [...responses.keys()],
+      'All live refreshes must start before unrelated recovery',
+    );
+    for (let i = 0; i < 5; i++) {
+      const initial = authority(1, now);
+      initial.player.id = 'restored-' + i;
+      initial.membership.slot = i + 1;
+      responses.get('live-' + i).resolve(initial);
+    }
+    await f.initialized;
+    assert.equal(f.room.actors.size, 5);
+    assert.ok(
+      sockets.every((ws) => ws.sent.some((body) => body.type === 'rebase')),
+    );
+    assert.equal(
+      calls.filter((body) => body.operation === 'movement-checkpoint').length,
+      0,
+      'Startup defers unrelated recovery until its initialization gate opens',
+    );
+    assert.equal(checkpointCount(f), 20);
+    assert.ok(f.alarms.length > 0, 'Continue orphan recovery in later alarms');
+  },
+);
+
+test(
+  'startup orphan reconciliation releases its writer after saving',
+  { timeout: 3000 },
+  async () => {
+    const now = Date.now(),
+      value = outbox('startup-orphan', now),
+      calls = [];
+    const f = await fixture({
+      now,
+      values: [['checkpoint:' + value.grant, value]],
+      service: async (body) => {
+        calls.push(body.operation);
+        if (body.operation === 'movement-checkpoint') return {};
+        if (body.operation === 'authority-release') return { released: true };
+        throw new Error('Unexpected startup operation');
+      },
+    });
+    assert.deepEqual(
+      calls,
+      [],
+      'Startup must defer orphan network work to its alarm',
+    );
+    await f.room.alarm();
+    assert.deepEqual(calls, ['movement-checkpoint', 'authority-release']);
+    assert.equal(checkpointCount(f), 0);
+  },
+);
+
+test(
+  'restart resolves an attached checkpoint before restoring its socket',
+  { timeout: 3000 },
+  async (t) => {
+    for (const fails of [false, true]) {
+      await t.test(
+        fails
+          ? 'transient response stays recoverable'
+          : 'committed position is restored',
+        async () => {
+          const now = Date.now(),
+            ws = new WebSocketMock(),
+            grant = 'attached-checkpoint';
+          const value = outbox(grant, now),
+            calls = [];
+          ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant });
+          const recovered = savedCheckpoint(
+            value.checkpoint,
+            authority(1, now),
+            now,
+          ).authority;
+          const f = await fixture({
+            now,
+            sockets: [ws],
+            values: [['checkpoint:' + grant, value]],
+            service: async (body) => {
+              calls.push(body);
+              if (body.operation === 'movement-checkpoint') {
+                assert.deepEqual(
+                  { ...body, operation: undefined, grant: undefined },
+                  {
+                    ...value.checkpoint,
+                    operation: undefined,
+                    grant: undefined,
+                  },
+                );
+                if (fails) throw new TypeError('Recovery response lost');
+                return {};
+              }
+              if (body.operation === 'authority-refresh') return recovered;
+              throw new Error(
+                'A surviving attached writer must not be released',
+              );
+            },
+          });
+          if (fails) {
+            assert.deepEqual(
+              calls.map((body) => body.operation),
+              ['movement-checkpoint'],
+            );
+            assert.deepEqual(
+              f.values.get('checkpoint:' + grant).checkpoint,
+              value.checkpoint,
+            );
+            assert.equal(f.room.actors.size, 0);
+            assert.equal(ws.closes.at(-1)?.code, 1012);
+          } else {
+            assert.deepEqual(
+              calls.map((body) => body.operation),
+              ['movement-checkpoint', 'authority-refresh'],
+            );
+            assert.equal(checkpointCount(f), 0);
+            assert.deepEqual(f.room.actors.get(ws).motion.position, {
+              x: value.checkpoint.x,
+              z: value.checkpoint.z,
+            });
+            assert.equal(ws.readyState, WebSocketMock.OPEN);
+            assert.equal(ws.sent.at(-1)?.type, 'rebase');
+          }
+        },
+      );
+    }
+  },
+);
+
+test(
+  'an orphan release failure remains durable without replaying its saved checkpoint',
+  { timeout: 3000 },
+  async () => {
+    const now = Date.now(),
+      value = outbox('release-retry', now),
+      calls = [];
+    let failed = false;
+    const f = await fixture({
+      now,
+      values: [['checkpoint:' + value.grant, value]],
+      service: async (body) => {
+        calls.push(body.operation);
+        if (body.operation === 'movement-checkpoint') return {};
+        if (body.operation === 'authority-release') {
+          if (!failed) {
+            failed = true;
+            throw new TypeError('Release response lost');
+          }
+          return { released: true };
+        }
+        throw new Error('Unexpected recovery operation');
+      },
+    });
+    await f.room.alarm();
+    assert.equal(
+      checkpointCount(f),
+      1,
+      'Retain the release obligation after its transient failure',
+    );
+    f.clock.now += 60_000;
+    await f.room.alarm();
+    assert.deepEqual(calls, [
+      'movement-checkpoint',
+      'authority-release',
+      'authority-release',
+    ]);
+    assert.equal(checkpointCount(f), 0);
   },
 );

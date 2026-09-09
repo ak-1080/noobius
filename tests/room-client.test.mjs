@@ -44,6 +44,7 @@ async function fixture(t) {
       ready: [],
       people: [],
       disconnected: 0,
+      disconnectReasons: [],
     };
   let position = { x: 0, z: 17 },
     now = 1000,
@@ -65,7 +66,10 @@ async function fixture(t) {
     },
     onReady: (ready) => events.ready.push(ready),
     onPeople: (p) => events.people.push(p),
-    onDisconnect: () => events.disconnected++,
+    onDisconnect: (reason) => {
+      events.disconnected++;
+      events.disconnectReasons.push(reason);
+    },
   });
   t.after(() => client.dispose());
   const connecting = client.connect();
@@ -199,6 +203,28 @@ test('authority renewals keep the client live; expired authority stops it', asyn
   f.time(20501);
   assert.equal(f.client.ready, false);
   await assert.rejects(f.client.prepare('facility', {}), /recovering/);
+});
+
+test('planned grant renewal reports its reason once and ignores stale connection frames', async (t) => {
+  const f = await fixture(t);
+  f.frame('renew', { connectionId: 'old-connection' });
+  assert.equal(f.client.ready, true);
+  assert.deepEqual(f.events.disconnectReasons, []);
+
+  f.frame('renew');
+  f.socket.emit('close');
+  f.socket.emit('error');
+  assert.equal(f.client.ready, false);
+  assert.equal(f.socket.closed, true);
+  assert.deepEqual(f.events.disconnectReasons, ['renew']);
+  await assert.rejects(f.client.syncPosition(), /recovering/);
+});
+
+test('unexpected closure reports interruption instead of planned renewal', async (t) => {
+  const f = await fixture(t);
+  f.socket.emit('close');
+  assert.equal(f.client.ready, false);
+  assert.deepEqual(f.events.disconnectReasons, ['interrupted']);
 });
 
 test('rebase invalidates pending work and old connection frames without applying their receipt', async (t) => {

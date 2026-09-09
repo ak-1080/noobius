@@ -24,6 +24,7 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 type Socket = Pick<WebSocket, 'send' | 'close' | 'addEventListener'>;
+type DisconnectReason = 'interrupted' | 'renew';
 type Options = {
   coordinatorOrigin: string;
   ticket: string;
@@ -33,7 +34,7 @@ type Options = {
   onPeople: (people: NeighborhoodSnapshot['people']) => void;
   onCorrection: (point: Point) => void;
   onReady: (ready: boolean) => void;
-  onDisconnect: () => void;
+  onDisconnect: (reason: DisconnectReason) => void;
   createSocket?: (url: string) => Socket;
   now?: () => number;
 };
@@ -275,7 +276,7 @@ export class RoomClient {
         this.settle('released', body);
         return;
       }
-      if (body.type === 'renew') this.stop(true);
+      if (body.type === 'renew') this.stop(true, 'renew');
     } catch {
       this.stop(true);
     }
@@ -369,7 +370,7 @@ export class RoomClient {
   dispose() {
     this.stop(false);
   }
-  private stop(notify: boolean) {
+  private stop(notify: boolean, reason: DisconnectReason = 'interrupted') {
     if (this.ended) return;
     this.ended = true;
     this.connected = false;
@@ -385,6 +386,6 @@ export class RoomClient {
       /* closed */
     }
     this.notify();
-    if (notify) this.options.onDisconnect();
+    if (notify) this.options.onDisconnect(reason);
   }
 }

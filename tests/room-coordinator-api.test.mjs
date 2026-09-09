@@ -361,3 +361,323 @@ test('browser transport survives idle renewal, verifies real work and repeats no
   assert.equal(released.writerActive, false);
   assert.equal(disconnected.length, 0);
 });
+
+// This deliberately waits through a production-length five-minute grant. It
+// tests two clients in one neighborhood, not aggregate deployment capacity.
+test(
+  'full grant renewal preserves a visited scene, final movement and idempotent work',
+  {
+    skip: process.env.NOOBIUS_TEST_LONG_ROOMS !== '1',
+    timeout: 330_000,
+  },
+  async (t) => {
+    const actors = [],
+      browsers = [],
+      sockets = [],
+      failures = [];
+    const timers = { walking: undefined };
+    let stopping = false;
+    t.after(async () => {
+      stopping = true;
+      clearInterval(timers.walking);
+      for (const browser of browsers) browser.dispose();
+      for (const socket of sockets) socket.terminate();
+      for (const actor of actors) {
+        await actor.c.request(
+          'neighborhood-leave',
+          actor.c.body(actor.controller),
+        );
+        await actor.c.request('logout', actor.c.body());
+      }
+    });
+    const room = crypto.randomUUID().replaceAll('-', '');
+    sql(
+      `INSERT INTO neighborhoods(id,realm,preferred_band,created_at) VALUES (${q(room)},'commons',0,${Date.now()})`,
+    );
+    const makeActor = async () => {
+      const c = new Client(),
+        profile = ok(await c.login()).profile;
+      const actor = {
+        c,
+        profile,
+        controller: { clientId: crypto.randomUUID(), generation: 0 },
+        state: null,
+        browser: null,
+        point: { x: 0, z: 17 },
+        accepted: { x: 0, z: 17 },
+        acceptedMoves: 0,
+        connections: [],
+        disconnects: [],
+        renewals: [],
+      };
+      actors.push(actor);
+      actor.state = ok(
+        await c.request(
+          'neighborhood-join',
+          c.body({ ...actor.controller, realm: 'commons', target: room }),
+        ),
+      );
+      actor.controller.generation = actor.state.membership.generation;
+      return actor;
+    };
+    const host = await makeActor(),
+      visitor = await makeActor();
+    const scene = 'home-' + host.profile.id;
+    for (const actor of actors) {
+      actor.state = ok(
+        await actor.c.request(
+          'neighborhood-scene',
+          actor.c.body({ ...actor.controller, scene }),
+        ),
+      );
+      actor.controller.generation = actor.state.membership.generation;
+    }
+    const facility = newFacility(Date.now());
+    facility.inventory = { scrap: 30, copper: 30, silicon: 30 };
+    facility.unlocked = ['commons', 'salvage', 'workshop'];
+    const bench = OBJECTS.find((o) => o.id === 'workbench');
+    const worksite = [
+      { x: bench.x + 2, z: bench.z },
+      { x: bench.x - 2, z: bench.z },
+    ].find((p) => floorClear(facility, false, p.x, p.z));
+    assert.ok(worksite);
+    sql(
+      `UPDATE players SET facility_state=${q(JSON.stringify(facility))},facility_version=${facility.version} WHERE wallet=${q(host.profile.wallet)}; UPDATE crew_presence SET x=${worksite.x},z=${worksite.z},updated_at=${Date.now()},lease_until=${Date.now() + 45000} WHERE wallet=${q(host.profile.wallet)}`,
+    );
+    const identity = (membership) => ({
+      neighborhoodId: membership.neighborhoodId,
+      scene: membership.scene,
+      generation: membership.generation,
+    });
+    for (const actor of actors)
+      actor.identity = identity(actor.state.membership);
+
+    // Model the hook's planned-renewal path using the real browser transport:
+    // read the still-owned membership, request a new ticket, and reconnect.
+    // In particular, never call neighborhood-join or neighborhood-scene here.
+    const connect = async (actor, renewal) => {
+      actor.state = ok(
+        await actor.c.request(
+          'neighborhood-state',
+          actor.c.body(actor.controller),
+        ),
+      );
+      assert.deepEqual(identity(actor.state.membership), actor.identity);
+      assert.equal(
+        actor.state.writerActive,
+        false,
+        'Planned renewal releases its old writer before reconnecting',
+      );
+      if (renewal) {
+        renewal.durable = { ...actor.state.membership };
+        assert.deepEqual(
+          { x: renewal.durable.x, z: renewal.durable.z },
+          renewal.accepted,
+          'The released grant must save its final accepted movement',
+        );
+      }
+      const ticket = ok(
+        await actor.c.request('room-ticket', actor.c.body(actor.controller)),
+      );
+      if (stopping) return;
+      actor.point = {
+        x: actor.state.membership.x,
+        z: actor.state.membership.z,
+      };
+      actor.accepted = { ...actor.point };
+      const browser = new RoomClient({
+        ...ticket,
+        membership: actor.state.membership,
+        createSocket: (url) => {
+          const socket = new WebSocket(url, { origin });
+          sockets.push(socket);
+          socket.on('message', (raw) => {
+            const frame = JSON.parse(String(raw));
+            if (frame.type === 'joined')
+              actor.connections.push({
+                id: frame.connectionId,
+                at: Date.now(),
+              });
+            if (frame.type === 'move-ack' && frame.accepted) {
+              actor.accepted = { ...frame.position };
+              actor.acceptedMoves++;
+            }
+          });
+          return socket;
+        },
+        readPosition: () => actor.point,
+        onMembership: (membership) => {
+          if (actor.browser === browser)
+            actor.state = { ...actor.state, membership };
+        },
+        onCorrection: (point) => {
+          if (actor.browser === browser) actor.point = { ...point };
+        },
+        onPeople: () => {},
+        onReady: () => {},
+        onDisconnect: (reason) => {
+          if (stopping || actor.browser !== browser) return;
+          actor.browser = null;
+          actor.disconnects.push(reason);
+          if (reason !== 'renew') {
+            failures.push(
+              new Error('Unexpected interruption during full grant renewal'),
+            );
+            return;
+          }
+          const renewal = {
+            at: Date.now(),
+            accepted: { ...actor.accepted },
+            membership: { ...actor.state.membership },
+            done: false,
+          };
+          actor.renewals.push(renewal);
+          void connect(actor, renewal)
+            .then(() => {
+              renewal.done = true;
+            })
+            .catch((error) => failures.push(error));
+        },
+      });
+      browsers.push(browser);
+      actor.browser = browser;
+      await browser.connect();
+      assert.equal(browser.ready, true);
+      assert.deepEqual(identity(actor.state.membership), actor.identity);
+      if (renewal) renewal.rejoined = { ...actor.state.membership };
+    };
+    await connect(host);
+    const action = host.c.body({
+      ...host.controller,
+      action: { type: 'craft', id: 'kit', requestId: crypto.randomUUID() },
+    });
+    const lease = await host.browser.prepare('facility', action);
+    const saved = ok(
+      await host.c.request('facility', {
+        ...action,
+        roomCheckpoint: lease.checkpoint,
+      }),
+    );
+    await lease.complete();
+    assert.equal(saved.actionApplied, true);
+    assert.ok(saved.profile.facility.craft);
+    await connect(visitor);
+
+    // Move continuously near the real renewal boundary. Distinct small steps
+    // expose loss of movement newer than the last background D1 checkpoint.
+    let steps = 0;
+    timers.walking = setInterval(() => {
+      if (
+        !visitor.browser?.ready ||
+        visitor.renewals.length ||
+        Date.now() - visitor.connections[0].at < 270_000
+      )
+        return;
+      const point = { x: Number((++steps * 0.01).toFixed(2)), z: 17 };
+      if (!floorClear(facility, false, point.x, point.z)) {
+        failures.push(
+          new Error('The renewal movement fixture left accessible floor'),
+        );
+        clearInterval(timers.walking);
+        return;
+      }
+      visitor.point = point;
+    }, 250);
+    const deadline = Date.now() + 310_000;
+    let diagnosticAt = Date.now();
+    while (!actors.every((actor) => actor.renewals[0]?.done)) {
+      if (failures.length) throw failures[0];
+      assert.ok(
+        Date.now() < deadline,
+        'Both full-length grants must renew within the bounded test window',
+      );
+      if (Date.now() - diagnosticAt >= 60_000) {
+        t.diagnostic(
+          'Waiting for the real five-minute grants; both browser connections remain active.',
+        );
+        diagnosticAt = Date.now();
+      }
+      await sleep(250);
+    }
+    clearInterval(timers.walking);
+    assert.equal(failures.length, 0);
+    assert.ok(
+      visitor.acceptedMoves >= 20,
+      'Exercise movement immediately before the planned renewal',
+    );
+    for (const actor of actors) {
+      assert.deepEqual(actor.disconnects, ['renew']);
+      assert.equal(actor.connections.length, 2);
+      assert.notEqual(actor.connections[0].id, actor.connections[1].id);
+      const renewal = actor.renewals[0];
+      assert.ok(
+        renewal.at - actor.connections[0].at >= 270_000,
+        'Use real five-minute grants, not shortened production configuration',
+      );
+      assert.deepEqual(identity(renewal.membership), actor.identity);
+      assert.deepEqual(identity(renewal.rejoined), actor.identity);
+      assert.deepEqual(
+        { x: renewal.membership.x, z: renewal.membership.z },
+        renewal.accepted,
+      );
+      assert.deepEqual(
+        { x: renewal.rejoined.x, z: renewal.rejoined.z },
+        renewal.accepted,
+      );
+      assert.equal(actor.browser.ready, true);
+    }
+    assert.equal(visitor.state.membership.scene, scene);
+    assert.notEqual(
+      visitor.state.membership.scene,
+      'home-' + visitor.profile.id,
+    );
+
+    const afterRenewal = ok(await host.c.request('profile')).profile;
+    assert.deepEqual(
+      afterRenewal.facility.inventory,
+      saved.profile.facility.inventory,
+      'Renewing room access must not repeat economic work',
+    );
+    assert.equal(
+      afterRenewal.facility.requests.filter(
+        (id) => id === action.action.requestId,
+      ).length,
+      1,
+    );
+    const retry = await host.browser.prepare('facility', action);
+    const repeated = ok(
+      await host.c.request('facility', {
+        ...action,
+        roomCheckpoint: retry.checkpoint,
+      }),
+    );
+    await retry.complete();
+    assert.equal(repeated.actionApplied, false);
+    assert.deepEqual(
+      repeated.profile.facility.inventory,
+      saved.profile.facility.inventory,
+    );
+    assert.deepEqual(
+      repeated.profile.facility.craft,
+      saved.profile.facility.craft,
+    );
+
+    const finalPoint = { ...visitor.accepted };
+    await visitor.browser.release();
+    const released = ok(
+      await visitor.c.request(
+        'neighborhood-state',
+        visitor.c.body(visitor.controller),
+      ),
+    );
+    assert.equal(released.writerActive, false);
+    assert.deepEqual(identity(released.membership), visitor.identity);
+    assert.deepEqual(
+      { x: released.membership.x, z: released.membership.z },
+      finalPoint,
+    );
+    t.diagnostic(
+      'Two real browser clients renewed five-minute grants; visited-scene movement and one idempotent craft were preserved.',
+    );
+  },
+);
