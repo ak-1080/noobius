@@ -45,3 +45,7 @@ TypeScript, scoped lint for the new protocol/routes/tests and the production bui
 ## Next integration
 
 Implement server-validated movement hops in one room coordinator, with separate input and durable checkpoint sequences. Add a fenced service checkpoint operation and block concurrent HTTP movement writers. Reconcile authorized travel and controller changes, require persisted checkpoints before physical work, and reconnect without stale writes. Preserve claim/cancel paths after room loss. Only then wire browser sockets and prove the full path on the owned host, including five occupants, the sixth-player limit, independent clients, restarts and held-token revocation.
+
+## Private release evidence
+
+Site version 41 published successfully on September 9, 2026 at 09:40:33 UTC from `9e354201caf69829567a393616783fd7ee787f3b`. Deployment `appgdep_6aa1298586588191807ea2eede338e49` retains owner-private access and environment revision zero. A post-deployment schema read confirms all three new credential tables. The hosted guest game reopens with 880,287 spendable and 408,240 stored Compute, without collecting or spending, and no error-level browser logs. Runtime room configuration remains absent. These checks confirm this private checkpoint; the hosted coordinator and multiplayer acceptance remain open.
