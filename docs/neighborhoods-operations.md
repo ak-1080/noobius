@@ -1,6 +1,6 @@
 # Neighborhoods operations notes
 
-Updated September 9, 2026. These notes describe the current implementation and the remaining operator work. Version 30 is deployed owner-private; the [implementation checkpoint](neighborhoods-implementation-status.md) records the source and deployment. No hosted recovery drill or public launch is claimed.
+Updated September 9, 2026. These notes describe the current implementation and the remaining operator work. Version 31 is deployed owner-private; the [implementation checkpoint](neighborhoods-implementation-status.md) records the source and deployment. No hosted recovery drill or public launch is claimed.
 
 ## Hosting and identity
 

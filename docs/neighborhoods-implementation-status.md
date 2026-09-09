@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game and Ethereum/EVM + Solana wallet entry were published as **Site version 30** on September 9, 2026 at 05:56 UTC. Source: `78de30b377462467ff604a0af212db8e22ba0b0d`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
+The neighborhood game and Ethereum/EVM + Solana wallet entry were published as **Site version 31** on September 9, 2026 at 06:14 UTC. Source: `b858a5a8b9e561eb31f882dba65b4234c83583f3`, pushed to GitHub `main` and the Sites source branch without rewriting either history. The Site remains owner-private.
 
-Deployment `appgdep_6aa0f50f0ce48191a9759fb9641eed1c` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_72ce5e492f1881919ddcef5f94911eb8`. The hosted database overview now lists all 18 expected game tables. The existing browser guest save reopened with its previous spendable Compute and stored production intact, and the new Jobs/Equipment/Milestones interface rendered on the hosted page. Hosted mouse-wheel zoom out/in and save reopening also passed after the final update. Browser console inspection returned no errors during that smoke check. This is a private playable release, not public multiplayer acceptance.
+Deployment `appgdep_6aa0f949cdc08191a3ce152f4118ba3f` succeeded for saved version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_4cdca5c0bc088191bc9ae2fd654a8275`. The hosted database overview now lists all 18 expected game tables. The existing browser guest save reopened with its previous spendable Compute and stored production intact, and the new Jobs/Equipment/Milestones interface rendered on the hosted page. Hosted mouse-wheel zoom out/in and save reopening also passed after the final update. Browser console inspection returned no errors during that smoke check. This is a private playable release, not public multiplayer acceptance.
 
 ## Implemented
 
@@ -68,3 +68,5 @@ The project board explains the required setup before starting and links to the m
 ## Report-review follow-up
 
 The checkout now includes an explicitly authorized report queue with server-side wallet checks, saved review evidence, bounded pages and atomic dismiss/remove decisions. The console clears cached reports on tab hiding and revalidates on focus; requests time out after 20 seconds. Unit/SQLite tests and real local HTTP tests passed; the unauthenticated browser view displayed the correct access restriction. A real moderator wallet and full authenticated browser acceptance remain unconfigured. Before the additive migration, live bounded reads confirmed both `players` and `player_reports` are empty with no further page. This is a narrow preflight, not a hosted backup/restore rehearsal. See [moderation operations](moderation.md).
+
+Version 31 deployment succeeded at 06:14:46 UTC. A live schema read confirmed all three new review fields, with no report records. Hosted environment revision remains zero: no fixture or real moderator allowlist was enabled. Local state was snapshotted before its additive migration; this does not constitute a hosted recovery drill.
