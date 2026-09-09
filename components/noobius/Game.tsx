@@ -1,4 +1,5 @@
 'use client';
+import { worldWork, workEffectTarget } from '@/lib/world-work';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
 import { partsPlanObjective } from '@/lib/parts-plan';
@@ -513,6 +514,7 @@ export default function NoobiusGame() {
   };
   const act = async (action: Omit<FacilityAction, 'requestId'>) => {
     const originWorld = worldGeneration.current;
+    const effectTarget = workEffectTarget(facility, action);
     if (mode !== 'practice' && !(await neighborhood.syncNow())) return;
     const ok = await game.facilityAction(action);
     if (!ok) return;
@@ -536,23 +538,27 @@ export default function NoobiusGame() {
           ? { ...previous, [profile.wallet]: undefined }
           : previous,
       );
-    const target = action.type.startsWith('outage')
-      ? (incident?.rack ?? 'margo')
-      : action.type.startsWith('compute')
-        ? (facility.workload?.rack ??
-          Object.keys(facility.builds).find((id) => facility.builds[id] > 0) ??
-          'margo')
-        : action.type === 'craft' || action.type === 'collect'
-          ? 'workbench'
-          : action.type === 'utility'
-            ? 'utilities'
-            : action.type === 'claim' || action.type.startsWith('daily')
-              ? 'margo'
-              : action.type === 'bank'
-                ? 'bank'
-                : action.type === 'unlock'
-                  ? 'gate-' + action.id
-                  : (action.id ?? 'margo');
+    const target =
+      effectTarget ??
+      (action.type.startsWith('outage')
+        ? (incident?.rack ?? 'margo')
+        : action.type.startsWith('compute')
+          ? (facility.workload?.rack ??
+            Object.keys(facility.builds).find(
+              (id) => facility.builds[id] > 0,
+            ) ??
+            'margo')
+          : action.type === 'craft' || action.type === 'collect'
+            ? 'workbench'
+            : action.type === 'utility'
+              ? 'utilities'
+              : action.type === 'claim' || action.type.startsWith('daily')
+                ? 'margo'
+                : action.type === 'bank'
+                  ? 'bank'
+                  : action.type === 'unlock'
+                    ? 'gate-' + action.id
+                    : (action.id ?? 'margo'));
     setWorkEvent({ id: target, kind: action.type, revision: Date.now() });
     setCelebration(ok.receipt);
     return ok;
@@ -610,6 +616,17 @@ export default function NoobiusGame() {
       return;
     }
     setSelectedObject(object);
+    if (object.workKey) {
+      const signal = worldWork(facility, Date.now()).find(
+        (w) => w.key === object.workKey,
+      );
+      if (signal) show(signal.panel, object, signal.view);
+      else
+        game.setNotice(
+          'That work has finished or changed. Open Jobs or your center for the latest status.',
+        );
+      return;
+    }
     if (pendingStep.current?.target === object.id) {
       const step = pendingStep.current;
       updatePendingStep(null);
@@ -634,7 +651,10 @@ export default function NoobiusGame() {
       return;
     }
     if (object.kind === 'build') {
-      show('facility', object);
+      const work = worldWork(facility, Date.now()).find(
+        (w) => w.objectId === object.id && w.kind === 'client',
+      );
+      show(work?.panel ?? 'facility', object, work?.view);
       return;
     }
     show((object.panel ?? 'contracts') as Panel);
@@ -805,6 +825,7 @@ export default function NoobiusGame() {
               facility={viewFacility}
               playerName={profile?.name}
               sharedCampus={inCampus}
+              privateWork={room === 'home' && !visit}
               neighbors={neighborhood.snapshot?.neighbors}
               realm={neighborhood.snapshot?.membership.realm}
               cluster={neighborhood.snapshot?.cluster}
@@ -1327,6 +1348,7 @@ export default function NoobiusGame() {
                   }
                   busy={busy}
                   onAction={async (action, body) => {
+                    const originWorld = worldGeneration.current;
                     if (
                       [
                         'project-contribute',
@@ -1338,7 +1360,14 @@ export default function NoobiusGame() {
                       throw new Error(
                         'Your position is syncing. Try again once you arrive.',
                       );
-                    return game.marketAction(action, body);
+                    const saved = await game.marketAction(action, body);
+                    if (saved && originWorld === worldGeneration.current)
+                      setWorkEvent({
+                        id: 'margo',
+                        kind: action,
+                        revision: Date.now(),
+                      });
+                    return saved;
                   }}
                   onWalk={() => {
                     const walk = () => {
@@ -1518,12 +1547,13 @@ export default function NoobiusGame() {
                       ) ?? objective,
                     );
                   }}
-                  onGuide={(object) =>
+                  onGuide={(object, view) =>
                     executeStep({
                       title: object.name,
                       detail: '',
                       cta: '',
                       target: object.id,
+                      view,
                       action:
                         object.kind === 'node'
                           ? { type: 'gather', id: object.id }

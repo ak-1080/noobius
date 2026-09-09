@@ -148,6 +148,8 @@ function facility(v: unknown): v is Facility {
       record(v.craft) &&
       RECIPES.some((r) => r.id === v.craft.recipe) &&
       number(v.craft.readyAt) &&
+      (v.craft.startedAt === undefined ||
+        (number(v.craft.startedAt) && v.craft.startedAt < v.craft.readyAt)) &&
       (v.craft.id === undefined ||
         (typeof v.craft.id === 'string' &&
           /^[a-zA-Z0-9-]{8,80}$/.test(v.craft.id))) &&

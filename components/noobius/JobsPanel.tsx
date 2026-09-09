@@ -84,7 +84,7 @@ type Props = {
     source?: import('@/lib/objectives').PartsRequest['source'],
   ) => void;
   focusJobId?: string;
-  onGuide: (id: string) => void;
+  onGuide: (id: string, jobId: string) => void;
   onBuild: () => void;
   onLocker: () => void;
   onGold: () => void;
@@ -285,9 +285,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     <article
       className={`client-job active-client-job ${ready ? 'is-ready' : ''}`}
     >
-      {props.focusJobId === run.id && (
-        <p className="job-note">Your prepared job · review the setup below.</p>
-      )}
+      {props.focusJobId === run.id && <p className="job-note">Selected job</p>}
       <div className="job-eyebrow">
         <span>
           <Icon size={16} />
@@ -492,7 +490,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
             ) : !atWorksite ? (
               <Button
                 className="primary-action"
-                onClick={() => onGuide(t.target)}
+                onClick={() => onGuide(run.rack ?? t.target, run.id)}
               >
                 Go to the worksite <Navigation size={16} />
               </Button>
@@ -521,7 +519,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
             {t.family !== 'workload' && !canPay(f.inventory, quote.cost) && (
               <Button
                 className="outline-button"
-                onClick={() => onGuide(t.target)}
+                onClick={() => onGuide(run.rack ?? t.target, run.id)}
               >
                 Show worksite
               </Button>
@@ -595,7 +593,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
           ) : t.family === 'service' && !atWorksite ? (
             <Button
               className="primary-action"
-              onClick={() => onGuide(t.target)}
+              onClick={() => onGuide(run.rack ?? t.target, run.id)}
             >
               Return to the worksite <Navigation size={16} />
             </Button>

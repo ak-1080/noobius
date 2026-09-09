@@ -63,6 +63,7 @@ export type NeighborhoodSnapshot = {
     online: boolean;
     progress: number;
     total: number;
+    running?: number;
   } | null;
   world?: SharedWorld;
   corrected?: boolean;

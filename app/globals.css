@@ -8520,3 +8520,41 @@ a {
 .project-history .dispatch-benefit {
   max-width: 42rem;
 }
+
+.world-work-access {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.world-work-access:focus-within {
+  width: min(26rem, calc(100% - 2rem));
+  height: auto;
+  max-height: 50%;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  clip-path: none;
+  white-space: normal;
+  left: 1rem;
+  bottom: 6rem;
+  z-index: 20;
+  background: #10252e;
+  border: 1px solid #b9e88c;
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.world-work-access button {
+  padding: 0.6rem;
+  text-align: left;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+}
+.world-work-access button:focus-visible {
+  outline: 2px solid #b9e88c;
+}

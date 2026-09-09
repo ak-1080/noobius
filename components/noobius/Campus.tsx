@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { avatarBuilder } from './avatarBuilder';
 import { makeMachine } from './machineBuilder';
+import { worldWork } from '@/lib/world-work';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   OBJECTS,
@@ -38,6 +39,7 @@ type Props = {
   realm?: RealmId;
   cluster?: NeighborhoodSnapshot['cluster'];
   sharedCampus?: boolean;
+  privateWork?: boolean;
   correction?: { x: number; z: number; revision: number } | null;
   facility: Facility;
   paused: boolean;
@@ -113,7 +115,7 @@ export default function Campus(props: Props) {
     canvas.tabIndex = 0;
     canvas.setAttribute(
       'aria-label',
-      'Noobius compute campus. Click to walk, click a character or station to interact. WASD to move, E to interact, mouse wheel to zoom, R to rotate.',
+      'Noobius compute campus. Click to walk, click a character or station to interact. WASD to move, E to interact, mouse wheel to zoom, R to rotate. Click work labels to open their jobs.',
     );
     const scene = new T.Scene();
     scene.background = new T.Color('#13222d');
@@ -276,6 +278,16 @@ export default function Campus(props: Props) {
       context.fillText(text, 256, 51, 480);
       sprite.material.map!.needsUpdate = true;
     };
+    // Fixed pool: no textures or meshes are allocated by the animation loop.
+    const workIndicators = Array.from({ length: 12 }, () => {
+      const group = new T.Group();
+      scene.add(group);
+      group.visible = false;
+      const badge = label('', '#e6ad71', 4.4);
+      group.add(badge);
+      clickable.push(badge);
+      return { group, badge, text: '' };
+    });
     const clusterLights: T.MeshStandardMaterial[] = [];
     let clusterLabel: T.Sprite | null = null,
       lastClusterText = '';
@@ -1104,6 +1116,7 @@ export default function Campus(props: Props) {
         e.ctrlKey ||
         e.metaKey ||
         e.altKey ||
+        (e.target as HTMLElement)?.closest('.world-work-access') ||
         (e.target as HTMLElement)?.isContentEditable ||
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(
           (e.target as HTMLElement)?.tagName,
@@ -1214,14 +1227,16 @@ export default function Campus(props: Props) {
       const dt = Math.min((time - last) / 1000 || 0, 0.05);
       last = time;
       const p = live.current,
-        f = p.facility;
+        f = p.facility,
+        now = Date.now(),
+        signals = worldWork(f, now, !!p.privateWork);
       if (clusterLabel) {
         const cluster = p.cluster,
           ratio = cluster ? cluster.progress / Math.max(1, cluster.total) : 0;
         const text = cluster?.online
           ? 'CLUSTER ONLINE · built by your crew'
           : cluster
-            ? `Build progress · ${cluster.progress}/${cluster.total} contributions`
+            ? `${cluster.progress}/${cluster.total} complete${cluster.running ? ` · ${cluster.running} machine${cluster.running === 1 ? '' : 's'} working` : ' · meet Margo'}`
             : 'Meet Margo · build a cluster';
         if (text !== lastClusterText) {
           relabel(clusterLabel, text);
@@ -1229,13 +1244,22 @@ export default function Campus(props: Props) {
         }
         clusterLights.forEach((lamp, index) => {
           const online = (index + 1) / clusterLights.length <= ratio;
-          lamp.color.set(online ? '#b8ee89' : '#28404a');
-          lamp.emissive.set(online ? '#629d43' : '#10242b');
-          lamp.emissiveIntensity = online
-            ? motion.matches
-              ? 0.8
-              : 0.8 + 0.15 * Math.sin(time / 1000 + index)
-            : 0.1;
+          const working =
+            !online &&
+            !!cluster &&
+            (index + 1) / clusterLights.length <=
+              (cluster.progress + (cluster.running ?? 0)) /
+                Math.max(1, cluster.total);
+          lamp.color.set(online ? '#b8ee89' : working ? '#e6ad71' : '#28404a');
+          lamp.emissive.set(
+            online ? '#629d43' : working ? '#a56429' : '#10242b',
+          );
+          lamp.emissiveIntensity =
+            online || working
+              ? motion.matches || p.paused
+                ? 0.8
+                : 0.8 + 0.15 * Math.sin(time / 1000 + index)
+              : 0.1;
         });
       }
       const beforeX = avatar.g.position.x,
@@ -1343,6 +1367,9 @@ export default function Campus(props: Props) {
           'compute-upgrade',
           'tycoon-daily',
           'outage-fix',
+          'contract-claim',
+          'project-claim',
+          'project-contribute',
         ].includes(p.workEvent?.kind ?? '');
       const cheer = cheering
         ? Math.sin(((time - workStarted) / 1100) * Math.PI)
@@ -1350,9 +1377,17 @@ export default function Campus(props: Props) {
       workTool.visible =
         working &&
         !moving &&
-        ['gather', 'craft', 'collect', 'build', 'utility'].includes(
-          p.workEvent?.kind ?? '',
-        );
+        [
+          'gather',
+          'craft',
+          'collect',
+          'build',
+          'utility',
+          'contract-start',
+          'contract-service',
+          'project-inspect',
+          'project-service',
+        ].includes(p.workEvent?.kind ?? '');
       avatar.animateFace(time, motion.matches || p.paused);
       avatar.body.position.y =
         motion.matches || p.paused
@@ -1434,11 +1469,18 @@ export default function Campus(props: Props) {
         'compute-collect',
         'outage-fix',
         'tycoon-daily',
+        'contract-claim',
+        'project-claim',
       ].includes(p.workEvent?.kind ?? '');
       rewardCoins.forEach((coin, i) => {
         const age = (time - workStarted - i * 55) / 1450;
         coin.visible =
-          collecting && !!workAt && age >= 0 && age < 1 && !motion.matches;
+          collecting &&
+          !!workAt &&
+          age >= 0 &&
+          age < 1 &&
+          !motion.matches &&
+          !p.paused;
         if (coin.visible && workAt) {
           const angle = (i * Math.PI * 2) / 7;
           coin.position.set(
@@ -1460,7 +1502,8 @@ export default function Campus(props: Props) {
                 (f.builds[object.id] ?? 0) > 0)) &&
             age >= 0 &&
             age < 1 &&
-            !motion.matches
+            !motion.matches &&
+            !p.paused
               ? Math.sin(age * Math.PI) * 0.12
               : 0;
           g.scale.set(1 + pop * 0.3, 1 + pop, 1 + pop * 0.3);
@@ -1487,16 +1530,21 @@ export default function Campus(props: Props) {
             rotor.rotation[axis] += dt * (zone === 'core' ? 0.35 : 1.5);
       }
       for (const bot of bots) {
-        bot.body.position.y = motion.matches
-          ? 0
-          : Math.sin(time * 0.0016 + bot.phase) * 0.025;
-        bot.arm.rotation.x = motion.matches
-          ? 0
-          : Math.sin(time * 0.002 + bot.phase) * 0.16;
+        bot.body.position.y =
+          motion.matches || p.paused
+            ? 0
+            : Math.sin(time * 0.0016 + bot.phase) * 0.025;
+        bot.arm.rotation.x =
+          motion.matches || p.paused
+            ? 0
+            : Math.sin(time * 0.002 + bot.phase) * 0.16;
       }
       fabricator.position.x =
-        19 + (f.craft && !motion.matches ? Math.sin(time * 0.005) * 0.6 : 0);
-      fabricator.visible = !!f.craft;
+        19 +
+        (f.craft && f.craft.readyAt > now && !motion.matches && !p.paused
+          ? Math.sin(time * 0.005) * 0.6
+          : 0);
+      fabricator.visible = !!p.privateWork && !!f.craft;
       p.onLivePosition(avatar.g.position.x, avatar.g.position.z);
       if (time - lastPosition > 600) {
         p.onPosition(avatar.g.position.x, avatar.g.position.z);
@@ -1575,7 +1623,7 @@ export default function Campus(props: Props) {
                 ? (EMERGENCY_STATIONS.find(
                     (station) => station.object === obj.id,
                   )?.name ?? obj.name)
-                : `${obj.name} · ${level ? `Lv ${level}` : 'Build here'}`,
+                : `${obj.name} · ${level ? `Lv ${level}` : p.privateWork ? 'Build here' : 'Not built'}`,
             );
           }
         }
@@ -1600,6 +1648,43 @@ export default function Campus(props: Props) {
         }
         lastAppearance = appearance;
       }
+      const signalSlots = new Map<string, number>();
+      for (const [i, indicator] of workIndicators.entries()) {
+        const signal = signals[i],
+          object = signal && sceneObjects.find((o) => o.id === signal.objectId);
+        indicator.group.visible =
+          !!object &&
+          f.unlocked.includes(object.zone) &&
+          !p.paused &&
+          targetScale < 16;
+        if (!signal || !object) continue;
+        const slot = signalSlots.get(object.id) ?? 0;
+        signalSlots.set(object.id, slot + 1);
+        const base = labels.get(object.id)?.position.y ?? 2.6;
+        indicator.group.position.set(
+          object.x,
+          base + (machines.has(object.id) ? 0 : 1.05) + slot * 1.05,
+          object.z,
+        );
+        indicator.badge.userData.object = { ...object, workKey: signal.key };
+        const text =
+          (signal.phase === 'ready'
+            ? '✓ '
+            : signal.phase === 'running'
+              ? '◷ '
+              : '→ ') + signal.caption;
+        if (text !== indicator.text) {
+          relabel(indicator.badge, text);
+          indicator.text = text;
+        }
+        indicator.badge.material.color.set(
+          signal.phase === 'ready' ? '#ccf7a5' : '#ffffff',
+        );
+      }
+      for (const [id, machine] of machines) {
+        const work = signals.find((w) => w.objectId === id);
+        machine.setWork(work?.phase ?? null, work?.progress ?? null);
+      }
       for (const obj of sceneObjects) {
         const l = labels.get(obj.id)!;
         l.material.opacity =
@@ -1608,6 +1693,12 @@ export default function Campus(props: Props) {
             : 1;
         l.visible =
           objects.get(obj.id)!.visible &&
+          !(
+            machines.has(obj.id) &&
+            !p.paused &&
+            targetScale < 16 &&
+            signals.some((s) => s.objectId === obj.id)
+          ) &&
           (obj.panel === 'neighbor' ||
             obj.id === p.objectiveId ||
             (Math.hypot(
@@ -1672,12 +1763,16 @@ export default function Campus(props: Props) {
         (g.userData.arms as T.Object3D[]).forEach(
           (arm, i) =>
             (arm.rotation.x =
-              distance > 0.08 ? Math.sin(time * 0.009 + i * Math.PI) * 0.3 : 0),
+              distance > 0.08 && !motion.matches && !p.paused
+                ? Math.sin(time * 0.009 + i * Math.PI) * 0.3
+                : 0),
         );
         (g.userData.feet as T.Object3D[]).forEach(
           (foot, i) =>
             (foot.rotation.x =
-              distance > 0.08 ? Math.sin(time * 0.009 + i * Math.PI) * 0.2 : 0),
+              distance > 0.08 && !motion.matches && !p.paused
+                ? Math.sin(time * 0.009 + i * Math.PI) * 0.2
+                : 0),
         );
         g.position.lerp(
           new T.Vector3(person.x, 0, person.z),
@@ -1751,6 +1846,26 @@ export default function Campus(props: Props) {
   }, []);
   return (
     <div className="room-canvas" ref={mount}>
+      {!!props.privateWork && (
+        <div className="world-work-access" aria-label="Current work">
+          {worldWork(props.facility, Date.now()).map((signal) => {
+            const object = OBJECTS.find((o) => o.id === signal.objectId);
+            return (
+              object && (
+                <button
+                  key={signal.key}
+                  disabled={props.paused}
+                  onClick={() =>
+                    props.onInteract({ ...object, workKey: signal.key })
+                  }
+                >
+                  {object.name}: {signal.caption}
+                </button>
+              )
+            );
+          })}
+        </div>
+      )}
       {failed && (
         <div className="room-fallback">
           <img src="/assets/facility.png" alt="Noobius data center" />

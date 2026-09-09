@@ -384,28 +384,34 @@ async function withShared(
     corrected?: boolean;
   },
 ) {
+  const projectColumns = `id,variant,state,required_json,progress_json,
+    (SELECT count(*) FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending') AS running,
+    (SELECT min(ready_at) FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending') AS next_ready_at`;
   let [world, project] = await Promise.all([
     sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
     db()
       .prepare(
-        "SELECT id,variant,state,required_json,progress_json,EXISTS(SELECT 1 FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending' AND c.ready_at<=?) AS due FROM cluster_projects WHERE neighborhood_id=? ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1",
+        `SELECT ${projectColumns} FROM cluster_projects WHERE neighborhood_id=? ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1`,
       )
-      .bind(Date.now(), snapshot.membership.neighborhoodId)
+      .bind(snapshot.membership.neighborhoodId)
       .first<{
         id: string;
         variant: string;
         state: string;
         required_json: string;
         progress_json: string;
-        due: number;
+        running: number;
+        next_ready_at: number | null;
       }>(),
   ]);
-  if (project?.state === 'open' && project.due) {
+  if (
+    project?.state === 'open' &&
+    project.next_ready_at !== null &&
+    project.next_ready_at <= Date.now()
+  ) {
     await finalizeProjectWork(db(), project.id, Date.now());
     project = await db()
-      .prepare(
-        'SELECT id,variant,state,required_json,progress_json,0 AS due FROM cluster_projects WHERE id=?',
-      )
+      .prepare(`SELECT ${projectColumns} FROM cluster_projects WHERE id=?`)
       .bind(project.id)
       .first<NonNullable<typeof project>>();
   }
@@ -424,6 +430,7 @@ async function withShared(
           online: project.state === 'completed',
           progress: sum(project.progress_json),
           total: sum(project.required_json),
+          running: project.running,
         }
       : null,
   };

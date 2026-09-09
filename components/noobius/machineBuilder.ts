@@ -111,6 +111,20 @@ export function makeMachine({
       0,
     ).castShadow = false;
   }
+  const gauge = new T.Group();
+  roof.add(gauge);
+  gauge.position.set(0, 0.36, 0.74);
+  const track = box(1.4, 0.085, 0.045, dark, gauge);
+  const fill = box(1.34, 0.055, 0.065, sleepy, gauge);
+  track.castShadow = false;
+  fill.castShadow = false;
+  gauge.visible = false;
+  let work: 'waiting' | 'running' | 'ready' | null = null,
+    needsAttention = false;
+  const paint = () =>
+    lamps.forEach((lamp) => {
+      lamp.material = work === 'running' || needsAttention ? sleepy : powered;
+    });
   let level = 0;
   return {
     update(nextLevel: number, needsBonus: boolean) {
@@ -122,10 +136,21 @@ export function makeMachine({
       });
       roof.position.y = 0.16 + level * 0.75;
       crown.visible = level === 3;
-      lamps.forEach((lamp) => {
-        lamp.material = needsBonus ? sleepy : powered;
-      });
+      needsAttention = needsBonus;
+      paint();
       return level ? roof.position.y + (level === 3 ? 0.95 : 0.65) : 0.95;
+    },
+    setWork(
+      phase: 'waiting' | 'running' | 'ready' | null,
+      value: number | null,
+    ) {
+      work = phase;
+      paint();
+      gauge.visible = level > 0 && value !== null && phase !== null;
+      const fraction = Math.min(1, Math.max(0, value ?? 0));
+      fill.scale.x = Math.max(0.001, fraction);
+      fill.position.x = -0.67 + 0.67 * fraction;
+      fill.material = phase === 'ready' ? powered : sleepy;
     },
     animate(dt: number, boost: number) {
       for (let i = 0; i < level; i++)

@@ -102,7 +102,7 @@ type Props = {
   onFollow: () => void;
   onRepair: () => void;
   onHelp: (request: PartsRequest) => void;
-  onGuide: (object: WorldObject) => void;
+  onGuide: (object: WorldObject, view?: GuideView) => void;
   jobTab?: string;
   focusFamily?: ContractFamily;
   focusStyle?: ModuleStyle;
@@ -615,9 +615,13 @@ export default function FacilityPanels({
             },
           })
         }
-        onGuide={(id) => {
+        onGuide={(id, jobId) => {
           const object = OBJECTS.find((o) => o.id === id);
-          if (object) onGuide({ ...object, panel: 'contracts' });
+          if (object)
+            onGuide(
+              { ...object, panel: 'contracts' },
+              { jobsTab: 'board', jobId },
+            );
         }}
       />
     );

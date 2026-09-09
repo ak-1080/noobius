@@ -62,6 +62,7 @@ export type Facility = {
   craft: {
     id?: string;
     recipe: string;
+    startedAt?: number;
     readyAt: number;
     quantity?: number;
   } | null;
@@ -280,6 +281,8 @@ export type WorldObject = {
   amount?: number;
   panel?: string;
   hazard?: number;
+  // UI-only work indicator; economy endpoints never trust this field.
+  workKey?: string;
 };
 export const OBJECTS: WorldObject[] = [
   {
@@ -1291,6 +1294,7 @@ export function applyFacility(
           id: crypto.randomUUID(),
           recipe: recipe.id,
           quantity,
+          startedAt: now,
           readyAt: now + quote.seconds * 1000,
         };
         message = `Making ${quantity} ${recipe.name.toLowerCase()} · ${quote.seconds} seconds`;

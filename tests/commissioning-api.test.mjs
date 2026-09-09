@@ -83,6 +83,10 @@ test('real Worker and D1 commission a cluster with guarded service, finite loan 
       requestId: request,
     }),
   );
+  const activeWorld = ok(
+    await act('neighborhood-sync', { sequence: 1, position: { x: -4, z: 9 } }),
+  );
+  assert.equal(activeWorld.cluster.running, 1);
   let p = ok(await c.request('profile')).profile,
     loan = p.facility.projectReservations[0];
   assert.equal(loan.readyAt - loan.startedAt, 15000);
@@ -170,9 +174,10 @@ test('real Worker and D1 commission a cluster with guarded service, finite loan 
   await waitUntil(loan.readyAt);
   touch();
   const worldAfter = ok(
-    await act('neighborhood-sync', { sequence: 1, position: { x: -4, z: 9 } }),
+    await act('neighborhood-sync', { sequence: 2, position: { x: -4, z: 9 } }),
   );
   assert.equal(worldAfter.cluster.online, true);
+  assert.equal(worldAfter.cluster.running, 0);
   assert.equal(worldAfter.cluster.progress, worldAfter.cluster.total);
   const claims = await Promise.all([
     act('project-claim', { projectId: id }),
