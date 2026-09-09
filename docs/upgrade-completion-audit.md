@@ -1,6 +1,6 @@
 # Neighborhoods completion audit
 
-September 9, 2026. Audited against the full neighborhoods upgrade plan after private Site version 45, with independent read-only gameplay and operations reviews. This is a remaining-work record, not a completion claim.
+September 9, 2026. Audited against the full neighborhoods upgrade plan after private Site version 46, with independent read-only gameplay and operations reviews. This is a remaining-work record, not a completion claim.
 
 ## Evidence against the delivery stages
 
@@ -24,7 +24,7 @@ Local tests cover narrower invariants; they do not pass the broader gates in the
 5. **Finish world previews and fallback navigation.** Show saved facility development at occupied entrances, provide a real GPU destination preview and make a full/unavailable invitation lead to an explicit alternative-neighborhood choice.
 6. **Measure economic sources and sinks by progression.** Existing counters and receipts are not a level-at-event measurement system. Instrument committed outcomes without making telemetry a second economy authority or mistaking player transfers for currency removal.
 
-The GitHub pipeline now verifies clean Linux installs, game/persistence rules, TypeScript, tooling compatibility and production builds. [Run 34346702743](https://github.com/ak-1080/noobius/actions/runs/34346702743) passed on Ubuntu 24.04 with both Node 22 and Node 24 for source `15766861f01d90a968399311faae14b2d1ee05bd`. Both jobs completed all checks and left tracked source unchanged. This first run was manually dispatched; future push/pull-request triggers are configured in the workflow. It does not deploy or access player databases. See [repository checks](github-checks.md).
+The GitHub pipeline now verifies clean Linux installs, game/persistence rules, TypeScript, tooling compatibility and production builds. [Run 34346702743](https://github.com/ak-1080/noobius/actions/runs/34346702743) passed on Ubuntu 24.04 with both Node 22 and Node 24 for source `15766861f01d90a968399311faae14b2d1ee05bd`. Both jobs completed all checks and left tracked source unchanged. The first run was manually dispatched. The later push-triggered [run 34348692471](https://github.com/ak-1080/noobius/actions/runs/34348692471) also passed both Node versions for version 46, including all 314 tests; automatic push execution is now observed. It does not deploy or access player databases. See [repository checks](github-checks.md).
 
 ## External dependencies
 

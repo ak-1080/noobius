@@ -20,3 +20,11 @@ The bounded metadata query returns only the last 20 seconds, at most 20 messages
 - Type checking, production build and focused lint of the new signal/widget/test files pass. Repository-wide lint still has existing unrelated findings; this is not an all-lint-clean claim.
 
 This verifies the bounded feature, not five independent rendered multiplayer clients, real devices or player retention. Hosted coordinator activation and the broader neighborhoods completion gates remain open.
+
+## Private release evidence
+
+Sites version 46 succeeded on September 9, 2026 at 12:02:50 UTC for application source `95447354912b8a31d8d537e6dac3e54bcc4b32ab`. Deployment `appgdep_6aa14adf7c888191b7bbc440da51aca5` retained owner-only access and environment revision 0. The saved archive contains 167 files / 33,556,480 bytes with normalized content hash `sha256:482c5a0d667111f73fba7e0490eb8e93205d8219813f8c621238867c5eb2905e`.
+
+The live `crew_messages` schema now includes `ping` and `signal_scene`. The hosted guest opened the return recap and expanded crew control with 880,287 spendable / 408,240 stored Compute unchanged; no collect or spend action was performed. No browser error entries were returned after the deployment timestamp.
+
+The push-triggered [GitHub run 34348692471](https://github.com/ak-1080/noobius/actions/runs/34348692471) passed independently on Ubuntu with Node 22 and 24. Both jobs passed all 314 game/persistence tests, three tooling checks, type checking and the production build. This verifies the automatic push trigger as well as this release's clean Linux builds. It does not activate the hosted coordinator or replace the human/device/multiplayer acceptance gates.
