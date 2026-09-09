@@ -518,6 +518,16 @@ export function useNeighborhood(
     join,
     enter,
     syncNow,
+    refreshMetadata: () =>
+      enqueue(async () => {
+        const version = epoch.current;
+        try {
+          return await readState();
+        } catch (e) {
+          if (epoch.current === version) failure(e);
+          return false;
+        }
+      }),
     travel,
   };
 }

@@ -8660,3 +8660,156 @@ a {
 .world-work-access button:focus-visible {
   outline: 2px solid #b9e88c;
 }
+/* The crew stays close to the dock; expanding it never takes over the floor. */
+.crew-widget {
+  position: absolute;
+  left: 22px;
+  bottom: 130px;
+  z-index: 20;
+  width: 292px;
+  max-width: calc(100vw - 28px);
+  color: #e6efe6;
+  font-size: 14px;
+  pointer-events: auto;
+}
+.crew-widget-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 14px;
+  margin-left: auto;
+  border: 1px solid #bdec9940;
+  background: #102631f5;
+  border-radius: 14px;
+  min-height: 44px;
+}
+.crew-widget-toggle[data-panel-open] > svg:last-child {
+  transform: rotate(180deg);
+}
+.crew-widget-body {
+  scrollbar-width: thin;
+  scrollbar-color: #426474 transparent;
+  margin-top: 8px;
+  padding: 16px;
+  max-height: min(480px, calc(100dvh - 270px));
+  overflow-y: auto;
+  border-radius: 18px;
+  background: #102631fa;
+  border: 1px solid #bdec9940;
+  box-shadow: 0 10px 32px #03131c70;
+}
+.crew-widget-body p {
+  color: #b6ccd0;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.crew-widget-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.crew-widget-heading button {
+  color: #c1ef8a;
+  text-decoration: underline;
+  min-height: 36px;
+}
+.crew-widget ul {
+  list-style: none;
+  margin: 8px 0 14px;
+  padding: 0;
+}
+.crew-widget li {
+  display: flex;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid #b6ccd018;
+}
+.crew-widget li > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.crew-widget li strong {
+  overflow-wrap: anywhere;
+}
+.crew-widget li small {
+  color: #b6ccd0;
+  font-size: 13px;
+}
+.crew-status-dot {
+  margin-top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #79919a;
+  flex-shrink: 0;
+}
+.crew-status-dot.online {
+  background: #c1ef8a;
+}
+.crew-widget-pings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.crew-widget-pings button {
+  min-height: 40px;
+  height: auto;
+  white-space: normal;
+  padding: 9px 7px;
+  font-size: 14px;
+  justify-content: start;
+}
+.crew-inline-signal {
+  color: #c1ef8a;
+  font-size: 14px;
+}
+.crew-widget-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: #a8d8e9;
+  margin-top: 10px;
+}
+.crew-request-action {
+  width: 100%;
+  margin-top: 10px;
+}
+.crew-signal-notice {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #18382ef5;
+  border: 1px solid #c1ef8a55;
+  text-align: left;
+}
+.crew-signal-notice span {
+  font-size: 13px;
+  color: #c8dac8;
+}
+.crew-signal-notice strong {
+  color: #c1ef8a;
+}
+.crew-widget button:focus-visible {
+  outline: 2px solid #c1ef8a;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .crew-widget {
+    left: 14px;
+    bottom: 136px;
+    width: 268px;
+  }
+  .crew-widget-toggle {
+    padding: 9px 12px;
+  }
+  .crew-widget-body {
+    max-height: calc(100dvh - 295px);
+  }
+}

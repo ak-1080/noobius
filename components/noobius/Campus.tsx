@@ -25,6 +25,8 @@ import {
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
 import { floorClear } from '@/lib/world-navigation';
+import { PING_LABELS } from '@/lib/social';
+import type { VisibleCrewSignal } from '@/lib/crew-signals';
 export type CrewPerson = {
   id: string;
   name: string;
@@ -34,6 +36,9 @@ export type CrewPerson = {
   accessory?: string;
 };
 type Props = {
+  playerId?: string;
+  signalScene?: string;
+  signals?: VisibleCrewSignal[];
   playerName?: string;
   neighbors?: Neighbor[];
   realm?: RealmId;
@@ -895,6 +900,10 @@ export default function Campus(props: Props) {
     const wear = addAccessories(avatar.body);
     you.position.set(0, 2.6, 0);
     avatar.g.add(you);
+    const ownSignal = label('', '#c1ef8a', 3.3);
+    ownSignal.position.y = 3.15;
+    ownSignal.visible = false;
+    avatar.g.add(ownSignal);
     const playerRing = mesh(
       new T.RingGeometry(0.68, 0.74, 40),
       mint,
@@ -1116,7 +1125,9 @@ export default function Campus(props: Props) {
         e.ctrlKey ||
         e.metaKey ||
         e.altKey ||
-        (e.target as HTMLElement)?.closest('.world-work-access') ||
+        (e.target as HTMLElement)?.closest(
+          '.world-work-access, .crew-widget',
+        ) ||
         (e.target as HTMLElement)?.isContentEditable ||
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(
           (e.target as HTMLElement)?.tagName,
@@ -1738,6 +1749,11 @@ export default function Campus(props: Props) {
           const name = label(person.name, '#9bdde0', 2.5);
           name.position.y = 2.3;
           g.add(name);
+          const signal = label('', '#c1ef8a', 3.3);
+          signal.position.y = 3;
+          signal.visible = false;
+          g.add(signal);
+          g.userData.signal = signal;
           scene.add(g);
           g.userData.name = person.name;
           peers.set(person.id, g);
@@ -1800,6 +1816,50 @@ export default function Campus(props: Props) {
           }
           peers.delete(id);
         }
+      const showSignal = (
+        id: string | undefined,
+        g: T.Group,
+        badge: T.Sprite,
+      ) => {
+        const signal = p.signals?.find(
+          (s) =>
+            s.author === id &&
+            s.scene === p.signalScene &&
+            s.expiresAt > Date.now(),
+        );
+        badge.visible = !!signal;
+        if (!signal) {
+          if (g.userData.signaling)
+            (g.userData.arms as T.Object3D[]).forEach((arm) => {
+              arm.rotation.z = 0;
+            });
+          g.userData.signaling = false;
+          return;
+        }
+        if (badge.userData.signalId !== signal.id) {
+          relabel(badge, PING_LABELS[signal.ping]);
+          badge.userData.signalId = signal.id;
+          badge.userData.signalStartedAt = time;
+        }
+        // A small wave; walking/working continues, and reduced motion is static.
+        if (
+          signal.ping === 'wave' &&
+          time - badge.userData.signalStartedAt < 2500 &&
+          !p.paused &&
+          !motion.matches
+        ) {
+          const arm = (g.userData.arms as T.Object3D[])[0];
+          if (arm) arm.rotation.z = -1.4 + Math.sin(time * 0.012) * 0.2;
+          g.userData.signaling = true;
+        } else if (g.userData.signaling) {
+          (g.userData.arms as T.Object3D[]).forEach((arm) => {
+            arm.rotation.z = 0;
+          });
+          g.userData.signaling = false;
+        }
+      };
+      showSignal(p.playerId, avatar.g, ownSignal);
+      for (const [id, g] of peers) showSignal(id, g, g.userData.signal);
       scale = T.MathUtils.lerp(scale, targetScale, Math.min(1, dt * 8));
       const aspect = host.clientWidth / host.clientHeight,
         view = aspect < 1 ? (scale * 0.72) / aspect : scale;

@@ -11,6 +11,8 @@ import type { CraftVariant } from '@/lib/facility';
 import ProjectPanel from './ProjectPanel';
 import ReturnBriefing from './ReturnBriefing';
 import { useReturnBriefing } from './useReturnBriefing';
+import { useCrewSignals } from './useCrewSignals';
+import CrewWidget from './CrewWidget';
 import { careerSuggestions } from '@/lib/job-choices';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
@@ -211,6 +213,33 @@ export default function NoobiusGame() {
   };
   const scene = neighborhood.snapshot?.membership.scene;
   const room = !scene || scene === 'home-' + profile?.id ? 'home' : scene;
+  const [signalRevision, setSignalRevision] = useState(0);
+  const [signalBarrier, setSignalBarrier] = useState<{
+    wallet: string;
+    after: number;
+  } | null>(null);
+  const crewReady =
+    playing &&
+    mode !== 'practice' &&
+    !!profile &&
+    returnWorldReady(
+      false,
+      neighborhood.canMove,
+      neighborhood.snapshot,
+      profile.id,
+    );
+  const signalScope =
+    crewReady &&
+    (signalBarrier?.wallet !== profile?.wallet ||
+      (neighborhood.snapshot?.signals?.requestStartedAt ?? 0) >
+        signalBarrier.after)
+      ? `${profile!.wallet}:${neighborhood.snapshot!.membership.neighborhoodId}:${neighborhood.snapshot!.membership.generation}:${scene}:${signalRevision}`
+      : null;
+  const crewSignals = useCrewSignals(
+    signalScope,
+    neighborhood.snapshot?.signals,
+    now,
+  );
   const [visit, setVisit] = useState<WorldVisit | null>(null);
   const inCampus = room === 'commons';
   const campusFacility = publicCampus();
@@ -853,6 +882,9 @@ export default function NoobiusGame() {
               key={`${profile?.wallet}:${neighborhood.snapshot?.membership.neighborhoodId}:${room}`}
               facility={viewFacility}
               playerName={profile?.name}
+              playerId={profile?.id}
+              signalScene={scene}
+              signals={crewSignals}
               sharedCampus={inCampus}
               privateWork={room === 'home' && !visit}
               neighbors={neighborhood.snapshot?.neighbors}
@@ -1098,6 +1130,34 @@ export default function NoobiusGame() {
                 </button>
               ))}
           </div>
+          {!needsIdentity && !panel && !activeJob && (
+            <CrewWidget
+              key={signalScope ?? profile?.wallet ?? 'guest'}
+              neighbors={
+                neighborhood.snapshot?.neighbors.some(
+                  (n) => n.id === profile?.id,
+                )
+                  ? neighborhood.snapshot.neighbors
+                  : []
+              }
+              self={profile?.id ?? ''}
+              scene={scene ?? ''}
+              signals={crewSignals}
+              ready={crewReady}
+              busy={busy || travelPending.current}
+              guest={mode === 'practice'}
+              now={now}
+              onPing={async (ping) => {
+                const sent = await game.marketAction('message', { ping });
+                if (sent) await neighborhood.refreshMetadata();
+                return sent;
+              }}
+              onCrew={() => show(mode === 'practice' ? 'wallet' : 'world')}
+              onChat={() => show(mode === 'practice' ? 'wallet' : 'social')}
+              onProject={() => show('project')}
+              onTrade={() => show('market')}
+            />
+          )}
           <div className="campus-zoom">
             <button
               aria-label="Zoom in"
@@ -1545,7 +1605,18 @@ export default function NoobiusGame() {
                   position={position}
                   busy={busy}
                   onAction={act}
-                  onMarket={game.marketAction}
+                  onMarket={async (action, body) => {
+                    const result = await game.marketAction(action, body);
+                    if (result && action === 'social-preference') {
+                      setSignalBarrier({
+                        wallet: profile!.wallet,
+                        after: Date.now(),
+                      });
+                      setSignalRevision((n) => n + 1);
+                      void neighborhood.refreshMetadata();
+                    }
+                    return result;
+                  }}
                   onPanel={(p, selected) => show(p, selected)}
                   key={`${panel}:${panelView?.inventoryTab ?? ''}:${panelView?.item ?? ''}:${panelView?.jobsTab ?? ''}`}
                   objective={objective}

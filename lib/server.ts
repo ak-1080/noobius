@@ -13,11 +13,13 @@ import { runtimeControls, pausedAction } from './operations';
 import { canTrade, TRADE_QUALIFICATION } from './market';
 import {
   rememberNeighbors,
+  sendCrewMessage,
+  crewSignalPacket,
   socialSnapshot,
   setSocialPreference,
   reportMessage,
 } from './social-server';
-import { QUICK_PINGS, playerName, noBlockSql } from './social';
+import { playerName, noBlockSql } from './social';
 import {
   localRealmTest,
   realmWriteGuard,
@@ -401,7 +403,7 @@ async function withShared(
   const projectColumns = `id,variant,state,required_json,progress_json,
     (SELECT count(*) FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending') AS running,
     (SELECT min(ready_at) FROM cluster_contributions c WHERE c.project_id=cluster_projects.id AND c.state='pending') AS next_ready_at`;
-  let [world, project] = await Promise.all([
+  const [world, initialProject, signals] = await Promise.all([
     sharedSnapshot(wallet, snapshot.membership.neighborhoodId),
     db()
       .prepare(
@@ -417,7 +419,9 @@ async function withShared(
         running: number;
         next_ready_at: number | null;
       }>(),
+    crewSignalPacket(db(), wallet, snapshot.membership.neighborhoodId),
   ]);
+  let project = initialProject;
   if (
     project?.state === 'open' &&
     project.next_ready_at !== null &&
@@ -447,6 +451,7 @@ async function withShared(
         ? ('socket' as const)
         : ('poll' as const),
     writerActive: !!writer,
+    signals,
     world,
     cluster: project
       ? {
@@ -1310,43 +1315,14 @@ export async function handleGame(request: Request, action: string) {
     });
   }
   if (action === 'message') {
-    const membership = await requireMembership(
+    await sendCrewMessage(
       db(),
       wallet,
       controllerFrom(body),
+      body,
+      Date.now(),
+      permit,
     );
-    if (typeof body.ping === 'string' && Object.hasOwn(QUICK_PINGS, body.ping))
-      body.message = QUICK_PINGS[body.ping as keyof typeof QUICK_PINGS];
-    if (typeof body.message !== 'string')
-      throw new ApiError(400, 'Write a message.');
-    const msg = body.message.trim();
-    if (msg.length < 1 || msg.length > 180 || /[\x00-\x1f]/.test(msg))
-      throw new ApiError(400, 'Use 1–180 characters.');
-    const now = Date.now();
-    const inserted = await db()
-      .prepare(
-        `INSERT INTO crew_messages (id,wallet,message,created_at,neighborhood_id) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?) AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.client_id=? AND c.generation=? AND c.neighborhood_id=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)})`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        wallet,
-        msg,
-        now,
-        membership.neighborhood_id,
-        wallet,
-        now - 5000,
-        wallet,
-        membership.client_id,
-        membership.generation,
-        membership.neighborhood_id,
-        now,
-      )
-      .run();
-    if (inserted.meta.changes !== 1)
-      throw new ApiError(
-        429,
-        'Wait a few seconds before sending another message.',
-      );
     return result({ ...(await responseFor(wallet)), message: 'Message sent.' });
   }
   if (action === 'listing-create') {

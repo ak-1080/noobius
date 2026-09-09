@@ -1,13 +1,102 @@
 import {
   NeighborhoodError,
   requireMembership,
+  type Controller,
 } from './neighborhoods-server.ts';
+import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
 import {
   REPORT_REASONS,
   noBlockSql,
   type SocialSnapshot,
   type RecentNeighbor,
+  QUICK_PINGS,
+  isCrewPing,
+  SIGNAL_LIFETIME_MS,
+  type CrewSignal,
+  type CrewSignalPacket,
 } from './social.ts';
+
+export async function sendCrewMessage(
+  db: D1Database,
+  wallet: string,
+  controller: Controller,
+  body: { ping?: unknown; message?: unknown },
+  now = Date.now(),
+  permit?: RealmPermit,
+) {
+  const membership = await requireMembership(db, wallet, controller, now);
+  if (body.ping !== undefined && !isCrewPing(body.ping))
+    throw new NeighborhoodError(400, 'Choose a crew signal.');
+  const ping = isCrewPing(body.ping) ? body.ping : null;
+  const message = ping ? QUICK_PINGS[ping] : body.message;
+  if (typeof message !== 'string')
+    throw new NeighborhoodError(400, 'Write a message.');
+  const text = message.trim();
+  if (
+    !text.length ||
+    text.length > 180 ||
+    text.split('').some((c) => c.charCodeAt(0) < 32)
+  )
+    throw new NeighborhoodError(400, 'Use 1–180 characters.');
+  const id = crypto.randomUUID();
+  const inserted = await db
+    .prepare(
+      `INSERT INTO crew_messages (id,wallet,message,created_at,neighborhood_id,ping,signal_scene)
+    SELECT ?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM crew_messages WHERE wallet=? AND created_at>?)
+    AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=? AND c.client_id=? AND c.generation=?
+      AND c.neighborhood_id=? AND c.room=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)})`,
+    )
+    .bind(
+      id,
+      wallet,
+      text,
+      now,
+      membership.neighborhood_id,
+      ping,
+      ping ? membership.room : null,
+      wallet,
+      now - 5000,
+      wallet,
+      membership.client_id,
+      membership.generation,
+      membership.neighborhood_id,
+      membership.room,
+      now,
+    )
+    .run();
+  if (inserted.meta.changes !== 1)
+    throw new NeighborhoodError(
+      429,
+      'Wait a few seconds before sending another message.',
+    );
+  return id;
+}
+
+// Piggyback on authenticated room metadata, never on an additional fast chat poll.
+export async function crewSignalPacket(
+  db: D1Database,
+  wallet: string,
+  neighborhood: string,
+  now = Date.now(),
+): Promise<CrewSignalPacket> {
+  const rows = await db
+    .prepare(
+      `SELECT m.id,p.public_id AS author,p.name,m.ping,m.signal_scene AS scene,m.created_at AS createdAt
+    FROM crew_messages m JOIN players p ON p.wallet=m.wallet
+    JOIN players viewer ON viewer.wallet=?
+    WHERE m.neighborhood_id=? AND m.created_at>? AND m.created_at<=? AND m.ping IS NOT NULL
+      AND ${noBlockSql('viewer.wallet', 'p.wallet')}
+      AND NOT EXISTS(SELECT 1 FROM social_preferences mute WHERE mute.wallet=viewer.wallet
+        AND mute.target_wallet=p.wallet AND mute.muted=1)
+    ORDER BY m.created_at DESC,m.id DESC LIMIT 20`,
+    )
+    .bind(wallet, neighborhood, now - SIGNAL_LIFETIME_MS, now)
+    .all<CrewSignal>();
+  return {
+    observedAt: now,
+    items: rows.results.filter((s) => isCrewPing(s.ping) && !!s.scene),
+  };
+}
 export async function rememberNeighbors(
   db: D1Database,
   wallet: string,

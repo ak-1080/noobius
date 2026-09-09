@@ -196,6 +196,8 @@ export const messages = sqliteTable(
       .notNull()
       .references(() => players.wallet),
     text: text('message').notNull(),
+    ping: text('ping'),
+    signalScene: text('signal_scene'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => [

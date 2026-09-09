@@ -73,6 +73,7 @@ export async function api<T = GameData>(
   action: string,
   body?: unknown,
 ): Promise<T> {
+  const requestStartedAt = Date.now();
   let response: Response;
   try {
     response = await fetch('/api/noobius/' + action, {
@@ -104,6 +105,8 @@ export async function api<T = GameData>(
         : 'Something went wrong. Please try again.',
       response.status,
     );
+  if (data.signals && typeof data.signals === 'object')
+    Object.assign(data.signals, { requestStartedAt });
   return data as T;
 }
 export function useNoobius() {

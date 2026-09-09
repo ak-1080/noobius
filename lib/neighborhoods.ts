@@ -1,4 +1,5 @@
 import type { SharedWorld } from './multiplayer';
+import type { CrewSignalPacket } from './social';
 import { careerFor, careerLevel } from './contracts.ts';
 import type { Facility } from './facility.ts';
 
@@ -57,6 +58,7 @@ export type Neighbor = {
   accessory: string;
 };
 export type NeighborhoodSnapshot = {
+  signals?: CrewSignalPacket;
   roomTransport?: 'poll' | 'socket';
   writerActive?: boolean;
   cluster?: {

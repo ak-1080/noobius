@@ -4,6 +4,30 @@ export const QUICK_PINGS = {
   parts: '📦 Anyone have spare parts to trade?',
   thanks: '✨ Thanks for helping!',
 } as const;
+export type CrewPing = keyof typeof QUICK_PINGS;
+export const isCrewPing = (value: unknown): value is CrewPing =>
+  typeof value === 'string' && Object.hasOwn(QUICK_PINGS, value);
+export const SIGNAL_LIFETIME_MS = 20000;
+export const PING_LABELS: Record<CrewPing, string> = {
+  wave: 'Hey, crew!',
+  project: 'Meet at Margo',
+  parts: 'Parts to trade?',
+  thanks: 'Thanks, crew!',
+};
+export type CrewSignal = {
+  id: string;
+  author: string;
+  name: string;
+  ping: CrewPing;
+  scene: string;
+  createdAt: number;
+};
+export type CrewSignalPacket = {
+  observedAt: number;
+  items: CrewSignal[];
+  /** Set by the browser API wrapper, never trusted from the server response. */
+  requestStartedAt?: number;
+};
 export const REPORT_REASONS = [
   'Spam',
   'Harassment',
