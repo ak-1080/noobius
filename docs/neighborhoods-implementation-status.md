@@ -2,9 +2,9 @@
 
 Updated September 9, 2026. Branch: `codex/noobius-neighborhoods`.
 
-The neighborhood game, EVM + Solana wallet entry, guidance and new specialist job choices were published as **Site version 33** on September 9, 2026 at 07:03:40 UTC. Source: `3733c5c5a6274b35b0c99df4702389d6d0221dae`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
+The neighborhood game, wallet entry, specialist dispatch choices and new capacity/batch economy are published as **Site version 34** on September 9, 2026 at 07:31:40 UTC. Source: `b5f8cf4254db09f92cf227dcb4609490b7d5bc38`, pushed to GitHub `main` and the Sites source branch without rewriting history. The Site remains owner-private.
 
-Deployment `appgdep_6aa104bfecb48191bc801b4462071fbc` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_27638e9ba1408191bc0b248b42b7e65d`, with environment revision zero. The nullable dispatch policy migration is present in the live schema. Hosted guest save/Jobs smoke checks passed; authenticated rewards were tested in isolated local SQL/HTTP, not with a live extension. This remains a private playable release, not public multiplayer acceptance.
+Deployment `appgdep_6aa10b514e8881919344260306f72e18` succeeded for version `appgprj_6a9ef8b4a03c8191a7e106551d030528~appgver_2d8e3d3180648191bca5427cc50d8084`, with environment revision zero. Hosted guest smoke checks retained 880,287 spendable and 408,240 stored Compute, showed the new 476/min maximum rate and 3–30 unit machine capacities, and reported no browser error-level messages. Authenticated migration/claims were tested in isolated local SQL/HTTP, not with a live extension. This remains a private playable release, not public multiplayer acceptance.
 
 ## Implemented
 
@@ -108,3 +108,5 @@ The next application revision replaces multiplicative passive output with modest
 Production-version migration preserves old earned and over-cap output, existing wallet/guest balances and pending receipts. Guest migrations persist even without another gameplay action; old accepted jobs retain old one-unit terms. The SQL schema and runtime token/access settings do not change. Pre-batch code is not a safe blind rollback after multi-part crafts begin.
 
 163 default tests, TypeScript, scoped new-logic lint and production build pass. An isolated generated-wallet Worker/D1 HTTP check covers migration/harvest/start/claim races and bulk pickup/full-bag recovery. A temporary browser fixture covers explicit selection and spending, invalid capacity, batch ingredients/time and full-bag instructions; no error-level browser logs were reported. It was removed before the successful production build. These checks do not substitute for independent human, wallet-extension, device or hosted-load acceptance. Detailed rules, numerical scenarios and limits: [batch economy upgrade](batch-economy-upgrade.md).
+
+Version 34 publishing succeeded at 07:31:40 UTC. The source/archive has no temporary QA route or fixture server configuration. No SQL migration or runtime token/access/reviewer setting changed. Existing hosted guest holdings survived the production transition; the updated center rendered all seven machine capacities. The public acceptance gates above remain open.
