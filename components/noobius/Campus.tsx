@@ -1410,28 +1410,38 @@ export default function Campus(props: Props) {
         working && !moving && !motion.matches && p.workEvent?.kind === 'build'
           ? Math.sin(((time - workStarted) / 1100) * Math.PI * 2) * 0.07
           : 0;
-      avatar.body.rotation.z = cheer * Math.sin(time * 0.013) * 0.04;
+      avatar.body.rotation.z =
+        motion.matches || p.paused ? 0 : cheer * Math.sin(time * 0.013) * 0.04;
       for (const [i, arm] of (
         avatar.g.userData.arms as T.Object3D[]
       ).entries()) {
-        arm.rotation.z = (i ? 1 : -1) * cheer * 0.8;
-        arm.rotation.x = moving
-          ? Math.sin(gait + i * Math.PI) * 0.42
-          : cheering
-            ? -cheer * 1.2
-            : workTool.visible && !motion.matches
-              ? -0.55 + Math.sin(time * 0.02) * 0.2
-              : motion.matches || p.paused
-                ? 0
-                : Math.sin(time * 0.0018 + i) * 0.035;
+        arm.rotation.z =
+          motion.matches || p.paused ? 0 : (i ? 1 : -1) * cheer * 0.8;
+        arm.rotation.x =
+          motion.matches || p.paused
+            ? 0
+            : moving
+              ? Math.sin(gait + i * Math.PI) * 0.42
+              : cheering
+                ? -cheer * 1.2
+                : workTool.visible && !motion.matches
+                  ? -0.55 + Math.sin(time * 0.02) * 0.2
+                  : motion.matches || p.paused
+                    ? 0
+                    : Math.sin(time * 0.0018 + i) * 0.035;
       }
       for (const [i, foot] of (
         avatar.g.userData.feet as T.Object3D[]
       ).entries()) {
-        foot.position.z = moving ? Math.sin(gait + i * Math.PI) * 0.16 : 0;
+        foot.position.z =
+          moving && !motion.matches && !p.paused
+            ? Math.sin(gait + i * Math.PI) * 0.16
+            : 0;
         foot.position.y =
           0.12 +
-          (moving ? Math.max(0, Math.sin(gait + i * Math.PI)) * 0.12 : 0);
+          (moving && !motion.matches && !p.paused
+            ? Math.max(0, Math.sin(gait + i * Math.PI)) * 0.12
+            : 0);
       }
       you.visible =
         targetScale < 9 &&

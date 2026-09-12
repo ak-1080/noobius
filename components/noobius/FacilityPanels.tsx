@@ -3,6 +3,7 @@ import { canTrade, TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
 import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
+import type { PersonalGoalsController } from './usePersonalGoals';
 import TycoonBuildPanel from './TycoonBuildPanel';
 import GoalsPanel from './GoalsPanel';
 import JobsPanel from './JobsPanel';
@@ -88,6 +89,7 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   rewards: ['Compute', 'Your game balance.'],
 };
 type Props = {
+  personalGoals?: PersonalGoalsController;
   view?: GuideView;
   panel: ExpansionPanel;
   profile: Profile;
@@ -139,6 +141,7 @@ function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   );
 }
 export default function FacilityPanels({
+  personalGoals,
   view,
   panel,
   profile,
@@ -343,7 +346,11 @@ export default function FacilityPanels({
                       <b>{(where === 'bag' ? f.inventory : f.bank)[id]}</b>
                       <div>
                         <button
-                          disabled={busy}
+                          disabled={
+                            busy ||
+                            (where === 'bank' &&
+                              itemCount(f.inventory) >= 120 + f.storage * 40)
+                          }
                           onClick={() =>
                             action({
                               type: 'bank',
@@ -362,13 +369,25 @@ export default function FacilityPanels({
                           1
                         </button>
                         <button
-                          disabled={busy}
+                          disabled={
+                            busy ||
+                            (where === 'bank' &&
+                              itemCount(f.inventory) >= 120 + f.storage * 40)
+                          }
                           onClick={() =>
                             action({
                               type: 'bank',
                               item: id,
                               quantity: Math.min(
                                 500,
+                                where === 'bank'
+                                  ? Math.max(
+                                      0,
+                                      120 +
+                                        f.storage * 40 -
+                                        itemCount(f.inventory),
+                                    )
+                                  : 500,
                                 (where === 'bag' ? f.inventory : f.bank)[id] ??
                                   0,
                               ),
@@ -377,7 +396,9 @@ export default function FacilityPanels({
                             })
                           }
                         >
-                          {where === 'bag' ? 'Store all' : 'Take all'}
+                          {where === 'bag'
+                            ? 'Store all'
+                            : `Take ${Math.min(500, Math.max(0, 120 + f.storage * 40 - itemCount(f.inventory)), f.bank[id] ?? 0)}`}
                         </button>
                         {id === 'coffee' && where === 'bag' && (
                           <button
@@ -653,6 +674,7 @@ export default function FacilityPanels({
   if (panel === 'contracts')
     return (
       <JobsPanel
+        personalGoals={personalGoals}
         initialTab={view?.jobsTab}
         focusJobId={view?.jobId}
         practice={profile.wallet === 'practice'}
@@ -703,6 +725,16 @@ export default function FacilityPanels({
         onAction={onAction}
         onExpand={() => onPanel('map')}
         onExtra={onExtra}
+        onJobs={(jobId) =>
+          onPlan({
+            title: 'Choose useful work',
+            detail: '',
+            cta: 'Open Jobs',
+            panel: 'contracts',
+            view: { jobsTab: 'board', jobId },
+          })
+        }
+        onProject={onProject}
       />
     );
   if (panel === 'market')

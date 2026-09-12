@@ -36,7 +36,11 @@ import { api } from './useNoobius';
 import type { RealmId } from '@/lib/neighborhoods';
 import { dispatchCount, dispatchGrantCount } from '@/lib/dispatch';
 const styleLabel = (style: string) => style[0].toUpperCase() + style.slice(1);
-const LABELS = { service: 'Service', supply: 'Supply', workload: 'Workload' },
+const LABELS = {
+    service: 'Test & repair',
+    supply: 'Deliver parts',
+    workload: 'Run machines',
+  },
   ICONS = { service: Wrench, supply: Package, workload: Cpu };
 export default function ProjectPanel({
   facility,
@@ -51,6 +55,7 @@ export default function ProjectPanel({
   onParts,
   onResume,
   onOutage,
+  expectedProjectId,
 }: {
   facility: Facility;
   realm: RealmId;
@@ -61,9 +66,10 @@ export default function ProjectPanel({
   onWalk: () => void;
   onJobs: (family: ContractFamily, style?: ModuleStyle) => void;
   atMargo: boolean;
-  onParts: (parts: Bag) => void;
+  onParts: (parts: Bag, projectId: string, label: string) => void;
   onResume: (realm: RealmId, neighborhoodId: string) => void;
   onOutage: () => void;
+  expectedProjectId?: string;
 }) {
   const [data, setData] = useState<ProjectSnapshot | null>(null),
     [error, setError] = useState(''),
@@ -161,8 +167,147 @@ export default function ProjectPanel({
       </p>
       {project?.workVersion === 1 && (
         <p className="job-note">
-          Deliver parts, test the cluster and lend a machine.
+          Bring job reports and parts. Deliver supplies, test the cluster or
+          lend a machine — your crew can work on these in any order.
         </p>
+      )}
+      {expectedProjectId && expectedProjectId !== project?.id && (
+        <p className="job-note">
+          Your crew has moved to another project. Your gathered parts are still
+          yours. Check this project’s requirements before contributing.
+        </p>
+      )}
+      {project && (
+        <div className="project-stage-map" aria-label="Cluster status">
+          {(['Prepare', 'Commission', 'Online'] as const).map(
+            (label, index) => {
+              const stage =
+                project.state === 'completed'
+                  ? 2
+                  : PROJECT_FAMILIES.some(
+                        (family) => project.progress[family] > 0,
+                      ) || (project.pendingWorkload ?? 0) > 0
+                    ? 1
+                    : 0;
+              return (
+                <span
+                  key={label}
+                  className={stage >= index ? 'done' : ''}
+                  aria-current={stage === index ? 'step' : undefined}
+                >
+                  {stage > index ? <Check size={15} /> : index + 1} {label}
+                </span>
+              );
+            },
+          )}
+        </div>
+      )}
+      {(data.history.length > 0 || historyPages.length > 1) && (
+        <div className="project-history">
+          <h4>Your builds</h4>
+          {!data.history.length && (
+            <p>
+              No builds remain on this page. Check the latest rewards and active
+              builds.
+            </p>
+          )}
+          {data.history.map((p) => (
+            <div key={p.id}>
+              <span>
+                <strong>
+                  {PROJECT_VARIANTS.find((v) => v.id === p.variant)?.name}
+                </strong>
+                <small>
+                  {p.units} contribution{p.units === 1 ? '' : 's'} ·{' '}
+                  {p.claimed
+                    ? 'Collected'
+                    : p.state === 'completed'
+                      ? `${p.units * 100} Compute ready`
+                      : 'Your crew is still building'}
+                </small>
+                {!p.claimed && p.benefit && (
+                  <small className="dispatch-benefit">
+                    On collection: +
+                    {dispatchGrantCount(
+                      career,
+                      p.benefit,
+                      p.dispatchUnits ?? 0,
+                    )}{' '}
+                    {p.benefit.family} job choices ·{' '}
+                    {dispatchCount(career, p.benefit.family)}/2 stored now.
+                    {dispatchCount(career, p.benefit.family) >= 2
+                      ? ' Use a choice before collecting to make room. Collecting now forfeits the overflow.'
+                      : ''}
+                  </small>
+                )}
+              </span>
+              {!p.claimed &&
+                p.benefit &&
+                dispatchCount(career, p.benefit.family) > 0 && (
+                  <button
+                    className="text-action"
+                    onClick={() => onJobs(p.benefit!.family)}
+                  >
+                    Use saved choices <ArrowRight size={16} />
+                  </button>
+                )}
+              {p.state === 'open' && p.neighborhoodId !== neighborhoodId && (
+                <Button
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onResume(p.realm, p.neighborhoodId)}
+                >
+                  Resume project
+                </Button>
+              )}
+              {!p.claimed && p.state === 'completed' && (
+                <Button
+                  disabled={disabled}
+                  onClick={() =>
+                    void perform('project-claim', { projectId: p.id })
+                  }
+                >
+                  Collect
+                </Button>
+              )}
+            </div>
+          ))}
+          {(historyPages.length > 1 || data.historyNextCursor) && (
+            <nav aria-label="Project history pages">
+              <Button
+                variant="outline"
+                disabled={
+                  disabled || historyLoading || historyPages.length === 1
+                }
+                onClick={() => setHistoryPages((pages) => pages.slice(0, -1))}
+              >
+                Previous builds
+              </Button>
+              <Button
+                variant="outline"
+                disabled={disabled || historyLoading || !data.historyNextCursor}
+                onClick={() => {
+                  if (data.historyNextCursor)
+                    setHistoryPages((pages) => [
+                      ...pages,
+                      data.historyNextCursor!,
+                    ]);
+                }}
+              >
+                More builds
+              </Button>
+              {historyPages.length > 1 && (
+                <button
+                  className="text-action"
+                  onClick={() => setHistoryPages([null])}
+                >
+                  Latest rewards and active builds
+                </button>
+              )}
+            </nav>
+          )}
+          {historyLoading && <output>Updating your builds…</output>}
+        </div>
       )}
       {(!project || project.state === 'completed') && (
         <div className="project-start-options">
@@ -218,6 +363,7 @@ export default function ProjectPanel({
                 : `${remaining - (project.pendingWorkload ?? 0)} contributions still needed`}
             </strong>
             <Progress
+              aria-label="Cluster contributions completed"
               value={
                 (100 *
                   PROJECT_FAMILIES.reduce(
@@ -329,7 +475,16 @@ export default function ProjectPanel({
                         {family} job
                       </Button>
                     ) : !hasParts ? (
-                      <Button variant="outline" onClick={() => onParts(cost)}>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          onParts(
+                            cost,
+                            project.id,
+                            variant?.name ?? 'the cluster',
+                          )
+                        }
+                      >
                         Find missing parts
                       </Button>
                     ) : !atMargo ? (
@@ -508,6 +663,7 @@ export default function ProjectPanel({
                     · capacity {run.capacity}
                   </p>
                   <Progress
+                    aria-label={`${run.mine ? 'Your' : run.name + '’s'} commissioning progress`}
                     value={Math.min(
                       100,
                       Math.max(
@@ -526,113 +682,6 @@ export default function ProjectPanel({
             is complete. Parts are used when delivered. No time limit.
           </p>
         </>
-      )}
-      {(data.history.length > 0 || historyPages.length > 1) && (
-        <div className="project-history">
-          <h4>Your builds</h4>
-          {!data.history.length && (
-            <p>
-              No builds remain on this page. Check the latest rewards and active
-              builds.
-            </p>
-          )}
-          {data.history.map((p) => (
-            <div key={p.id}>
-              <span>
-                <strong>
-                  {PROJECT_VARIANTS.find((v) => v.id === p.variant)?.name}
-                </strong>
-                <small>
-                  {p.units} contribution{p.units === 1 ? '' : 's'} ·{' '}
-                  {p.claimed
-                    ? 'Collected'
-                    : p.state === 'completed'
-                      ? `${p.units * 100} Compute ready`
-                      : 'Your crew is still building'}
-                </small>
-                {!p.claimed && p.benefit && (
-                  <small className="dispatch-benefit">
-                    On collection: +
-                    {dispatchGrantCount(
-                      career,
-                      p.benefit,
-                      p.dispatchUnits ?? 0,
-                    )}{' '}
-                    {p.benefit.family} job choices ·{' '}
-                    {dispatchCount(career, p.benefit.family)}/2 stored now.
-                    {dispatchCount(career, p.benefit.family) >= 2
-                      ? ' Use a choice before collecting to make room. Collecting now forfeits the overflow.'
-                      : ''}
-                  </small>
-                )}
-              </span>
-              {!p.claimed &&
-                p.benefit &&
-                dispatchCount(career, p.benefit.family) > 0 && (
-                  <button
-                    className="text-action"
-                    onClick={() => onJobs(p.benefit!.family)}
-                  >
-                    Use saved choices <ArrowRight size={16} />
-                  </button>
-                )}
-              {p.state === 'open' && p.neighborhoodId !== neighborhoodId && (
-                <Button
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() => onResume(p.realm, p.neighborhoodId)}
-                >
-                  Resume project
-                </Button>
-              )}
-              {!p.claimed && p.state === 'completed' && (
-                <Button
-                  disabled={disabled}
-                  onClick={() =>
-                    void perform('project-claim', { projectId: p.id })
-                  }
-                >
-                  Collect
-                </Button>
-              )}
-            </div>
-          ))}
-          {(historyPages.length > 1 || data.historyNextCursor) && (
-            <nav aria-label="Project history pages">
-              <Button
-                variant="outline"
-                disabled={
-                  disabled || historyLoading || historyPages.length === 1
-                }
-                onClick={() => setHistoryPages((pages) => pages.slice(0, -1))}
-              >
-                Previous builds
-              </Button>
-              <Button
-                variant="outline"
-                disabled={disabled || historyLoading || !data.historyNextCursor}
-                onClick={() => {
-                  if (data.historyNextCursor)
-                    setHistoryPages((pages) => [
-                      ...pages,
-                      data.historyNextCursor!,
-                    ]);
-                }}
-              >
-                More builds
-              </Button>
-              {historyPages.length > 1 && (
-                <button
-                  className="text-action"
-                  onClick={() => setHistoryPages([null])}
-                >
-                  Latest rewards and active builds
-                </button>
-              )}
-            </nav>
-          )}
-          {historyLoading && <output>Updating your builds…</output>}
-        </div>
       )}
       <button className="text-action" onClick={onOutage}>
         Looking for a quick team repair? <ArrowRight size={16} />

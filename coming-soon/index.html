@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c1b22" />
+    <title>Noobius — Coming soon</title>
+    <meta name="description" content="Someone has to keep the future online. Noobius is coming soon." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/background.js" defer></script>
+  </head>
+  <body class="landing">
+    <div class="title-scene" aria-hidden="true">
+      <picture>
+        <source media="(max-width: 640px)" srcset="/assets/noobius-reel-poster-mobile.jpg" />
+        <img src="/assets/noobius-reel-poster.jpg" alt="" fetchpriority="high" />
+      </picture>
+      <video id="background-video" muted playsinline loop preload="metadata" tabindex="-1"></video>
+      <div class="title-shade"></div>
+    </div>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="Noobius home">noobius<span aria-hidden="true">•</span></a>
+      <nav aria-label="Main navigation"><a href="/story/">The story</a></nav>
+    </header>
+    <main class="title-content">
+      <span class="eyebrow">THE NIGHT SHIFT</span>
+      <h1>noobius<span>.</span></h1>
+      <p>Someone has to keep the future online.</p>
+      <button class="coming-soon" type="button" disabled>Coming soon</button>
+    </main>
+    <button id="motion-toggle" class="motion-toggle" type="button" aria-label="Play background video" title="Play background video" hidden>
+      <svg class="pause-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
+      <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m8 5 11 7-11 7Z" /></svg>
+    </button>
+  </body>
+</html>

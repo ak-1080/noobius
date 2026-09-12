@@ -153,8 +153,9 @@ export function makeMachine({
       fill.material = phase === 'ready' ? powered : sleepy;
     },
     animate(dt: number, boost: number) {
+      const activity = work === 'running' ? 1.5 : work === 'waiting' ? 0.35 : 1;
       for (let i = 0; i < level; i++)
-        fans[i].rotation.z += dt * Math.min(7, 2.5 + boost * 0.85);
+        fans[i].rotation.z += dt * Math.min(9, (2.5 + boost * 0.85) * activity);
     },
   };
 }

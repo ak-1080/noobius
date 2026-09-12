@@ -15,6 +15,7 @@ export default function PracticeReset() {
       const clear = () => {
         // Only this browser's practice save; wallet accounts are stored separately.
         window.localStorage.removeItem(GUEST_SAVE_KEY);
+        window.localStorage.removeItem('noobius-shift-goal-v1:practice');
         if (window.localStorage.getItem(GUEST_SAVE_KEY) !== null)
           throw new Error('Save was not cleared');
       };

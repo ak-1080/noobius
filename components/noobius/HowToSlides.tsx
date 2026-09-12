@@ -6,8 +6,8 @@ const slides = [
   {
     image: '/assets/noobius.jpeg',
     alt: 'Noobius ready for his first shift',
-    title: 'Never wonder what’s next.',
-    text: '“Your next move” shows a path to useful work. Follow it, then click the object to act. Scroll to zoom.',
+    title: 'Find your way around.',
+    text: 'Click the floor to move. Scroll to zoom. “Your next move” shows a glowing path; click the object when you arrive to do the work.',
   },
   {
     image: '/assets/tutorial/tutorial-server.png',
@@ -24,8 +24,8 @@ const slides = [
   {
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'Server rack with green lights',
-    title: 'Pick your kind of work.',
-    text: 'Open Jobs. Repair faults, deliver parts or run a client workload. Earn Compute and reputation, then try a different setup.',
+    title: 'Choose a job. Make it yours.',
+    text: 'Open Jobs: repair, deliver parts, or run a computing job. “Find missing parts” guides you to supplies. Finish, collect your payment, then upgrade or choose another job.',
   },
 ];
 export default function HowToSlides({

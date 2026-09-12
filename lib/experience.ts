@@ -1,9 +1,15 @@
-import { introReady, modules, type Facility } from './facility.ts';
-import { careerFor, contractFor } from './contracts.ts';
+import {
+  canPay,
+  introReady,
+  modules,
+  workloadCapacity,
+  type Facility,
+} from './facility.ts';
+import { careerFor, contractFor, type ModuleStyle } from './contracts.ts';
 import { resolveObjective } from './objectives.ts';
 import type { Objective } from './objectives.ts';
 import { tycoonObjective } from './tycoon.ts';
-import { careerSuggestions } from './job-choices.ts';
+import { careerSuggestions, jobSetup, jobSelection } from './job-choices.ts';
 
 export const BRIEFINGS = [
   {
@@ -37,6 +43,10 @@ export function shiftObjective(
   credits: number,
   now: number,
   connected = false,
+  drafts: Record<
+    string,
+    { style: ModuleStyle; rack: string; quantity?: number }
+  > = {},
 ): Objective {
   if (!f.seen.includes('intro:welcome') || !modules(f))
     return tycoonObjective(f, credits, now);
@@ -56,6 +66,43 @@ export function shiftObjective(
     career.active.find((r) => r.id === career.selected) ?? career.active[0];
   if (current) {
     const template = contractFor(current);
+    if (current.state === 'accepted') {
+      const draft = drafts[current.id];
+      const selection = jobSelection(
+        f,
+        draft?.style ?? 'standard',
+        draft?.rack ?? '',
+        now,
+      );
+      const quote = jobSetup(
+        f,
+        template,
+        selection.style,
+        selection.rack,
+        now,
+        current.quoteVersion === 2 ? (draft?.quantity ?? 1) : 1,
+        current.quoteVersion ?? 1,
+      );
+      if (
+        !selection.styleAvailable ||
+        (template.family === 'workload' &&
+          (!selection.rack ||
+            (current.quoteVersion === 2 &&
+              (draft?.quantity ?? 1) > workloadCapacity(f, selection.rack))))
+      )
+        return wrap({
+          title: `Set up ${template.name}`,
+          detail:
+            'Choose available equipment and a machine that fits your batch. Then prepare only the parts you need.',
+          view: { jobsTab: 'board', jobId: current.id },
+        });
+      if (selection.styleAvailable && !canPay(f.inventory, quote.cost))
+        return {
+          ...resolveObjective(f, credits, now, { items: quote.cost }),
+          chapter: `SUPPLIES FOR ${template.name.toUpperCase()}`,
+          reward: 'Prepare your parts, then return to Jobs',
+        };
+    }
     const ready =
       current.state === 'ready' ||
       (current.readyAt !== null && current.readyAt <= now);
@@ -87,18 +134,12 @@ export function shiftObjective(
           : current.steps * 25,
     });
   }
-  if (!(f.stats.gathered ?? 0))
+  if (!Object.values(career.completed).some((n) => n > 0))
     return wrap({
-      title: 'Find your first spare parts',
-      detail: 'Visit the salvage pile. Click it to recover useful parts.',
-      target: 'scrap-a',
-      panel: undefined,
+      title: 'Pick your first job',
+      detail:
+        'Fix a fault, deliver parts, or run a computing job. Accept one to see exactly what you need.',
+      view: { jobsTab: 'board' },
     });
-  if (!(f.stats.crafted ?? 0))
-    return {
-      ...resolveObjective(f, credits, now, { recipe: 'kit' }),
-      chapter: 'MAKE SOMETHING USEFUL',
-      reward: 'Craft a kit, then choose a client job',
-    };
   return careerSuggestions(f, credits, connected)[0] ?? wrap({});
 }

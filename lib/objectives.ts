@@ -32,6 +32,9 @@ export type GuideView = {
   recipe?: ItemId;
   recipeVariant?: CraftVariant;
   quantity?: number;
+  projectId?: string;
+  projectRealm?: import('./neighborhoods.ts').RealmId;
+  projectNeighborhood?: string;
 };
 export type PartsRequest = {
   boardVariant?: CraftVariant;
@@ -39,7 +42,11 @@ export type PartsRequest = {
   build?: string;
   recipe?: ItemId;
   quantity?: number;
-  source?: { label: string; panel: 'contracts' | 'crafting'; view: GuideView };
+  source?: {
+    label: string;
+    panel: 'contracts' | 'crafting' | 'project';
+    view: GuideView;
+  };
 };
 export type NextStep = {
   title: string;
@@ -387,7 +394,7 @@ export function resolveObjective(
     step = {
       title: 'Make space for your next pickup',
       detail:
-        'Store a stack in your locker. You can take it back whenever you need it.',
+        'Move a stack from your backpack into Storage. You can take it back whenever you need it.',
       cta: 'Store a stack',
       target: 'bank',
       action: {

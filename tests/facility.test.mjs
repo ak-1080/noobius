@@ -389,7 +389,9 @@ test('first shift introduces Margo then guides building without forcing optional
   assert.equal(shiftObjective(f, 0, 0).action.type, 'build');
   assert.throws(() => act(f, 'intro', { id: 'compute' }, 0, 0), /not ready/);
   f.builds = { 'rack-a': 1 };
-  assert.equal(shiftObjective(f, 0, 0).target, 'scrap-a');
+  assert.equal(shiftObjective(f, 0, 0).title, 'Pick your first job');
+  assert.equal(shiftObjective(f, 0, 0).panel, 'contracts');
+  assert.equal(shiftObjective(f, 0, 0).action, undefined);
   f.stats.gathered = 4; f.stats.crafted = 1;
   assert.equal(shiftObjective(f, 20, 0).panel, 'contracts');
   assert.equal(shiftObjective(f, 20, 0).action, undefined);

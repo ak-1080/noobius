@@ -23,7 +23,8 @@ export function nestedPartsPlan(
   request: PartsRequest,
 ): PartsRequest {
   if (
-    parent?.source?.panel !== 'contracts' ||
+    !parent ||
+    !['contracts', 'project'].includes(parent?.source?.panel ?? '') ||
     request.source?.panel !== 'crafting'
   )
     return request;
@@ -56,7 +57,9 @@ export function partsPlanObjective(
       ...step,
       title: `Ready for ${source.label}`,
       detail:
-        'Your supplies are ready. Review your setup and start when you choose.',
+        source.panel === 'project'
+          ? 'Your parts are ready. Return to the project and review what the crew still needs.'
+          : 'Your supplies are ready. Review your setup and start when you choose.',
       cta: 'Return to your work',
       target: source.panel === 'crafting' ? 'workbench' : undefined,
       panel: source.panel,

@@ -71,13 +71,14 @@ export function jobSelection(
   f: Facility,
   chosenStyle: ModuleStyle,
   chosenRack: string,
+  now = Date.now(),
 ) {
   const c = careerFor(f);
   return {
     style: chosenStyle,
     styleAvailable:
       chosenStyle === 'standard' || c.loadout.includes(chosenStyle),
-    rack: availableRacks(f).includes(chosenRack) ? chosenRack : undefined,
+    rack: availableRacks(f, now).includes(chosenRack) ? chosenRack : undefined,
   };
 }
 

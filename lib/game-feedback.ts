@@ -75,7 +75,7 @@ export function facilityReceipt(
     case 'compute-upgrade':
       title =
         action.type === 'compute-upgrade'
-          ? 'Faster machines!'
+          ? 'More passive Compute!'
           : before.builds[action.id!] > 0
             ? 'Machine upgraded!'
             : 'New machine online!';
@@ -87,7 +87,7 @@ export function facilityReceipt(
       break;
     case 'contract-claim':
       title = 'Job complete!';
-      detail = `${reward} · +${result.xp} reputation · A new offer is waiting.`;
+      detail = `${reward} · +${result.xp} reputation · +1 job report · A new offer is waiting.`;
       break;
     case 'module-build':
       title = 'New equipment built!';

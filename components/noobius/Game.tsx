@@ -14,6 +14,9 @@ import { useReturnBriefing } from './useReturnBriefing';
 import { useCrewSignals } from './useCrewSignals';
 import CrewWidget from './CrewWidget';
 import { careerSuggestions } from '@/lib/job-choices';
+import { personalGoalObjective } from '@/lib/personal-goals';
+import { usePersonalGoals } from './usePersonalGoals';
+import PersonalGoals from './PersonalGoals';
 import { useNeighborhood } from './useNeighborhood';
 import { REALMS } from '@/lib/neighborhoods';
 import ComputeIcon from './ComputeIcon';
@@ -143,6 +146,7 @@ export default function NoobiusGame() {
   const [focusStyle, setFocusStyle] = useState<ModuleStyle | undefined>();
   const [focusReason, setFocusReason] = useState<'project' | 'goal'>('project');
   const [panelView, setPanelView] = useState<GuideView>();
+  const [panelNavigation, setPanelNavigation] = useState(0);
   useEffect(() => {
     setFocusFamily(undefined);
     setFocusStyle(undefined);
@@ -364,20 +368,34 @@ export default function NoobiusGame() {
     now,
     partsPlan,
   );
+  const personalGoals = usePersonalGoals(profile?.wallet, facility);
+  const pinnedObjective = personalGoals.goal
+    ? personalGoalObjective(facility, personalGoals.goal)
+    : null;
   const objective =
     partsObjective ??
-    shiftObjective(facility, profile?.credits ?? 0, now, mode === 'wallet');
+    (pinnedObjective &&
+    facility.seen.includes('intro:welcome') &&
+    modules(facility) > 0 &&
+    !facility.career?.active.length
+      ? pinnedObjective
+      : shiftObjective(
+          facility,
+          profile?.credits ?? 0,
+          now,
+          mode === 'wallet',
+          profile ? jobDrafts[profile.wallet] : undefined,
+        ));
   const briefing = nextBriefing(facility);
   const arrivedObject = OBJECTS.find((o) => o.id === arrivedStep?.target);
   const incident = activeIncident(facility, now);
   const storedCompute = storedComputeNow(facility, now);
   const readyDaily = dailyRewardReady(facility, now);
   const returning = returnSummary(facility, now, mode === 'wallet');
-  const returnSuggestion = careerSuggestions(
-    facility,
-    profile?.credits ?? 0,
-    mode === 'wallet',
-  )[0];
+  const returnSuggestion =
+    partsObjective ??
+    pinnedObjective ??
+    careerSuggestions(facility, profile?.credits ?? 0, mode === 'wallet')[0];
   useEffect(() => {
     // A receipt stays readable for as long as its menu is open.
     if (!celebration || panel || activeJob) return;
@@ -494,6 +512,7 @@ export default function NoobiusGame() {
     setGuideCommand({ id: '', revision: Date.now() });
   };
   const openPanel = (p: Panel, selected?: WorldObject, view?: GuideView) => {
+    setPanelNavigation((revision) => revision + 1);
     setArrivedStep(null);
     if (pendingStep.current) stopFollowing();
     game.setError('');
@@ -623,6 +642,18 @@ export default function NoobiusGame() {
   };
   const executeStep = (step: NextStep) => {
     if (busy) return;
+    if (
+      step.panel === 'project' &&
+      step.view?.projectRealm &&
+      step.view.projectNeighborhood
+    ) {
+      void joinRealm(
+        step.view.projectRealm,
+        step.view.projectNeighborhood,
+        () => runGuidance(step),
+      );
+      return;
+    }
     if (room !== 'home') {
       void goWorld('home', () => runGuidance(step));
       return;
@@ -990,6 +1021,14 @@ export default function NoobiusGame() {
           )}
           <div className="home-guidance">
             <div className="objective-coach-wrap">
+              {room === 'home' && personalGoals.goal && (
+                <PersonalGoals
+                  compact
+                  controller={personalGoals}
+                  facility={facility}
+                  onPlan={executeStep}
+                />
+              )}
               {room === 'home' && partsObjective && partsPlan && (
                 <div className="parts-plan-strip">
                   <span>
@@ -1361,9 +1400,7 @@ export default function NoobiusGame() {
                   busy={busy}
                   suggestion={returnSuggestion}
                   onReview={(work) => show(work.panel, undefined, work.view)}
-                  onSuggest={(suggestion) =>
-                    show(suggestion.panel as Panel, undefined, suggestion.view)
-                  }
+                  onSuggest={executeStep}
                   onCollect={() => {
                     if (room !== 'home') {
                       show('compute');
@@ -1419,6 +1456,7 @@ export default function NoobiusGame() {
               )}
               {panel === 'project' && (
                 <ProjectPanel
+                  expectedProjectId={panelView?.projectId}
                   facility={facility}
                   realm={neighborhood.snapshot?.membership.realm ?? 'commons'}
                   connected={!!neighborhood.snapshot}
@@ -1440,6 +1478,18 @@ export default function NoobiusGame() {
                         'Your position is syncing. Try again once you arrive.',
                       );
                     const saved = await game.marketAction(action, body);
+                    if (
+                      saved &&
+                      profile &&
+                      partsPlan?.source?.panel === 'project' &&
+                      partsPlan.source.view.projectId === body.projectId &&
+                      (action === 'project-contribute' ||
+                        (action === 'project-service' && body.step === 'test'))
+                    )
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: undefined,
+                      }));
                     if (saved && originWorld === worldGeneration.current)
                       setWorkEvent({
                         id: 'margo',
@@ -1459,13 +1509,29 @@ export default function NoobiusGame() {
                   atMargo={
                     inCampus && Math.hypot(position.x + 4, position.z - 9) <= 4
                   }
-                  onParts={(items) =>
+                  onParts={(items, projectId, label) => {
+                    if (!profile || !neighborhood.snapshot) return;
+                    const plan: PartsRequest = {
+                      items,
+                      source: {
+                        label,
+                        panel: 'project',
+                        view: {
+                          projectId,
+                          projectRealm: neighborhood.snapshot.membership.realm,
+                          projectNeighborhood:
+                            neighborhood.snapshot.membership.neighborhoodId,
+                        },
+                      },
+                    };
+                    setPartsPlans((previous) => ({
+                      ...previous,
+                      [profile.wallet]: plan,
+                    }));
                     executeStep(
-                      resolveObjective(facility, profile?.credits ?? 0, now, {
-                        items,
-                      }),
-                    )
-                  }
+                      partsPlanObjective(facility, profile.credits, now, plan)!,
+                    );
+                  }}
                   onResume={(realm, id) => {
                     void joinRealm(realm, id, () => show('project'));
                   }}
@@ -1546,6 +1612,7 @@ export default function NoobiusGame() {
               )}
               {profile?.facility && panel && panel in PANEL_COPY && (
                 <FacilityPanels
+                  personalGoals={personalGoals}
                   view={panelView}
                   focusReason={focusReason}
                   onPlan={executeStep}
@@ -1562,8 +1629,11 @@ export default function NoobiusGame() {
                   drafts={jobDrafts[profile.wallet] ?? {}}
                   craftDraft={craftDrafts[profile.wallet]}
                   craftPurpose={
-                    partsObjective && partsPlan?.source?.panel === 'contracts'
-                      ? partsPlan.source.label
+                    partsObjective &&
+                    ['contracts', 'project'].includes(
+                      partsPlan?.source?.panel ?? '',
+                    )
+                      ? partsPlan?.source?.label
                       : undefined
                   }
                   onCraftDraft={(draft) => {
@@ -1618,7 +1688,7 @@ export default function NoobiusGame() {
                     return result;
                   }}
                   onPanel={(p, selected) => show(p, selected)}
-                  key={`${panel}:${panelView?.inventoryTab ?? ''}:${panelView?.item ?? ''}:${panelView?.jobsTab ?? ''}`}
+                  key={`${panelNavigation}:${panel}:${panelView?.inventoryTab ?? ''}:${panelView?.item ?? ''}:${panelView?.jobsTab ?? ''}`}
                   objective={objective}
                   jobTab="story"
                   onFollow={followObjective}
