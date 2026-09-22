@@ -8,6 +8,7 @@ export class Client {
   }
   async request(action, body, extra = {}) {
     const r = await fetch(base + '/api/noobius/' + action, {
+      signal: AbortSignal.timeout(20000),
       method: body === undefined ? 'GET' : 'POST',
       headers: {
         Origin: base,

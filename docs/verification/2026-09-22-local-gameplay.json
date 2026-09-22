@@ -1,0 +1,18 @@
+{
+  "origin": "http://127.0.0.1:3003",
+  "beganAt": "2026-09-22T23:30:46.729Z",
+  "checks": [
+    "Three independent players earned repair rewards; replayed claims paid once and new jobs appeared",
+    "Visitor sees the center but cannot read private inventory or harvest its income",
+    "Competing item buyers settle once; seller payment, buyer debit and inventories balance",
+    "Dropped socket recovers and fresh signed logins retain earned balances and traded items"
+  ],
+  "actors": 3,
+  "ok": true,
+  "cleanupFailures": [],
+  "elapsedMs": 37659,
+  "completedAt": "2026-09-22T23:31:24.388Z",
+  "runtimeSourceCommit": "4626f764701547a6cfc687c6cafa096a801a8fbd",
+  "harnessSha256": "514f4ce0fbd58fdfe1f721859b4b895abb56a7a78ab89c6ec5a83f4315117383",
+  "scope": "Isolated local Worker, SQLite D1 and Durable Object coordinator; generated unfunded Solana keys; no rendered UI or real-token transactions."
+}
