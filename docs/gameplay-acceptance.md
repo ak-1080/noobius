@@ -19,10 +19,13 @@ Only these exact origins are allowed:
 
 ```sh
 NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 npm run smoke:gameplay
+NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 NOOBIUS_TEST_RESTART_ROOM=1 npm run smoke:gameplay
 NOOBIUS_TEST_ORIGIN=https://play.noobius.io npm run smoke:gameplay
 ```
 
 The local run requires the economy service on port 3003, room coordinator on port 3004, all canonical migrations in an isolated D1 directory, and matching **fresh local-only** room-auth keys/origins. The September 22 run used ignored configuration under `.wrangler/mixed-gameplay-qa/`; never copy production keys into local test configuration. The game runs in Vite development mode so localhost room origins are permitted; the coordinator uses `LOCAL_ROOM_DEVELOPMENT=true`. Do not point these services at the normal player's local database.
+
+For the restart variant, start only the game service on port 3003. Leave port 3004 free: the harness owns a separate local coordinator there and deliberately kills and restarts it after all three players complete the first repair step. It then checks each socket reported interruption, reconnects through fresh room tickets, and verifies the unfinished job, inventory, Compute, and last confirmed worksite position before continuing. The same run then checks the rewards, visit privacy, competing purchase, and fresh login. Restart mode is refused for the hosted origin. The coordinator writes its log to `/tmp/noobius-local-room-restart.log` and uses the ignored QA state directory.
 
 The hosted run first checks database health and does not create accounts if that fails. It still creates three real profiles and a briefly visible ordinary item listing; run only with owner authorization and available quotas. Do not run during the known D1 quota outage. The item purchase uses in-game Compute, not $NOOBIUS or SOL.
 
@@ -31,3 +34,5 @@ The report is written to `/tmp/noobius-gameplay-acceptance.json`. Console output
 ## Evidence and limits
 
 The local September 22 run passed using the real Worker/D1/room processes and current production game logic. See the committed report in `verification/2026-09-22-local-gameplay.json`. This extends coverage beyond movement-only testing but does **not** prove the hosted path, physical phones, rendered browser concurrency, real wallet extensions, mainnet settlement, sustained capacity or uncoached retention. Those remain separate launch gates.
+
+The local restart variant also passed on September 22. Its evidence is `verification/2026-09-22-local-room-restart.json`. This checks a complete local coordinator process restart during three ordinary unfinished repairs, not a Cloudflare deployment/restart or a database outage.

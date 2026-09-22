@@ -1,0 +1,20 @@
+{
+  "origin": "http://127.0.0.1:3003",
+  "beganAt": "2026-09-22T23:42:45.986Z",
+  "completedAt": "2026-09-22T23:43:23.751Z",
+  "elapsedMs": 37765,
+  "actors": 3,
+  "ok": true,
+  "cleanupFailures": [],
+  "checks": [
+    "All three unfinished repairs survived a room-server crash and restart",
+    "Three independent players earned repair rewards; replayed claims paid once and new jobs appeared",
+    "Visitor sees the center but cannot read private inventory or harvest its income",
+    "Competing item buyers settle once; seller payment, buyer debit and inventories balance",
+    "Dropped socket recovers and fresh signed logins retain earned balances and traded items"
+  ],
+  "runtimeSourceCommit": "df4460de0e8b83619dc07c7473e65e7133a068c4",
+  "harnessSHA256": "3901036f1810401bf77c015e9ff1802b92924b8c1346e9e9902da72fb36dd1e2",
+  "restartHelperSHA256": "bab8dddd59ad8fabee964e43d66f19f1c6c6f6f2a83b1ffe4282e0b17d4ef1fd",
+  "scope": "Isolated local Worker/D1/coordinator processes with ordinary generated players, game APIs, and actual RoomClient sockets. No rendered UI, hosted process restart, physical phone, wallet extension, or token transfer."
+}

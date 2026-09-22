@@ -18,6 +18,12 @@ if (!hosted && origin !== 'http://127.0.0.1:3003')
 const roomsOrigin = hosted
   ? 'https://rooms.noobius.io'
   : 'http://127.0.0.1:3004';
+const restartRoom = process.env.NOOBIUS_TEST_RESTART_ROOM === '1';
+if (restartRoom && hosted)
+  throw Error('A room process may only be restarted in isolated local QA');
+const roomManager = restartRoom
+  ? await import('./local-room-restart.mjs').then((m) => m.localRoomRestart())
+  : null;
 const { Client } = await import('../tests/api-client.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ok = (r) => {
@@ -230,6 +236,7 @@ async function work(p) {
           ? serviceChallenge(run).answer
           : 'Test';
     ok(await p.field('contract-service', { id: offer.id, direction }));
+    if (step === 0) await p.midRepair?.();
   }
   const run = p.profile.facility.career.active.find((r) => r.id === offer.id);
   const before = p.profile.credits;
@@ -260,6 +267,65 @@ try {
   for (let i = 0; i < 3; i++) {
     const p = await actor(i + 1, target);
     target = p.membership.neighborhoodId;
+  }
+  if (roomManager) {
+    let arrived = 0;
+    let release;
+    let interruptedError;
+    const gate = new Promise((resolve) => (release = resolve));
+    for (const p of actors) {
+      p.midRepair = async () => {
+        arrived++;
+        if (arrived === actors.length) {
+          try {
+            const before = actors.map((member) => ({
+              credits: member.profile.credits,
+              active: member.profile.facility.career.active,
+              inventory: member.profile.facility.inventory,
+              point: { ...member.point },
+            }));
+            await roomManager.restart();
+            for (let i = 0; i < actors.length; i++) {
+              const member = actors[i];
+              for (
+                let attempt = 0;
+                attempt < 20 && !member.reconnect;
+                attempt++
+              )
+                await sleep(100);
+              assert.ok(member.reconnect, 'Crash disconnected room player');
+              await member.connect();
+              await member.refresh();
+              assert.equal(member.profile.credits, before[i].credits);
+              assert.deepEqual(
+                member.profile.facility.career.active,
+                before[i].active,
+              );
+              assert.deepEqual(
+                member.profile.facility.inventory,
+                before[i].inventory,
+              );
+              assert.ok(
+                Math.hypot(
+                  member.point.x - before[i].point.x,
+                  member.point.z - before[i].point.z,
+                ) <= 0.5,
+                'Last confirmed worksite position survived restart',
+              );
+            }
+            pass(
+              'All three unfinished repairs survived a room-server crash and restart',
+            );
+          } catch (error) {
+            interruptedError = error;
+          } finally {
+            release();
+          }
+        }
+        await gate;
+        if (interruptedError) throw interruptedError;
+      };
+    }
   }
   const workResults = await Promise.allSettled(actors.map(work));
   const failedWork = workResults.filter((r) => r.status === 'rejected');
@@ -377,6 +443,7 @@ try {
   }
   report.elapsedMs = Date.now() - began;
   report.completedAt = new Date().toISOString();
+  await roomManager?.close();
   writeFileSync(
     '/tmp/noobius-gameplay-acceptance.json',
     JSON.stringify(report, null, 2),
