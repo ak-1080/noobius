@@ -245,7 +245,7 @@ async function fixture(options = {}) {
   const events = [];
   const NeighborhoodRoom = roomClass(clock, events, options.fetch);
   if (options.service) NeighborhoodRoom.prototype.service = options.service;
-  const room = new NeighborhoodRoom(ctx, {});
+  const room = new NeighborhoodRoom(ctx, options.env ?? {});
   const rawAlarm = room.alarm.bind(room);
   // Most assertions inspect completed work. Keep a separate raw handler for
   // tests that verify alarms keep dispatching while network jobs are pending.
@@ -1209,7 +1209,7 @@ test('storage failure never reports a retry as durably scheduled', async () => {
       throw new Error('provider failed');
     },
   });
-  const put = f.ctx.storage.put;
+  const put = f.ctx.storage.put.bind(f.ctx.storage);
   f.ctx.storage.put = async (key, value) => {
     if (value?.retryAt) throw new Error('storage private data');
     return put(key, value);
@@ -1280,7 +1280,7 @@ test('recovery storage failures keep the batch gate until pending siblings settl
         return {};
       },
     });
-    const put = f.ctx.storage.put;
+    const put = f.ctx.storage.put.bind(f.ctx.storage);
     f.ctx.storage.put = async (key, value) => {
       if (
         !failed &&
@@ -1362,4 +1362,30 @@ test('room service classifies only proven transport failures and redacts provide
     for (const secret of [marker, value.grant, value.checkpoint.id])
       assert.equal(JSON.stringify(f.events).includes(secret), false);
   }
+});
+
+test('production service binding carries signed requests without public-network fallback', async () => {
+  const requests = [];
+  const binding = {
+    async fetch(url, init) {
+      assert.equal(this, binding);
+      requests.push({ url, init });
+      return Response.json({ ok: true });
+    },
+  };
+  const f = await fixture({ env: { GAME: binding } });
+  assert.deepEqual(await f.room.service({ action: 'authority-refresh' }), {
+    ok: true,
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, config.audience + '/api/noobius-room');
+  assert.equal(requests[0].init.redirect, 'manual');
+  assert.equal(requests[0].init.method, 'POST');
+  binding.fetch = async () => {
+    throw new Error('Binding unavailable');
+  };
+  await assert.rejects(
+    f.room.service({ action: 'authority-refresh' }),
+    /unavailable/,
+  );
 });

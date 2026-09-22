@@ -1,3 +1,4 @@
+import { ComputeMarketError } from '@/lib/compute-market';
 import { NeighborhoodError } from '@/lib/neighborhoods-server';
 import { RoomAuthError } from '@/lib/room-auth';
 import { FacilityError } from '@/lib/facility';
@@ -12,6 +13,7 @@ async function respond(
   } catch (error) {
     if (
       error instanceof ApiError ||
+      error instanceof ComputeMarketError ||
       error instanceof NeighborhoodError ||
       error instanceof RoomAuthError
     )

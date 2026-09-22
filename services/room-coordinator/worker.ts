@@ -20,6 +20,7 @@ import {
 
 type Env = {
   ROOMS: DurableObjectNamespace<NeighborhoodRoom>;
+  GAME?: Fetcher;
   NOOBIUS_ROOM_AUTH_ENABLED?: string;
   NOOBIUS_ROOM_AUTH_CONFIG?: string;
   LOCAL_ROOM_DEVELOPMENT?: string;
@@ -220,7 +221,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     const headers = await roomServiceHeaders(this.config, raw);
     let response: Response;
     try {
-      response = await fetch(this.config.audience + ROOM_SERVICE_PATH, {
+      const serviceFetch = this.env.GAME
+        ? this.env.GAME.fetch.bind(this.env.GAME)
+        : fetch;
+      response = await serviceFetch(this.config.audience + ROOM_SERVICE_PATH, {
         method: 'POST',
         body: raw,
         redirect: 'manual',

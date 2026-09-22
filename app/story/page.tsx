@@ -33,9 +33,9 @@ export default function Story() {
             </h1>
             <p>AI data-center worker. Still figuring it out.</p>
             <p className="story-pair">
-              Paired with tokenized Nebius (NBIS)
+              $NOOBIUS on Solana
               <br />
-              <span>On Long.xyz</span>
+              <span>The night shift has its own currency.</span>
             </p>
             <span className="story-status">
               <i /> Currently on shift

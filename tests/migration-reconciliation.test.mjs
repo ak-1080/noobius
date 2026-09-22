@@ -234,6 +234,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0009_bouncy_lilith',
       '0010_red_piledriver',
       '0011_curly_chameleon',
+      '0012_military_invisible_woman',
     ],
   );
   assert.ok(
@@ -655,4 +656,42 @@ test('checkpoint migration preserves existing saves and retires old writers with
     sqlite.prepare('SELECT count(*) AS n FROM room_checkpoints').get().n,
     0,
   );
+});
+
+void test('Compute payment migration leaves player balances, saves and sessions intact', (t) => {
+  const sqlite = database(
+    t,
+    journal.filter((entry) => entry.idx < 12),
+  );
+  sqlite
+    .prepare(
+      'INSERT INTO players(wallet,name,credits,facility_state,created_at) VALUES (?,?,?,?,?)',
+    )
+    .run(
+      solana,
+      'Existing operator',
+      54321,
+      '{"version":14,"inventory":{"scrap":20}}',
+      1000,
+    );
+  sqlite
+    .prepare('INSERT INTO sessions VALUES (?,?,?)')
+    .run('saved-session', solana, 9000000);
+  const playersBefore = sqlite.prepare('SELECT * FROM players').all();
+  const sessionsBefore = sqlite.prepare('SELECT * FROM sessions').all();
+  sqlite.exec(migration('0012_military_invisible_woman'));
+  assert.deepEqual(
+    sqlite.prepare('SELECT * FROM players').all(),
+    playersBefore,
+  );
+  assert.deepEqual(
+    sqlite.prepare('SELECT * FROM sessions').all(),
+    sessionsBefore,
+  );
+  for (const table of ['compute_listings', 'compute_payments'])
+    assert.equal(
+      sqlite.prepare('SELECT COUNT(*) AS n FROM ' + table).get().n,
+      0,
+    );
+  assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
 });

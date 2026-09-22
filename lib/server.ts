@@ -1,3 +1,7 @@
+import {
+  computeMarketSnapshot,
+  handleComputeMarketAction,
+} from './compute-market-api';
 import { realmFor, realmRequirement } from './realm-catalog';
 import { playerBand, playerLevel } from './progression';
 import {
@@ -125,10 +129,13 @@ function cookie(request: Request, name: string, value: string, age: number) {
 }
 function origin(request: Request) {
   const incoming = request.headers.get('origin');
-  if (
-    !incoming ||
-    ![new URL(request.url).origin, SITE_ORIGIN].includes(incoming)
-  )
+  const canonical = (env as unknown as Record<string, unknown>)
+    .NOOBIUS_SITE_ORIGIN;
+  const allowed =
+    typeof canonical === 'string' && canonical
+      ? [canonical]
+      : [new URL(request.url).origin, SITE_ORIGIN];
+  if (!incoming || !allowed.includes(incoming))
     throw new ApiError(
       403,
       'This request did not originate from the facility.',
@@ -550,6 +557,14 @@ export async function handleGame(request: Request, action: string) {
         ? ((await identity(request)) ?? undefined)
         : undefined,
     );
+    if (action === 'compute-market')
+      return result(
+        await computeMarketSnapshot(
+          db(),
+          await identity(request),
+          realmValues(),
+        ),
+      );
     if (action === 'moderation-reports') {
       const wallet = await identity(request);
       return result(
@@ -852,6 +867,28 @@ export async function handleGame(request: Request, action: string) {
     wallet,
   );
 
+  if (
+    [
+      'compute-listing-create',
+      'compute-listing-cancel',
+      'compute-payment-quote',
+      'compute-payment-submit',
+      'compute-payment-status',
+    ].includes(action)
+  ) {
+    await rate(request, 'compute-trading', 30, wallet);
+    const p = await player(wallet);
+    return result(
+      await handleComputeMarketAction(
+        db(),
+        wallet,
+        action,
+        body,
+        realmValues(),
+        canTrade(p.facility!),
+      ),
+    );
+  }
   const permit = permitFor(request);
   const roomProof: RoomWorkProof | undefined =
     typeof body.roomCheckpoint === 'string'

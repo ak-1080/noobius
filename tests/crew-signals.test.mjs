@@ -354,7 +354,7 @@ test('signal migration retains legacy chat and all other database rows without c
       'utf8',
     ),
   ).entries;
-  for (const migration of journal.slice(0, -1))
+  for (const migration of journal.filter((entry) => entry.idx < 11))
     db.exec(
       readFileSync(
         new URL('../drizzle/' + migration.tag + '.sql', import.meta.url),

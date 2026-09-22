@@ -25,7 +25,7 @@ export default function WalletPicker({
   onConnect: (option: WalletOption) => Promise<unknown>;
   onBackToGame: () => void;
 }) {
-  const [ecosystem, setEcosystem] = useState<WalletEcosystem>('evm');
+  const [ecosystem, setEcosystem] = useState<WalletEcosystem>('solana');
   const evmWallets = wallets.filter((option) => option.ecosystem !== 'solana');
   const solanaWallets = wallets.filter(
     (option) => option.ecosystem === 'solana',
@@ -68,11 +68,11 @@ export default function WalletPicker({
         }}
       >
         <TabsList className="wallet-family-tabs" aria-label="Wallet network">
-          <TabsTrigger value="evm" disabled={busy || !!connecting}>
-            Ethereum / EVM
-          </TabsTrigger>
           <TabsTrigger value="solana" disabled={busy || !!connecting}>
             Solana
+          </TabsTrigger>
+          <TabsTrigger value="evm" disabled={busy || !!connecting}>
+            Ethereum / EVM
           </TabsTrigger>
         </TabsList>
         <TabsContent value="solana">

@@ -19,9 +19,11 @@ export function holdingGuard(walletSql: string, permit?: RealmPermit) {
   if (permit?.localTest) return '1';
   if (!permit?.policy) return '0';
   const clock = "(CAST(strftime('%s','now') AS INTEGER)*1000)";
+  const accountGuard = permit.policy.startsWith('solana:')
+    ? "substr(entitlement.wallet,1,7)='solana:' AND length(entitlement.wallet) BETWEEN 39 AND 51 AND substr(entitlement.wallet,8) NOT GLOB '*[^1-9A-HJ-NP-Za-km-z]*'"
+    : "length(entitlement.wallet)=42 AND substr(entitlement.wallet,1,2)='0x' AND substr(entitlement.wallet,3) NOT GLOB '*[^0-9a-fA-F]*'";
   return `EXISTS(SELECT 1 FROM realm_entitlements entitlement WHERE entitlement.wallet=${walletSql}
-    AND length(entitlement.wallet)=42 AND substr(entitlement.wallet,1,2)='0x'
-    AND substr(entitlement.wallet,3) NOT GLOB '*[^0-9a-fA-F]*'
+    AND ${accountGuard}
     AND entitlement.policy=${quote(permit.policy)} AND (
       (entitlement.status='eligible' AND entitlement.next_check_at>${clock}) OR
       (entitlement.status='unavailable' AND entitlement.grace_until>${clock})))`;

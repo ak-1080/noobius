@@ -2,6 +2,13 @@ import {
   emitOperationalEvent,
   type OperationalEvent,
 } from './operational-events.ts';
+import {
+  solanaHoldingPolicy,
+  tokenSetting,
+  readSolanaHolding,
+  validSolanaAddress,
+  type SolanaHoldingPolicy,
+} from './solana-holdings.ts';
 class VerificationFailure extends Error {
   readonly reason: OperationalEvent['reason'];
   readonly status?: number;
@@ -15,15 +22,18 @@ class VerificationFailure extends Error {
     this.status = status;
   }
 }
-export type TokenPolicy = {
-  chainId: number;
-  contract: string;
-  decimals: number;
-  threshold: string;
-  confirmations: number;
-  rpcUrl: string;
-  key: string;
-};
+export type TokenPolicy =
+  | SolanaHoldingPolicy
+  | {
+      ecosystem?: 'evm';
+      chainId: number;
+      contract: string;
+      decimals: number;
+      threshold: string;
+      confirmations: number;
+      rpcUrl: string;
+      key: string;
+    };
 export type RealmAccess = {
   status:
     | 'eligible'
@@ -38,22 +48,31 @@ export type RealmAccess = {
   graceUntil?: number;
   message: string;
 };
-const supportsHoldingAccount = (wallet: string) =>
-  /^0x[a-f0-9]{40}$/i.test(wallet);
+const supportsHoldingAccount = (wallet: string, solana = false) =>
+  solana
+    ? wallet.startsWith('solana:') && validSolanaAddress(wallet.slice(7))
+    : /^0x[a-f0-9]{40}$/i.test(wallet);
 export function tokenPolicy(
   values: Record<string, unknown>,
 ): TokenPolicy | null {
+  if (values.NOOBIUS_TOKEN_ECOSYSTEM === 'solana')
+    return solanaHoldingPolicy(values);
+  if (
+    values.NOOBIUS_TOKEN_ECOSYSTEM &&
+    values.NOOBIUS_TOKEN_ECOSYSTEM !== 'evm'
+  )
+    return null;
   const chainId = Number(values.NOOBIUS_TOKEN_CHAIN_ID),
-    contract = String(values.NOOBIUS_TOKEN_CONTRACT ?? '').toLowerCase(),
+    contract = tokenSetting(values.NOOBIUS_TOKEN_CONTRACT).toLowerCase(),
     decimals = Number(values.NOOBIUS_TOKEN_DECIMALS),
-    threshold = String(values.NOOBIUS_TOKEN_THRESHOLD ?? '888'),
+    threshold = tokenSetting(values.NOOBIUS_TOKEN_THRESHOLD, '888'),
     confirmations = Number(values.NOOBIUS_TOKEN_CONFIRMATIONS ?? 12),
-    rpcUrl = String(values.NOOBIUS_TOKEN_RPC_URL ?? '');
+    rpcUrl = tokenSetting(values.NOOBIUS_TOKEN_RPC_URL);
   if (
     !Number.isSafeInteger(chainId) ||
     chainId < 1 ||
     !/^0x[a-f0-9]{40}$/.test(contract) ||
-    !/^(0|[1-9]\d*)$/.test(String(values.NOOBIUS_TOKEN_DECIMALS ?? '')) ||
+    !/^(0|[1-9]\d*)$/.test(tokenSetting(values.NOOBIUS_TOKEN_DECIMALS)) ||
     !Number.isInteger(decimals) ||
     decimals < 0 ||
     decimals > 36 ||
@@ -83,6 +102,8 @@ export async function readTokenHolding(
   wallet: string,
   transport: typeof fetch = fetch,
 ) {
+  if (policy.ecosystem === 'solana')
+    return readSolanaHolding(policy, wallet, transport);
   if (!supportsHoldingAccount(wallet))
     throw new Error(
       'GPU holder verification currently supports Ethereum/EVM accounts only.',
@@ -204,16 +225,18 @@ export async function realmAccess(
   transport: typeof fetch = fetch,
 ): Promise<RealmAccess> {
   const policy = tokenPolicy(values);
-  // The live adapter only verifies EVM holdings. A Solana account cannot reuse
-  // a cached allowance or another wallet's holdings; free gameplay is separate.
-  // Preserve the explicit local-only test mode when no real policy is set.
-  if (!supportsHoldingAccount(wallet) && !(localTest && !policy))
+  const solana =
+    policy?.ecosystem === 'solana' ||
+    values.NOOBIUS_TOKEN_ECOSYSTEM === 'solana';
+  // Never reuse cached allowances from the wrong ecosystem or another policy.
+  if (!supportsHoldingAccount(wallet, solana) && !(localTest && !policy))
     return {
       status: 'unsupported',
       allowed: false,
       threshold: policy?.threshold ?? '888',
-      message:
-        'GPU holder access currently supports Ethereum/EVM accounts only. Your saved game stays separate and your free center remains playable.',
+      message: solana
+        ? 'Holder access requires your Solana account. Your free center remains playable.'
+        : 'GPU holder access currently supports Ethereum/EVM accounts only. Your saved game stays separate and your free center remains playable.',
     };
   if (!policy)
     return localTest

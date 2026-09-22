@@ -404,3 +404,62 @@ export const recentNeighbors = sqliteTable(
     index('idx_recent_neighbor_time').on(t.wallet, t.lastSeen),
   ],
 );
+
+// Real-token exchange reservations are separate from the item-for-Compute market.
+// No endpoint enables this ledger until token settlement is configured and tested.
+export const computeListings = sqliteTable(
+  'compute_listings',
+  {
+    id: text('id').primaryKey(),
+    seller: text('seller')
+      .notNull()
+      .references(() => players.wallet),
+    compute: integer('compute').notNull(),
+    tokenAmount: text('token_amount').notNull(),
+    policy: text('policy').notNull(),
+    status: text('status').notNull().default('open'),
+    quoteId: text('quote_id'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_compute_listings_status').on(t.status, t.createdAt, t.id),
+    index('idx_compute_listings_seller').on(t.seller, t.status),
+    uniqueIndex('idx_compute_listing_quote').on(t.quoteId),
+    check('compute_listing_amount', sql`${t.compute} BETWEEN 1 AND 1000000000`),
+    check(
+      'compute_listing_status',
+      sql`${t.status} IN ('open','reserved','sold','cancelled')`,
+    ),
+  ],
+);
+export const computePayments = sqliteTable(
+  'compute_payments',
+  {
+    id: text('id').primaryKey(),
+    listingId: text('listing_id')
+      .notNull()
+      .references(() => computeListings.id),
+    buyer: text('buyer')
+      .notNull()
+      .references(() => players.wallet),
+    quoteJson: text('quote_json').notNull(),
+    status: text('status').notNull().default('quoted'),
+    buyerSignature: text('buyer_signature'),
+    buyerTransaction: text('buyer_transaction'),
+    authorizedTransaction: text('authorized_transaction'),
+    expiresAt: integer('expires_at').notNull(),
+    lastValidBlockHeight: integer('last_valid_block_height').notNull(),
+    finalizedSlot: integer('finalized_slot'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_compute_payment_signature').on(t.buyerSignature),
+    index('idx_compute_payment_buyer').on(t.buyer, t.status),
+    index('idx_compute_payment_recovery').on(t.status, t.updatedAt),
+    check(
+      'compute_payment_status',
+      sql`${t.status} IN ('quoted','recorded','submitted','settled','expired','failed')`,
+    ),
+  ],
+);

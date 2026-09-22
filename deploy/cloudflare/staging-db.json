@@ -1,0 +1,11 @@
+{
+  "name": "noobius-staging-database-tools",
+  "account_id": "818bac5a5a12b327928ded9344c453bb",
+  "compatibility_date": "2026-05-15",
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "noobius-game-staging",
+    "database_id": "c996298e-b0ee-4edb-9684-33e44c22d5d8",
+    "migrations_dir": "../../drizzle"
+  }]
+}
