@@ -9,7 +9,7 @@ import { RoomClient } from '../lib/room-client.ts';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
 const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
 const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
-const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'small-steps';
+const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'full-speed';
 assert.ok(['small-steps', 'full-speed'].includes(motionMode));
 assert.ok(Number.isInteger(roomCount) && roomCount >= 1 && roomCount <= 10);
 assert.ok(
