@@ -9,6 +9,8 @@ import { RoomClient } from '../lib/room-client.ts';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
 const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
 const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
+const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'small-steps';
+assert.ok(['small-steps', 'full-speed'].includes(motionMode));
 assert.ok(Number.isInteger(roomCount) && roomCount >= 1 && roomCount <= 10);
 assert.ok(
   Number.isInteger(durationSeconds) &&
@@ -38,6 +40,7 @@ const counters = {
   inboundBytes: 0,
   renewals: 0,
   interruptions: 0,
+  releaseRetries: 0,
   httpRequests: 0,
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -233,13 +236,54 @@ async function connect(a) {
   await transport.connect();
   assert.ok(transport.ready);
 }
-const motion = setInterval(() => {
-  if (stopped || !measuring) return;
-  phase += 0.16;
-  for (const a of actors)
-    if (a.transport?.ready)
-      a.point = { x: 0, z: 17 - 0.35 * Math.sin(phase + a.index * 0.13) ** 2 };
-}, 160);
+async function release(a) {
+  // Like the game UI, wait for recovery before attempting a scene transition.
+  // A scheduled grant renewal can begin between different batches of leavers.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const until = Date.now() + 15000;
+    while (a.reconnecting || !a.transport?.ready) {
+      assert.ok(Date.now() < until && !stopped, 'Ready before final save');
+      await sleep(100);
+    }
+    a.transitioning = true;
+    try {
+      await a.transport.release();
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      counters.releaseRetries++;
+      // The old transport is closed. Read the authoritative position; never
+      // inject a client-side position to manufacture a successful save check.
+      await connect(a);
+    } finally {
+      a.transitioning = false;
+    }
+  }
+}
+let lastMotionAt = performance.now();
+const motion = setInterval(
+  () => {
+    const now = performance.now();
+    const seconds = Math.min(0.05, (now - lastMotionAt) / 1000);
+    lastMotionAt = now;
+    if (stopped || !measuring) return;
+    phase += 0.16;
+    for (const a of actors) {
+      if (!a.transport?.ready) continue;
+      if (motionMode === 'full-speed') {
+        a.direction ??= 1;
+        const x = a.point.x + a.direction * 4.2 * seconds;
+        if (x >= 3 || x <= -3) a.direction *= -1;
+        a.point = { x: Math.max(-3, Math.min(3, x)), z: 17 };
+      } else
+        a.point = {
+          x: 0,
+          z: 17 - 0.35 * Math.sin(phase + a.index * 0.13) ** 2,
+        };
+    }
+  },
+  motionMode === 'full-speed' ? 16 : 160,
+);
 const heartbeat = setInterval(
   () =>
     console.log(
@@ -411,10 +455,15 @@ try {
     roomCount,
   );
   assert.equal(issues.length, 0, issues.slice(0, 5).join('; '));
-  assert.ok(
-    actors.every((a) => a.transport.ready),
-    'Every client remains ready',
-  );
+  const settledUntil = Date.now() + 15000;
+  while (actors.some((a) => !a.transport.ready || a.reconnecting)) {
+    assert.ok(
+      Date.now() < settledUntil && !stopped,
+      'Every client must recover before the final save check',
+    );
+    assert.equal(issues.length, 0, issues.slice(0, 5).join('; '));
+    await sleep(100);
+  }
   assert.ok(
     actors.every((a) => a.accepted >= durationSeconds * 2),
     'Every client averages at least two accepted updates per scheduled second',
@@ -436,8 +485,7 @@ try {
   for (let start = 0; start < actors.length; start += 5)
     await Promise.all(
       actors.slice(start, start + 5).map(async (a) => {
-        a.transitioning = true;
-        await a.transport.release();
+        await release(a);
         const saved = ok(
           await request(a, 'neighborhood-state', a.c.body(a.controller)),
         );
@@ -452,6 +500,7 @@ try {
   report = {
     runId,
     status: 'passed',
+    motionMode,
     completedAt: new Date().toISOString(),
     scope: `Hosted Cloudflare Workers and Durable Objects; ${actors.length} synthetic RoomClients, ${roomCount} neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers`,
     rampMs: measuredAt - began,
@@ -474,6 +523,7 @@ try {
   report = {
     runId,
     status: 'failed',
+    motionMode,
     at: new Date().toISOString(),
     error: e.message,
     ...counters,

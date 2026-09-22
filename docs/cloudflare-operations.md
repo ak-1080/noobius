@@ -12,6 +12,14 @@ An intentional room-router 404 is expected at `/`; this proves the configured ro
 
 Only run during a quiet launch/maintenance window: the probe occupies the configured 50-player admission cap while measuring. Do not run it automatically every 15 minutes. Results go to `/tmp/noobius-hosted-capacity-results.json`; a failed run must not be called a capacity pass. It is a single-origin synthetic connection test, not a global network or rendered-device benchmark. Keep the 50-player cap until longer mixed-workload tests justify an increase.
 
+## Movement verification and evidence limits
+
+Initial hosted movement probes found two independent problems: packet bunching triggered the 100 ms arrival limit, and full-speed walking lost earned travel time when network delay changed between packets. The client now paces after acknowledgments. The room authority keeps at most 250 ms of earned, unspent travel time between valid updates, charges actual walkable distance, and discards that remainder on invalid moves, freezes or rebases. There is still a one-second maximum hop budget and no client clock input. Unit tests cover aggregate distance, reversals, packet floods, credit caps, invalid jumps and reset/freeze behavior.
+
+The capacity harness defaults to small steps. Set `NOOBIUS_LOAD_WALK=full-speed` to walk at the renderer's 4.2 units/second between clear floor positions, updating at 16 ms intervals. Both modes require at least 99% accepted movement, per-client sustained updates, bounded peer recovery, acknowledged or explicitly interrupted packets, and saved final positions. Planned five-minute renewal is expected; the harness waits for recovery before final save attempts instead of requiring all sockets to be ready at an arbitrary instant.
+
+Earlier 50-player runs completed their movement phase with zero corrections after client pacing, but failed overly strict end-of-run readiness/release checks during scheduled renewal. Those reports are failures, not complete capacity passes. A separate five-player full-speed run then exposed the travel-time issue (286 corrections in 1,141 packets), which prompted the server fix. The revised authority passed a five-player full-speed run on September 22 at 22:47 UTC: 1,163/1,163 movement updates accepted, no interruptions or corrections, all five final positions persisted, and p95 movement acknowledgment 100.7 ms. This is not yet a 50-player full-speed result.
+
 ## Billing and limits
 
 Verified September 22, 2026: account and game Worker settings report `standard` usage model. This does **not** prove the account's subscription tier. Subscription read access was unavailable, and the browser dashboard required sign-in. No plan upgrade or billing change has been made.

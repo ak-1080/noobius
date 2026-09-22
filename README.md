@@ -1,6 +1,6 @@
 # Noobius — The Night Shift
 
-A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. This is a private playable alpha. The token exchange previews requests; it does not spend Compute or send tokens.
+A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. The playable alpha is hosted at https://play.noobius.io; https://noobius.io remains the separate coming-soon site. Player-to-player Compute checkout is implemented, but real-token trading is disabled pending token configuration and acceptance testing.
 
 ## Current game
 
@@ -10,12 +10,14 @@ Jobs remain available after the center is upgraded. Choose service repairs, supp
 
 The next-action card guides travel and opens the relevant menu; it cannot purchase, repair or claim for you. The main dock is Center, Clients, Crew and Locker. Clients includes the new commission desk and access to hands-on repair and parts jobs. Character creation and the large Locker support names, outfits and accessories, followed by a five-slide introduction.
 
-Connected accounts keep one personal center and join five-player neighborhoods. Visit neighbors, trade parts through escrow, invite friends and contribute completed-job reports and crafted parts to persistent shared cluster projects. Movement and authority are checked by the server through 1.5-second HTTP polling. Earned player XP opens four realm destinations: Crew Commons at level 1, Cooling Works at 3, GPU District at 5 and Archive Depths at 8. The first two are free; the latter two also require an earned Operator license and verified holdings when a real token policy is configured. No live token configuration is supplied. Solo practice previews holder destinations after their level gates. Each realm now has its own navigable layout, industrial landmarks and three physical worksites: a salvage yard, a cooling ring, accelerator lanes and archive islands. Four randomized activities cover sorting damaged hardware, routing coolant, scheduling GPU batches and restoring checkpoints. Balanced, Deep recovery and Quick pass exchange resources, time and output; paid work stays finishable after leaving a realm or losing access. Its present verification adapter supports EVM holdings only, while both EVM and Solana accounts can play the free game.
+Connected accounts keep one personal center and join five-player neighborhoods. Visit neighbors, trade parts through escrow, invite friends and contribute completed-job reports and crafted parts to persistent shared cluster projects. The hosted game uses authenticated WebSockets and five-player Cloudflare Durable Object rooms, with server-validated movement and D1 checkpoints. Local deployments can retain the HTTP fallback. Earned player XP opens four realm destinations: Crew Commons at level 1, Cooling Works at 3, GPU District at 5 and Archive Depths at 8. The first two are free; the latter two also require an earned Operator license and verified holdings when a real token policy is configured. No live token configuration is supplied. Solo practice previews holder destinations after their level gates. Each realm now has its own navigable layout, industrial landmarks and three physical worksites: a salvage yard, a cooling ring, accelerator lanes and archive islands. Four randomized activities cover sorting damaged hardware, routing coolant, scheduling GPU batches and restoring checkpoints. Balanced, Deep recovery and Quick pass exchange resources, time and output; paid work stays finishable after leaving a realm or losing access. Holding verification supports EVM and Solana policies; both account types can play the free game. Solana is the intended launch ecosystem.
 
 Fully upgraded centers can choose between three competing client requests with changing demand. Bookings reserve machines and freeze their supply costs, time and payment. Three certification branches change speed, resource use and capacity. Repeatable facility distinctions require fresh client work, different specialties, two realm recoveries and crafted supplies; each lights a permanent monument without resetting the center. Compute remains game currency, with no connected real-token payouts. This supports ongoing play, while human retention testing remains outstanding.
 
 - `/how-to-play`: illustrated instructions and game captures.
 - `/docs`: saving, currencies, multiplayer and help.
+- [Current Cloudflare deployment and remaining launch gates](docs/cloudflare-launch-2026-09-22.md).
+- [Public monitoring, capacity probes and operating procedures](docs/cloudflare-operations.md).
 - [Distinct worlds, client economy, endgame verification and human playtest protocol](docs/endgame-worlds-2026-09-20.md).
 - [Earlier realm progression implementation and verification](docs/realms-implementation-2026-09-20.md).
 - [Kintara, comparable games, architecture and production research](docs/research/game-architecture-2026-09-20.md).
@@ -26,7 +28,7 @@ Fully upgraded centers can choose between three competing client requests with c
 
 ## Run locally
 
-Requires Node 22.18 or newer (the `.nvmrc` selects Node 24). Run `npm ci`, then `npm run db:local` **once on a fresh local database**. This applies the twelve canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
+Requires Node 22.18 or newer (the `.nvmrc` selects Node 24). Run `npm ci`, then `npm run db:local` **once on a fresh local database**. This applies the thirteen canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
 
 - `npm test`: game rules, wallet handshake, navigation, progression, migration preservation, purchase clocks, daily rewards and retry protection.
 - `npm run typecheck` and `npm run build`: TypeScript and the production Worker/browser build.
@@ -48,7 +50,7 @@ API suites create random test-wallet identities on the local server. Do not poin
 
 [Noobius checks](https://github.com/ak-1080/noobius/actions/workflows/checks.yml) installs the committed lockfile on clean Ubuntu runners with Node 22 and 24. It runs game/persistence tests, TypeScript, tooling compatibility and the production build on main pushes and pull requests; it can also be started manually. Documentation-only main pushes are skipped.
 
-These checks have read-only repository permissions and no deployment or production database credentials. They do not start the mutation/API/load suites or deploy the game. A passing run is build/rules evidence, not hosted multiplayer, wallet-extension or human playtest acceptance. Existing repository-wide lint and two affected parser packages remain tracked release work; this workflow does not report them as resolved.
+These checks have read-only repository permissions and no deployment or production database credentials. They do not start the mutation/API/load suites or deploy the game. A passing run is build/rules evidence, not hosted multiplayer, wallet-extension or human playtest acceptance. Repository-wide lint is separate from these checks. Release-specific dependency and lint evidence must be checked against the current deployment record.
 
 Node 22.18 is the minimum because the test suite imports TypeScript directly using [Node’s default type stripping](https://nodejs.org/en/blog/release/v22.18.0). Earlier Node 22 versions require additional flags that these scripts do not supply.
 
@@ -58,11 +60,11 @@ Wallet login supports Ethereum/EVM accounts through EIP-6963/injected providers 
 
 D1 stores accounts, sessions, facility state, shifts, listings, messages and presence. The server validates prices, rewards, recipes, cooldowns and gates. Version checks and conditional D1 updates protect purchases and marketplace settlement from duplicate requests and concurrent updates. Compute is the authoritative spendable balance; a separate migration flag settles legacy production at the old rate before the new clock starts. Existing money, cosmetics, inventory and unfinished work are preserved.
 
-Real $NOOBIUS transfers, live quotes and a settlement service are not connected. Compute is a game balance, and the current preview creates no payout claim. The original technical puzzles and other earning actions are still automatable; these checks do not make the game a secure financial rewards system.
+The Solana marketplace includes Compute reservations, buyer-reviewed token payments, durable settlement recovery and a scheduled reconciliation Worker. New real-token sales are disabled: no production mint is configured, and real devnet transfers plus wallet/device acceptance remain outstanding. Compute is a game balance, not a guaranteed payout claim. The original technical puzzles and other earning actions are still automatable; these checks do not make the game a secure financial rewards system.
 
 ## Release limits
 
-The Site remains owner-private. Local automated API/load tests, request logs, admission/trade/project controls and persisted player reports are implemented. Real-wallet/device acceptance, hosted load/cost measurements, verified backup restoration, moderation staffing and multi-session human playtests remain release gates. Real player-to-player Compute sales for tokens remain separate. Shared movement uses periodic updates; this is not a console-ready or AAA game.
+The Cloudflare game URL is public; the older managed Site is a separate deployment. API/load harnesses, operational logs, admission/trade/project controls, persisted player reports and read-only GitHub health checks are implemented. A database export was restored into isolated staging, and hosted room reconnect/renewal was verified. Real-wallet/device acceptance, sustained mixed-workload capacity and cost, notification delivery, moderation staffing and multi-session human playtests remain release gates. See the current deployment record for the exact evidence and outstanding real-token requirements.
 
 ## Assets and research
 

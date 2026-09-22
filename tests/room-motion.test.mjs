@@ -99,12 +99,71 @@ test('zero-time floods and out-and-back packets cannot multiply speed allowance'
   assert.equal(move(motion, 103, 0.48, 300).accepted, true);
 });
 
-test('unused allowance is not banked and sub-100ms packets are bounded', () => {
+test('unused time cannot authorize unearned distance and sub-100ms packets stay bounded', () => {
   const motion = new RoomMotion(authority(), 0);
   assert.equal(move(motion, 1, 0.1, 100).accepted, true);
   assert.equal(move(motion, 2, 0.2, 199).reason, 'rate-limited');
-  assert.equal(move(motion, 3, 0.9, 200).reason, 'illegal-movement');
+  assert.equal(move(motion, 3, 0.99, 200).reason, 'illegal-movement');
   assert.equal(move(motion, 4, 0.5, 300).accepted, true);
+});
+
+test('earned travel time carries across compressed arrivals from a full-speed walker', () => {
+  const motion = new RoomMotion(authority(), 0);
+  // 4.2 units/s: first sample at 160ms arrives at 310ms. After its ack,
+  // a sample at 440ms arrives at 450ms. Arrival spacing alone is misleading.
+  assert.equal(move(motion, 1, 0.672, 310).accepted, true);
+  assert.equal(move(motion, 2, 1.848, 450).accepted, true);
+  assert.equal(move(motion, 3, 2.478, 600).accepted, true);
+});
+
+test('carry is limited to 250ms and invalid jumps consume their allowance', () => {
+  const motion = new RoomMotion(authority(), 0);
+  assert.equal(move(motion, 1, 0, 1000).accepted, true);
+  assert.equal(move(motion, 2, 1.68, 1100).accepted, true);
+  assert.equal(move(motion, 3, 2.17, 1200).reason, 'illegal-movement');
+  assert.equal(move(motion, 4, 2.17, 1300).reason, 'illegal-movement');
+  assert.equal(move(motion, 5, 2.15, 1400).accepted, true);
+});
+
+test('jitter allowance never creates extra cumulative distance, even with packet floods and reversals', () => {
+  const motion = new RoomMotion(authority(), 0);
+  let now = 0,
+    distance = 0,
+    sequence = 0,
+    accepted = 0;
+  let random = 12345;
+  for (let i = 0; i < 200; i++) {
+    random = (Math.imul(random, 1664525) + 1013904223) >>> 0;
+    now += 100 + (random % 180);
+    const before = motion.position.x;
+    const target = Math.max(
+      -3,
+      Math.min(3, before + (i % 7 < 3 ? 1 : -1) * (0.1 + (random % 150) / 100)),
+    );
+    if (move(motion, ++sequence, target, now).accepted) {
+      distance += Math.abs(target - before);
+      accepted++;
+    }
+    assert.ok(distance <= (now * 4.8) / 1000 + 1e-9);
+    for (let flood = 0; flood < 10; flood++)
+      assert.equal(
+        move(motion, ++sequence, before, now).reason,
+        'rate-limited',
+      );
+  }
+  assert.ok(accepted > 100, 'Exercise many real successful movements');
+});
+
+test('rebase and work freezes discard old travel credit', () => {
+  for (const freeze of [false, true]) {
+    const motion = new RoomMotion(authority(), 0);
+    assert.equal(move(motion, 1, 0, 1000).accepted, true);
+    if (freeze) {
+      motion.refreshAuthority(authority({ frozenUntil: 3000 }), 1100);
+      motion.refreshAuthority(authority(), 2100);
+    } else motion.reset(authority(), 2100);
+    assert.equal(move(motion, 2, 0.8, 2200).reason, 'illegal-movement');
+  }
 });
 
 test('locked rooms, machine footprints and plaza bounds use the actual floor rules', () => {

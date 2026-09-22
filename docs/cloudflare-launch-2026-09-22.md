@@ -26,11 +26,11 @@ The public frontend assets fit Workers Static Assets; a separate R2 bucket is un
 - Five real hosted WebSocket clients saw each other's positions. A sixth targeted admission was rejected. Valid movement replicated; a teleport was rejected. Public socket messages omitted tested private economy fields. Unsigned room-service access was rejected.
 - The actual browser RoomClient passed a hosted interruption/reconnect check and a full five-minute grant renewal, preserving the player position through both transitions (`scripts/smoke-room-recovery.mjs`).
 - Payment ledger and recovery: immutable Compute reservations, competing checkout exclusion, exact buyer signing, durable pre-broadcast authorization, finalized delivery once, and conservative failed/expired transaction recovery. The authenticated endpoints are installed but new token trading is explicitly disabled.
-- 407 automated tests, TypeScript checks, production build and 3 tooling checks passed for this release.
+- 415 automated tests, TypeScript checks, production build and 3 tooling checks passed for this release.
 - Real browser check: landing video, guest character setup, five-slide tutorial, 3D scene and first-machine tutorial render at the custom game domain. This does not prove a real Phantom/Solflare extension or mobile-wallet flow.
 - Solana holder verifier added: network genesis, exact mint/program/decimals, finalized account balances, owned-account aggregation, duplicate account rejection, and write-time entitlement guards. A read against public devnet with a fresh empty address passed. The configured launch mint is still missing, so production holder gates remain closed.
 - Production database SQL export restored into separate staging D1. The restore contained the six original generated test profiles, twelve migrations and 26 tables. The ignored local export remains under `.wrangler/production-backups/`; do not commit it. A restore into the live database has not been performed.
-- `GET /api/health` checks database access/migration readiness and exposes no player data.
+- `GET /api/health` checks database access/migration readiness and exposes no player data. The public read-only health workflow now checks five surfaces every 15 minutes; its first GitHub run passed. Notification delivery to an incident owner is not yet verified.
 - A repeatable release command validates tests/types, builds the owner bundle, checks its database destination, applies additive migrations, deploys all three services and checks health.
 - Solana is the default wallet tab. The game story no longer advertises the superseded Long.xyz destination. The separate coming-soon page has not been edited.
 
@@ -52,7 +52,7 @@ Health: `https://play.noobius.io/api/health`.
 - `NOOBIUS_ADMISSION_PAUSED` stops new admission. `NOOBIUS_TRADE_PAUSED` stops new item listings/purchases while preserving cancellation. `NOOBIUS_PROJECTS_PAUSED` stops new projects while allowing existing obligations to finish.
 - Do not roll back to code without writer fences while live rooms are running. Stop admission, release rooms and wait for leases to expire first. Application rollback does not roll back SQL or blockchain activity.
 - Test restore exports on the separate database first. Database restore and redeployment need explicit reconciliation of any future real-token settlement; a chain transfer cannot be rolled back by SQL recovery.
-- Both Workers have Cloudflare observability enabled. No external paging channel or staffed incident owner is configured yet.
+- Both game and room Workers have Cloudflare observability enabled. Read-only GitHub health monitoring is active; no verified paging destination or staffed incident owner is configured yet.
 
 ## Still required for the full requested launch
 

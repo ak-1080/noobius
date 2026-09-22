@@ -1,9 +1,10 @@
 import { realmExists } from './realm-catalog.ts';
 import type { RoomAuthority } from './room-auth-server.ts';
-import { floorClear, legalMovement } from './world-navigation.ts';
+import { floorClear, movementDistance } from './world-navigation.ts';
 
 export const ROOM_MOVE_INTERVAL_MS = 100;
 export const ROOM_MOVE_ELAPSED_CAP_MS = 1000;
+export const ROOM_MOVE_CARRY_CAP_MS = 250;
 
 type Authority = RoomAuthority & {
   writerUntil?: number;
@@ -89,6 +90,7 @@ export class RoomMotion {
   private pending: RoomMotionCheckpoint | null = null;
   private observedAt: number;
   private evaluatedAt: number;
+  private unusedTravelMs = 0;
   private movedAt: number;
   private actionCheckpoint: string | null = null;
   private actionAcknowledged = false;
@@ -161,30 +163,47 @@ export class RoomMotion {
     // Even a rejected fresh packet is consumed. Replaying it cannot earn time.
     this.currentInputSequence = input.inputSequence;
     if (deadline(this.authority) <= now) {
+      this.unusedTravelMs = 0;
       this.movedAt = this.evaluatedAt = now;
       return this.result(false, 'authority-expired');
     }
     if (this.frozen(now)) {
+      this.unusedTravelMs = 0;
       this.movedAt = this.evaluatedAt = now;
       return this.result(false, 'action-frozen');
     }
     if (now - this.evaluatedAt < ROOM_MOVE_INTERVAL_MS)
       return this.result(false, 'rate-limited');
-    const elapsed = Math.min(ROOM_MOVE_ELAPSED_CAP_MS, now - this.movedAt);
+    const elapsed = Math.min(
+      ROOM_MOVE_ELAPSED_CAP_MS,
+      now - this.movedAt + this.unusedTravelMs,
+    );
     this.movedAt = this.evaluatedAt = now;
+    // Only previously earned, unspent server time may cover arrival jitter.
+    // Invalid packets forfeit it; neither packet count nor client clocks add time.
+    this.unusedTravelMs = 0;
     if (!Number.isFinite(input.x) || !Number.isFinite(input.z))
       return this.result(false, 'invalid-position');
+    const allowance = (elapsed * 4.8) / 1000;
     if (
-      !legalMovement(
-        this.authority.navigation,
-        this.authority.membership.scene === 'commons',
-        this.currentPosition,
-        input,
-        elapsed,
-        this.authority.membership.realm,
-      )
+      Math.hypot(
+        input.x - this.currentPosition.x,
+        input.z - this.currentPosition.z,
+      ) > allowance
     )
       return this.result(false, 'illegal-movement');
+    const distance = movementDistance(
+      this.authority.navigation,
+      this.authority.membership.scene === 'commons',
+      this.currentPosition,
+      input,
+      this.authority.membership.realm,
+    );
+    if (distance > allowance) return this.result(false, 'illegal-movement');
+    this.unusedTravelMs = Math.min(
+      ROOM_MOVE_CARRY_CAP_MS,
+      Math.max(0, elapsed - (distance * 1000) / 4.8),
+    );
     this.currentPosition = point(input.x, input.z);
     return this.result(true);
   }
@@ -241,6 +260,7 @@ export class RoomMotion {
     this.actionCheckpoint = authority.frozenCheckpoint ?? null;
     this.actionAcknowledged = this.actionCheckpoint !== null;
     this.observedAt = this.evaluatedAt = this.movedAt = now;
+    this.unusedTravelMs = 0;
   }
 
   applyCheckpointAck(
@@ -274,6 +294,7 @@ export class RoomMotion {
     if (pending.intent !== undefined) {
       this.actionAcknowledged = true;
       this.movedAt = this.evaluatedAt = now;
+      this.unusedTravelMs = 0;
     }
     // A background ACK persists its capture, not later accepted movement.
     return this.result(true);
@@ -308,7 +329,10 @@ export class RoomMotion {
       this.actionCheckpoint = null;
       this.actionAcknowledged = false;
     }
-    if (resetTime || this.frozen(now)) this.movedAt = this.evaluatedAt = now;
+    if (resetTime || this.frozen(now)) {
+      this.movedAt = this.evaluatedAt = now;
+      this.unusedTravelMs = 0;
+    }
     return this.result(true);
   }
 

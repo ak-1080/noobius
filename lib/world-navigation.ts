@@ -68,19 +68,32 @@ export function legalMovement(
   // not a fresh allowance per packet; sequence/time are committed together.
   const allowance = (Math.min(10000, elapsed) / 1000) * 4.8;
   if (Math.hypot(to.x - from.x, to.z - from.z) > allowance) return false;
-  if (Math.hypot(to.x - from.x, to.z - from.z) < 0.001) return true;
+  return movementDistance(facility, shared, from, to, realm) <= allowance;
+}
+
+/** Authoritative walkable distance, including detours around solid obstacles. */
+export function movementDistance(
+  facility: Pick<Facility, 'unlocked'>,
+  shared: boolean,
+  from: { x: number; z: number },
+  to: { x: number; z: number },
+  realm: RealmId = 'commons',
+) {
+  if (!floorClear(facility, shared, to.x, to.z, realm)) return Infinity;
+  const direct = Math.hypot(to.x - from.x, to.z - from.z);
+  if (direct < 0.001) return direct;
   const path = planPath(
     [from.x, from.z],
     [to.x, to.z],
     (x, z) => floorClear(facility, shared, x, z, realm),
     0.5,
   );
-  if (!path.length) return false;
+  if (!path.length) return Infinity;
   let distance = 0,
     previous = [from.x, from.z];
   for (const point of path) {
     distance += Math.hypot(point[0] - previous[0], point[1] - previous[1]);
     previous = point;
   }
-  return distance <= allowance;
+  return distance;
 }
