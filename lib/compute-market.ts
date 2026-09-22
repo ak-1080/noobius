@@ -216,13 +216,14 @@ export async function expireUnsignedComputeQuote(
   db: D1Database,
   id: string,
   now = Date.now(),
+  cancel = false,
 ) {
   const result = await db.batch([
     db
       .prepare(
-        "UPDATE compute_payments SET status='expired',updated_at=? WHERE id=? AND status='quoted' AND expires_at<=?",
+        "UPDATE compute_payments SET status='expired',updated_at=? WHERE id=? AND status='quoted' AND (?=1 OR expires_at<=?)",
       )
-      .bind(now, id, now),
+      .bind(now, id, cancel ? 1 : 0, now),
     db
       .prepare(
         "UPDATE compute_listings SET status='open',quote_id=NULL WHERE quote_id=? AND status='reserved' AND changes()=1",

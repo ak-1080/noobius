@@ -378,3 +378,106 @@ void test('database failure rolls back reservation debit and finalized delivery 
   assert.equal((await getComputeListing(f.db, f.input.id)).status, 'reserved');
   assert.equal(f.balance(f.buyer), 1000);
 });
+
+void test('buyer cancellation authenticates ownership and releases an unsigned reservation even while trading is disabled', async () => {
+  const { handleComputeMarketAction, computeMarketSnapshot } =
+    await import('../lib/compute-market-api.ts');
+  const f = await fixture();
+  await f.listing();
+  const q = await f.quote();
+  await reserveComputePayment(
+    f.db,
+    f.input.id,
+    f.wallet(f.buyer),
+    q,
+    f.policy,
+    Date.now(),
+  );
+  await assert.rejects(
+    handleComputeMarketAction(
+      f.db,
+      f.wallet(f.other),
+      'compute-payment-cancel',
+      { id: q.quoteId },
+      {},
+      false,
+    ),
+    /not found/,
+  );
+  assert.equal((await getComputeListing(f.db, f.input.id)).status, 'reserved');
+  const result = await handleComputeMarketAction(
+    f.db,
+    f.wallet(f.buyer),
+    'compute-payment-cancel',
+    { id: q.quoteId },
+    {},
+    false,
+  );
+  assert.equal(result.payment.status, 'expired');
+  assert.equal(result.payment.compute, 250);
+  assert.equal(result.payment.seller, f.seller.address);
+  assert.equal((await getComputeListing(f.db, f.input.id)).status, 'open');
+  assert.equal(f.balance(f.seller), 750);
+  await assert.rejects(
+    recordBuyerComputePayment(
+      f.db,
+      q.quoteId,
+      f.wallet(f.buyer),
+      await f.signed(q),
+    ),
+    /expired/,
+  );
+  const snapshot = await computeMarketSnapshot(f.db, f.wallet(f.seller), {});
+  assert.equal(snapshot.available, false);
+  assert.equal(
+    snapshot.listings.length,
+    1,
+    'seller must recover Compute even if token configuration is removed',
+  );
+  assert.equal(snapshot.listings[0].currentToken, 0);
+  await handleComputeMarketAction(
+    f.db,
+    f.wallet(f.seller),
+    'compute-listing-cancel',
+    { id: f.input.id },
+    {},
+    false,
+  );
+  assert.equal(f.balance(f.seller), 1000);
+});
+void test('recording before buyer cancellation prevents the reserved Compute from being released', async () => {
+  const { handleComputeMarketAction } =
+    await import('../lib/compute-market-api.ts');
+  const f = await fixture();
+  await f.listing();
+  const q = await f.quote();
+  await reserveComputePayment(
+    f.db,
+    f.input.id,
+    f.wallet(f.buyer),
+    q,
+    f.policy,
+    Date.now(),
+  );
+  await recordBuyerComputePayment(
+    f.db,
+    q.quoteId,
+    f.wallet(f.buyer),
+    await f.signed(q),
+  );
+  await assert.rejects(
+    handleComputeMarketAction(
+      f.db,
+      f.wallet(f.buyer),
+      'compute-payment-cancel',
+      { id: q.quoteId },
+      {},
+      false,
+    ),
+    /already processing/,
+  );
+  assert.equal((await getComputePayment(f.db, q.quoteId)).status, 'recorded');
+  assert.equal((await getComputeListing(f.db, f.input.id)).status, 'reserved');
+  assert.equal(f.balance(f.seller), 750);
+  assert.equal(f.balance(f.buyer), 1000);
+});

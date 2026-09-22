@@ -35,7 +35,7 @@ import ObjectiveCoach from './ObjectiveCoach';
 import { arrivalGuidance, guidanceFor, type Guidance } from '@/lib/guidance';
 import WalletPicker from './WalletPicker';
 import { QuickGuide } from './PlayGuide';
-import TokenExchange from './TokenExchange';
+import ComputeMarketPanel from './ComputeMarketPanel';
 import {
   dailyRewardReady,
   returnSummary,
@@ -1823,6 +1823,8 @@ export default function NoobiusGame() {
                       },
                     }));
                   }}
+                  onComputeRequest={game.computeRequest}
+                  onComputeSign={game.signComputePayment}
                   panel={panel as ExpansionPanel}
                   profile={profile}
                   selected={selectedObject}
@@ -2158,12 +2160,25 @@ export default function NoobiusGame() {
                   atHome={room === 'home'}
                 />
               )}
-              {panel === 'token' && (
-                <TokenExchange
-                  balance={profile?.credits ?? 0}
-                  wallet={profile?.wallet}
+              {panel === 'token' && profile && (
+                <ComputeMarketPanel
+                  key={profile.wallet}
+                  profile={profile}
+                  request={game.computeRequest}
+                  sign={game.signComputePayment}
                   onConnect={() => show('wallet')}
                 />
+              )}
+              {panel === 'token' && !profile && (
+                <div className="empty-state">
+                  <p>
+                    Players trade earned Compute for $NOOBIUS. Token trading is
+                    coming soon.
+                  </p>
+                  <Button onClick={() => show('wallet')}>
+                    Connect a wallet
+                  </Button>
+                </div>
               )}
               {panel === 'crew' && (
                 <div className="crew-panel">

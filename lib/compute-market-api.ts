@@ -15,6 +15,7 @@ import {
   getComputeListing,
   getComputePayment,
   recordBuyerComputePayment,
+  expireUnsignedComputeQuote,
   type ComputePayment,
 } from './compute-market.ts';
 export async function paymentConfiguration(
@@ -60,9 +61,17 @@ export async function paymentConfiguration(
   }
   return { policy, rpc: new ComputePaymentRpc(policy), keyPair, address };
 }
-function receipt(p: ComputePayment) {
+async function receipt(db: D1Database, p: ComputePayment) {
+  const listing = await getComputeListing(db, p.listing_id);
+  if (!listing)
+    throw new ComputeMarketError(
+      409,
+      'This payment needs support review. Its record is saved.',
+    );
   const q = JSON.parse(p.quote_json) as ComputePaymentQuote;
   return {
+    compute: listing.compute,
+    seller: listing.seller.slice(7),
     id: p.id,
     listingId: p.listing_id,
     status: p.status,
@@ -103,14 +112,20 @@ export async function computeMarketSnapshot(
       values.NOOBIUS_TRADE_PAUSED !== 'true' &&
       typeof values.NOOBIUS_PAYMENT_SIGNER === 'string' &&
       !!values.NOOBIUS_PAYMENT_KEYS;
-  const listings = policy
-    ? await db
-        .prepare(
-          "SELECT l.id,l.compute,l.token_amount AS tokenAmount,l.status,p.name,(l.seller=?) AS mine FROM compute_listings l JOIN players p ON p.wallet=l.seller WHERE (l.status='open' AND l.policy=?) OR (l.seller=? AND l.status IN ('open','reserved')) ORDER BY l.created_at DESC,l.id DESC LIMIT 50",
-        )
-        .bind(wallet ?? '', policy.key, wallet ?? '')
-        .all()
-    : { results: [] };
+  const listings =
+    policy || wallet
+      ? await db
+          .prepare(
+            "SELECT l.id,l.compute,l.token_amount AS tokenAmount,l.status,p.name,(l.seller=?) AS mine,(l.policy=?) AS currentToken FROM compute_listings l JOIN players p ON p.wallet=l.seller WHERE (l.status='open' AND l.policy=?) OR (l.seller=? AND l.status IN ('open','reserved')) ORDER BY l.created_at DESC,l.id DESC LIMIT 50",
+          )
+          .bind(
+            wallet ?? '',
+            policy?.key ?? '',
+            policy?.key ?? '',
+            wallet ?? '',
+          )
+          .all()
+      : { results: [] };
   const pending = wallet
     ? await db
         .prepare(
@@ -121,11 +136,24 @@ export async function computeMarketSnapshot(
     : { results: [] };
   return {
     available,
+    viewer: wallet,
     network: policy?.network ?? null,
     mint: policy?.contract ?? null,
     decimals: policy?.decimals ?? null,
     listings: listings.results,
-    pending: pending.results.map(receipt),
+    pending: await Promise.all(pending.results.map((p) => receipt(db, p))),
+    recent: wallet
+      ? await Promise.all(
+          (
+            await db
+              .prepare(
+                "SELECT * FROM compute_payments WHERE buyer=? AND status IN ('settled','failed','expired') ORDER BY updated_at DESC LIMIT 5",
+              )
+              .bind(wallet)
+              .all<ComputePayment>()
+          ).results.map((p) => receipt(db, p)),
+        )
+      : [],
     message: available
       ? 'Buy Compute directly from other players.'
       : 'Token trading is not available yet. Keep building and earning Compute.',
@@ -150,12 +178,23 @@ export async function handleComputeMarketAction(
     };
   if (
     action === 'compute-payment-status' ||
+    action === 'compute-payment-cancel' ||
     action === 'compute-payment-submit'
   ) {
     const id = stringField(body, 'id'),
       existing = await getComputePayment(db, id);
     if (!existing || existing.buyer !== wallet)
       throw new ComputeMarketError(404, 'Checkout not found.');
+    if (action === 'compute-payment-cancel') {
+      await expireUnsignedComputeQuote(db, id, Date.now(), true);
+      const cancelled = (await getComputePayment(db, id))!;
+      if (cancelled.status !== 'expired')
+        throw new ComputeMarketError(
+          409,
+          'Payment is already processing. Check its status; do not pay again.',
+        );
+      return { payment: await receipt(db, cancelled) };
+    }
     if (action === 'compute-payment-submit') {
       try {
         await recordBuyerComputePayment(
@@ -189,7 +228,11 @@ export async function handleComputeMarketAction(
       // Recovery retries the recorded signature independently of the browser.
       payment = (await getComputePayment(db, id))!;
     }
-    return { payment: receipt(payment) };
+    return {
+      payment: await receipt(db, payment),
+      quote:
+        payment.status === 'quoted' ? JSON.parse(payment.quote_json) : null,
+    };
   }
   enabled(values);
   if (!qualified)
@@ -227,7 +270,7 @@ export async function handleComputeMarketAction(
           'Checkout identifier is already in use.',
         );
       return {
-        payment: receipt(existing),
+        payment: await receipt(db, existing),
         quote:
           existing.status === 'quoted' ? JSON.parse(existing.quote_json) : null,
       };
@@ -257,7 +300,7 @@ export async function handleComputeMarketAction(
       quote,
       config.policy,
     );
-    return { payment: receipt(payment), quote };
+    return { payment: await receipt(db, payment), quote };
   }
   throw new ComputeMarketError(404, 'Unknown Compute trading action.');
 }

@@ -164,6 +164,59 @@ try {
   });
   assert.ok([401, 403].includes(unsigned.status));
   console.log('PASS unsigned room service rejected');
+  const market = ok(
+    await clients[0].request(
+      'compute-market?wallet=' + encodeURIComponent(clients[0].profile.wallet),
+    ),
+  );
+  assert.equal(market.viewer, clients[0].profile.wallet);
+  assert.equal(
+    market.available,
+    false,
+    'Production token trading must remain gated during acceptance',
+  );
+  assert.deepEqual(market.pending, []);
+  assert.deepEqual(market.recent, []);
+  assert.equal(
+    (
+      await clients[0].request(
+        'compute-market?wallet=' +
+          encodeURIComponent(clients[1].profile.wallet),
+      )
+    ).status,
+    401,
+  );
+  const anonymous = new Client();
+  assert.equal(
+    (
+      await anonymous.request('compute-payment-cancel', {
+        id: crypto.randomUUID(),
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await clients[0].request(
+        'compute-payment-cancel',
+        clients[0].body({ id: crypto.randomUUID() }),
+        { Origin: 'https://unrelated.example' },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await clients[0].request(
+        'compute-payment-cancel',
+        clients[0].body({ id: crypto.randomUUID() }),
+      )
+    ).status,
+    404,
+  );
+  console.log(
+    'PASS paused Compute exchange, wallet isolation, authenticated same-origin cancellation',
+  );
   if (process.env.NOOBIUS_TEST_LONG_ROOMS === '1') {
     console.log('Waiting for the real five-minute room grant renewal');
     await rooms[0].wait('renew', () => true, 310000);

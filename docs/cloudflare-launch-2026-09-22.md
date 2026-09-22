@@ -26,13 +26,15 @@ The public frontend assets fit Workers Static Assets; a separate R2 bucket is un
 - Five real hosted WebSocket clients saw each other's positions. A sixth targeted admission was rejected. Valid movement replicated; a teleport was rejected. Public socket messages omitted tested private economy fields. Unsigned room-service access was rejected.
 - The actual browser RoomClient passed a hosted interruption/reconnect check and a full five-minute grant renewal, preserving the player position through both transitions (`scripts/smoke-room-recovery.mjs`).
 - Payment ledger and recovery: immutable Compute reservations, competing checkout exclusion, exact buyer signing, durable pre-broadcast authorization, finalized delivery once, and conservative failed/expired transaction recovery. The authenticated endpoints are installed but new token trading is explicitly disabled.
-- 397 automated tests, TypeScript checks, production build and 3 tooling checks passed for this release.
+- 407 automated tests, TypeScript checks, production build and 3 tooling checks passed for this release.
 - Real browser check: landing video, guest character setup, five-slide tutorial, 3D scene and first-machine tutorial render at the custom game domain. This does not prove a real Phantom/Solflare extension or mobile-wallet flow.
 - Solana holder verifier added: network genesis, exact mint/program/decimals, finalized account balances, owned-account aggregation, duplicate account rejection, and write-time entitlement guards. A read against public devnet with a fresh empty address passed. The configured launch mint is still missing, so production holder gates remain closed.
 - Production database SQL export restored into separate staging D1. The restore contained the six original generated test profiles, twelve migrations and 26 tables. The ignored local export remains under `.wrangler/production-backups/`; do not commit it. A restore into the live database has not been performed.
 - `GET /api/health` checks database access/migration readiness and exposes no player data.
-- A repeatable release command validates tests/types, builds the owner bundle, checks its database destination, applies additive migrations, deploys both services and checks health.
+- A repeatable release command validates tests/types, builds the owner bundle, checks its database destination, applies additive migrations, deploys all three services and checks health.
 - Solana is the default wallet tab. The game story no longer advertises the superseded Long.xyz destination. The separate coming-soon page has not been edited.
+
+- Compute checkout UI: explicit review, Wallet Standard sign-only approval, interrupted-send retry, pending recovery, receipts, cancellation and paused-market controls. Desktop/mobile-width rendering used a labeled local fixture, which was removed before release; real extension/phone acceptance remains outstanding.
 
 ## Reproduction
 
@@ -57,7 +59,7 @@ Health: `https://play.noobius.io/api/health`.
 1. Real wallet-extension and phone checks; rendered multi-browser visits, physical jobs, trades and reconnection. Automated signed requests are not a substitute for these UI checks.
 2. Hosted worker restart/load evidence, measured quotas and cost. Interruption and five-minute renewal are verified. Five sockets do not establish 50-player capacity. Current admission cap is 50, not a demonstrated performance figure.
 3. Confirm Workers billing/quotas. Account deployment and D1 permissions work; subscription read returned 403, so no billing-plan claim or paid upgrade was made.
-4. Complete the wallet transaction adapter and checkout UI, then exercise the implemented reservation/signing/settlement/recovery APIs against actual devnet transfers. Token APIs and the scheduled recovery service are disabled for new real-token sales until configuration and acceptance checks are complete. Existing item-for-Compute trading remains available.
+4. Wallet transaction adapter and checkout UI are implemented and covered by automated and mock-browser checks. Exercise the reservation/signing/settlement/recovery APIs against actual devnet transfers; the current test payer still needs free devnet SOL. Token APIs and the scheduled recovery service are disabled for new real-token sales until configuration and acceptance checks are complete. Existing item-for-Compute trading remains available.
 5. Obtain exact Solana mint, network, decimals, holder threshold, launchpad link, RPC provision and marketplace fee policy. The mainnet mint has been requested; do not guess it or treat placeholder text as an address.
 6. Test the new marketplace with a test token, including crashes/retries/expiry and competing purchases, before enabling real payments. The user authorized building/hosting; no user funds, token issuance or mainnet transaction was performed.
 7. Finish release-specific operational checks: monitoring delivery, support ownership, abuse controls, wallet/mobile behavior, budget thresholds, clean release metadata and a GitHub deployment credential if CI deployment is wanted. GitHub source access is independent from Cloudflare authentication.

@@ -1,4 +1,6 @@
 'use client';
+import ComputeMarketPanel from './ComputeMarketPanel';
+import type { ComputePaymentQuote } from '@/lib/solana-payment';
 import { canTrade, TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
 import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
@@ -89,6 +91,11 @@ export const PANEL_COPY: Record<ExpansionPanel, [string, string]> = {
   rewards: ['Compute', 'Your game balance.'],
 };
 type Props = {
+  onComputeRequest: <T>(
+    action: string,
+    body: Record<string, unknown>,
+  ) => Promise<T>;
+  onComputeSign: (quote: ComputePaymentQuote) => Promise<string>;
   personalGoals?: PersonalGoalsController;
   view?: GuideView;
   panel: ExpansionPanel;
@@ -141,6 +148,8 @@ function Parts({ cost, bag }: { cost: Bag; bag?: Bag }) {
   );
 }
 export default function FacilityPanels({
+  onComputeRequest,
+  onComputeSign,
   personalGoals,
   view,
   panel,
@@ -743,7 +752,8 @@ export default function FacilityPanels({
         <TabsList className="expansion-tabs">
           <TabsTrigger value="merchant">Buy parts</TabsTrigger>
           <TabsTrigger value="players">Player market</TabsTrigger>
-          <TabsTrigger value="sell">Sell</TabsTrigger>
+          <TabsTrigger value="sell">Sell parts</TabsTrigger>
+          <TabsTrigger value="compute">Compute</TabsTrigger>
         </TabsList>
         <TabsContent value="merchant">
           <label className="trade-quantity">
@@ -987,6 +997,15 @@ export default function FacilityPanels({
               storage. Sales transfer existing Compute between players.
             </p>
           </div>
+        </TabsContent>
+        <TabsContent value="compute">
+          <ComputeMarketPanel
+            key={profile.wallet}
+            profile={profile}
+            request={onComputeRequest}
+            sign={onComputeSign}
+            onConnect={onConnect}
+          />
         </TabsContent>
         {remoteError && (
           <p role="alert" className="modal-error">

@@ -557,14 +557,16 @@ export async function handleGame(request: Request, action: string) {
         ? ((await identity(request)) ?? undefined)
         : undefined,
     );
-    if (action === 'compute-market')
-      return result(
-        await computeMarketSnapshot(
-          db(),
-          await identity(request),
-          realmValues(),
-        ),
-      );
+    if (action === 'compute-market') {
+      const viewer = await identity(request),
+        expected = new URL(request.url).searchParams.get('wallet');
+      if (expected && expected !== viewer)
+        throw new ApiError(
+          401,
+          'Your wallet session changed. Reconnect to view your trades.',
+        );
+      return result(await computeMarketSnapshot(db(), viewer, realmValues()));
+    }
     if (action === 'moderation-reports') {
       const wallet = await identity(request);
       return result(
@@ -873,6 +875,7 @@ export async function handleGame(request: Request, action: string) {
       'compute-listing-cancel',
       'compute-payment-quote',
       'compute-payment-submit',
+      'compute-payment-cancel',
       'compute-payment-status',
     ].includes(action)
   ) {

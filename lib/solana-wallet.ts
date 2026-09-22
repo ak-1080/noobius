@@ -65,6 +65,18 @@ export function solanaWalletProvider(wallet: StandardWallet): Provider {
         return solanaAccounts(wallet.accounts).map(
           (account) => account.address,
         );
+      if (method === 'solana_signTransaction') {
+        const [wire, address, network] = params ?? [];
+        if (
+          typeof wire !== 'string' ||
+          typeof address !== 'string' ||
+          typeof network !== 'string'
+        )
+          throw new Error('Invalid checkout request.');
+        const { signSolanaTransaction } =
+          await import('./solana-transaction-wallet.ts');
+        return signSolanaTransaction(wallet, wire, address, network);
+      }
       if (method === 'solana_signMessage') {
         const [text, address] = params ?? [];
         const account = solanaAccounts(wallet.accounts).find(

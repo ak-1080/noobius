@@ -1,4 +1,5 @@
 'use client';
+import type { ComputePaymentQuote } from '@/lib/solana-payment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { actionWorksite } from '@/lib/action-authority';
 import type { PrepareRoomWork } from '@/lib/room-protocol';
@@ -864,6 +865,62 @@ export function useNoobius() {
         applied: data.actionApplied !== false,
       };
     });
+  const signComputePayment = useCallback(async (quote: ComputePaymentQuote) => {
+    const wallet = state.current.profile?.wallet,
+      provider = providerRef.current,
+      epoch = generation.current;
+    if (
+      !wallet?.startsWith('solana:') ||
+      quote.buyer !== wallet.slice(7) ||
+      !provider
+    )
+      throw new ClientError(
+        'Connect the purchasing Solana wallet before approving payment.',
+      );
+    const signed = await provider.request({
+      method: 'solana_signTransaction',
+      params: [quote.unsignedTransactionBase64, quote.buyer, quote.network],
+    });
+    if (
+      epoch !== generation.current ||
+      state.current.profile?.wallet !== wallet ||
+      providerRef.current !== provider
+    )
+      throw new ClientError('Your wallet changed. No payment was submitted.');
+    if (typeof signed !== 'string')
+      throw new ClientError('The wallet did not return a payment approval.');
+    return signed;
+  }, []);
+  const computeRequest = useCallback(
+    async <T>(action: string, body: Record<string, unknown>): Promise<T> => {
+      const wallet = state.current.profile?.wallet,
+        epoch = generation.current;
+      if (!wallet?.startsWith('solana:'))
+        throw new ClientError('Connect a Solana wallet to trade Compute.');
+      const data = await api<T>(action, { ...body, expectedWallet: wallet });
+      if (
+        epoch !== generation.current ||
+        state.current.profile?.wallet !== wallet
+      )
+        throw new ClientError(
+          'Your wallet session changed. Reconnect to check this trade.',
+        );
+      const revision = appliedRevision.current;
+      try {
+        const fresh = await api('profile');
+        if (
+          fresh.profile?.wallet === wallet &&
+          epoch === generation.current &&
+          revision === appliedRevision.current
+        )
+          apply(fresh, epoch);
+      } catch {
+        /* The trade receipt is still valid; normal profile refresh retries. */
+      }
+      return data;
+    },
+    [apply],
+  );
   const marketAction = async (action: string, body: Record<string, unknown>) =>
     run(async () => {
       if (state.current.profile?.wallet === 'practice') {
@@ -898,6 +955,8 @@ export function useNoobius() {
   return {
     setWorldController,
     setRoomWork,
+    signComputePayment,
+    computeRequest,
     guestSaveState,
     notice,
     setNotice,

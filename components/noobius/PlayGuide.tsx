@@ -359,10 +359,12 @@ function GuideDetails() {
           machines still earn more.
         </p>
         <p>
-          <strong>$NOOBIUS</strong> is the project’s token. The exchange screen
-          previews a token request; blockchain transfers and cash-out are not
-          connected yet. Compute and the token are separate balances. A preview
-          does not spend Compute or send tokens.
+          <strong>$NOOBIUS</strong> is the project’s token. When token trading
+          opens, players can list earned Compute at their own price, and other
+          players can buy it with $NOOBIUS. There is no fixed exchange rate or
+          guaranteed buyer. Compute and tokens are separate balances. Practice
+          Compute cannot be sold. The exchange shows whether trading is
+          available.
         </p>
         <p>
           Other collected items are optional materials for workshop activities
