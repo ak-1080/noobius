@@ -1,0 +1,528 @@
+// Bounded production capacity probe: fifty generated, unfunded Solana accounts.
+// Uses public admission and real RoomClient transport; no fixture SQL, tokens or
+// user profiles. Respects normal authentication throttles, then leaves/logs out.
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { base58 } from '@scure/base';
+import WebSocket from 'ws';
+import { RoomClient } from '../lib/room-client.ts';
+const origin = process.env.NOOBIUS_TEST_ORIGIN;
+const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
+const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
+assert.ok(Number.isInteger(roomCount) && roomCount >= 1 && roomCount <= 10);
+assert.ok(
+  Number.isInteger(durationSeconds) &&
+    durationSeconds >= 30 &&
+    durationSeconds <= 120,
+);
+const correctionReasons = {};
+if (origin !== 'https://play.noobius.io')
+  throw Error('Explicit production test origin required');
+const { Client } = await import('../tests/api-client.mjs');
+const actors = [],
+  tasks = new Set(),
+  issues = [],
+  rtts = [],
+  httpRtts = [];
+const runId = crypto.randomUUID(),
+  began = Date.now();
+let stopped = false,
+  measuring = false,
+  phase = 0;
+const counters = {
+  unacknowledged: 0,
+  sent: 0,
+  accepted: 0,
+  corrected: 0,
+  peerFrames: 0,
+  inboundBytes: 0,
+  renewals: 0,
+  interruptions: 0,
+  httpRequests: 0,
+};
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const ok = (r) => {
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  return r.data;
+};
+const ids = (xs) => xs.map((x) => x.id).sort();
+const quantile = (xs, p) =>
+  xs.length
+    ? Number(
+        [...xs]
+          .sort((a, b) => a - b)
+          [Math.max(0, Math.ceil(xs.length * p) - 1)].toFixed(1),
+      )
+    : null;
+const track = (promise) => {
+  tasks.add(promise);
+  promise.finally(() => tasks.delete(promise)).catch(() => {});
+  return promise;
+};
+async function request(a, action, body) {
+  const start = performance.now();
+  const r = await a.c.request(action, body);
+  counters.httpRequests++;
+  if (measuring) httpRtts.push(performance.now() - start);
+  return r;
+}
+async function authenticate(a) {
+  const auth = async (action, body) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await request(a, action, body);
+      if (r.status !== 429) return ok(r);
+      const delay = 60200 - (Date.now() % 60000);
+      console.log(
+        'Auth rate limit respected; waiting',
+        Math.ceil(delay / 1000),
+        'seconds',
+      );
+      for (let remaining = delay; remaining > 0; remaining -= 10000) {
+        await sleep(Math.min(remaining, 10000));
+        assert.ok(!stopped);
+      }
+    }
+    throw Error('Authentication remained throttled');
+  };
+  const nonce = await auth('nonce', {
+    address: a.address,
+    ecosystem: 'solana',
+  });
+  const signature =
+    '0x' +
+    Buffer.from(
+      await crypto.subtle.sign(
+        'Ed25519',
+        a.keys.privateKey,
+        new TextEncoder().encode(nonce.message),
+      ),
+    ).toString('hex');
+  a.profile = (await auth('verify', { signature })).profile;
+}
+async function connect(a) {
+  if (stopped) return;
+  a.transport?.dispose();
+  const state = ok(
+    await request(a, 'neighborhood-state', a.c.body(a.controller)),
+  );
+  a.membership = state.membership;
+  a.point = { x: a.membership.x, z: a.membership.z };
+  const ticket = ok(await request(a, 'room-ticket', a.c.body(a.controller)));
+  assert.equal(ticket.coordinatorOrigin, 'https://rooms.noobius.io');
+  const transport = new RoomClient({
+    ...ticket,
+    membership: a.membership,
+    readPosition: () => a.point,
+    onMembership: (m, reset) => {
+      a.membership = m;
+      if (reset) a.point = { x: m.x, z: m.z };
+    },
+    onCorrection: (p) => {
+      a.point = { ...p };
+    },
+    onReady: () => {},
+    onPeople: (people) => {
+      a.peers = ids(people);
+      a.lastPeers = Date.now();
+      if (!measuring) return;
+      counters.peerFrames++;
+      if (
+        a.peers.some((id) => !a.expected.includes(id)) ||
+        new Set(a.peers).size !== a.peers.length
+      )
+        issues.push('Foreign or duplicate peer for ' + a.index);
+      if (JSON.stringify(a.peers) === JSON.stringify(a.expected))
+        a.incompleteSince = 0;
+      else a.incompleteSince ||= Date.now();
+      if (
+        people.some((p) =>
+          ['wallet', 'credits', 'inventory', 'grant', 'session_hash'].some(
+            (k) => Object.hasOwn(p, k),
+          ),
+        )
+      )
+        issues.push('Private peer fields exposed');
+    },
+    onDisconnect: (reason) => {
+      if (stopped || a.transitioning) return;
+      for (const p of a.pending.values())
+        if (p.measured) counters.unacknowledged++;
+      a.pending.clear();
+      if (reason === 'renew') counters.renewals++;
+      else counters.interruptions++;
+      console.log(
+        'Connection recovery',
+        JSON.stringify({
+          actor: a.index,
+          reason,
+          elapsedMs: Date.now() - began,
+          authorityAgeMs: a.lastAuthority ? Date.now() - a.lastAuthority : null,
+        }),
+      );
+      if (!a.reconnecting)
+        a.reconnecting = track(
+          (async () => {
+            await sleep(500);
+            for (let attempt = 0; attempt < 3 && !stopped; attempt++) {
+              try {
+                await connect(a);
+                return;
+              } catch (e) {
+                if (attempt === 2)
+                  issues.push('Reconnect failed: ' + e.message);
+                else await sleep(1500);
+              }
+            }
+          })().finally(() => {
+            a.reconnecting = null;
+          }),
+        );
+    },
+    createSocket: (url) => {
+      assert.equal(new URL(url).origin, 'wss://rooms.noobius.io');
+      const socket = new WebSocket(url, { origin });
+      a.socket = socket;
+      const send = socket.send.bind(socket);
+      socket.send = (data, ...rest) => {
+        const f = JSON.parse(String(data));
+        if (f.type === 'move') {
+          a.pending.set(f.inputSequence, {
+            time: performance.now(),
+            measured: measuring,
+          });
+          if (measuring) {
+            counters.sent++;
+            a.sent++;
+          }
+        }
+        return send(data, ...rest);
+      };
+      socket.on('message', (raw) => {
+        if (measuring) counters.inboundBytes += raw.length;
+        const f = JSON.parse(String(raw));
+        if (['joined', 'authority', 'rebase'].includes(f.type))
+          a.lastAuthority = Date.now();
+        if (f.type === 'move-ack') {
+          const p = a.pending.get(f.inputSequence);
+          a.pending.delete(f.inputSequence);
+          if (f.accepted) a.lastAccepted = { ...f.position };
+          if (p?.measured) {
+            rtts.push(performance.now() - p.time);
+            if (f.accepted) {
+              counters.accepted++;
+              a.accepted++;
+            } else {
+              counters.corrected++;
+              correctionReasons[f.reason ?? 'unspecified'] =
+                (correctionReasons[f.reason ?? 'unspecified'] ?? 0) + 1;
+            }
+          }
+        }
+      });
+      socket.on('close', (code) => {
+        if (!stopped && !a.transitioning)
+          console.log(
+            'Socket closed',
+            JSON.stringify({ actor: a.index, code }),
+          );
+      });
+      return socket;
+    },
+  });
+  a.transport = transport;
+  await transport.connect();
+  assert.ok(transport.ready);
+}
+const motion = setInterval(() => {
+  if (stopped || !measuring) return;
+  phase += 0.16;
+  for (const a of actors)
+    if (a.transport?.ready)
+      a.point = { x: 0, z: 17 - 0.35 * Math.sin(phase + a.index * 0.13) ** 2 };
+}, 160);
+const heartbeat = setInterval(
+  () =>
+    console.log(
+      'Capacity probe',
+      JSON.stringify({
+        elapsedSeconds: Math.round((Date.now() - began) / 1000),
+        signedIn: actors.filter((a) => a.profile).length,
+        connected: actors.filter((a) => a.transport?.ready).length,
+        measuring,
+        ...counters,
+        issues: issues.length,
+      }),
+    ),
+  30000,
+);
+const deadline = setTimeout(() => {
+  issues.push('Probe exceeded ten-minute bound');
+  stopped = true;
+  for (const a of actors) {
+    a.transport?.dispose();
+    a.socket?.terminate();
+  }
+}, 600000);
+let report;
+try {
+  assert.equal((await fetch(origin + '/api/health')).status, 200);
+  for (let group = 0; group < roomCount; group++) {
+    const members = [];
+    let target;
+    for (let lane = 0; lane < 5; lane++) {
+      assert.ok(!stopped);
+      assert.equal(issues.length, 0, issues.join('; '));
+      const keys = await crypto.subtle.generateKey('Ed25519', true, [
+        'sign',
+        'verify',
+      ]);
+      const address = base58.encode(
+        new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey)),
+      );
+      const c = new Client({ address });
+      c.body = (body) => ({
+        expectedWallet: 'solana:' + address,
+        ...body,
+      });
+      const a = {
+        c,
+        address,
+        keys,
+        index: group * 5 + lane,
+        group,
+        controller: { clientId: crypto.randomUUID(), generation: 0 },
+        pending: new Map(),
+        peers: [],
+        expected: [],
+        lastPeers: 0,
+        sent: 0,
+        accepted: 0,
+      };
+      actors.push(a);
+      members.push(a);
+      await authenticate(a);
+      ok(
+        await request(
+          a,
+          'name',
+          c.body({ name: 'Capacity QA ' + (a.index + 1) }),
+        ),
+      );
+      const joined = ok(
+        await request(
+          a,
+          'neighborhood-join',
+          c.body({
+            ...a.controller,
+            realm: 'commons',
+            ...(target ? { target } : {}),
+          }),
+        ),
+      );
+      a.membership = joined.membership;
+      a.controller.generation = a.membership.generation;
+      target = a.membership.neighborhoodId;
+      await connect(a);
+    }
+    assert.ok(
+      !actors
+        .filter((a) => a.group !== group)
+        .some((a) => a.membership?.neighborhoodId === target),
+      'Groups must occupy separate neighborhoods',
+    );
+    // Two neighbors visit one home while three remain in the plaza.
+    for (const a of members.slice(0, 2)) {
+      const readyDeadline = Date.now() + 20000;
+      while (!a.transport.ready || a.reconnecting) {
+        assert.ok(
+          Date.now() < readyDeadline,
+          'Room must recover before changing scenes',
+        );
+        await sleep(100);
+      }
+      a.transitioning = true;
+      await a.transport.release();
+      const changed = ok(
+        await request(
+          a,
+          'neighborhood-scene',
+          a.c.body({ ...a.controller, scene: 'home-' + members[0].profile.id }),
+        ),
+      );
+      a.membership = changed.membership;
+      a.controller.generation = a.membership.generation;
+      await connect(a);
+      a.transitioning = false;
+    }
+    for (const a of members)
+      a.expected = ids(
+        members
+          .filter((b) => b.membership.scene === a.membership.scene)
+          .map((b) => b.profile),
+      );
+    console.log(
+      'Admitted neighborhood',
+      group + 1,
+      'with two home visitors and three plaza players',
+    );
+  }
+  const readyUntil = Date.now() + 15000;
+  while (
+    !actors.every(
+      (a) =>
+        a.transport.ready &&
+        JSON.stringify(a.peers) === JSON.stringify(a.expected),
+    )
+  ) {
+    assert.ok(
+      Date.now() < readyUntil,
+      'All admitted clients must have correct scene peers',
+    );
+    await sleep(100);
+  }
+  const measuredAt = Date.now();
+  measuring = true;
+  // Moving clients plus ordinary saved-profile reads, distributed over 90 seconds.
+  for (let second = 0; second < durationSeconds; second++) {
+    assert.ok(!stopped);
+    assert.equal(issues.length, 0, issues.slice(0, 5).join('; '));
+    for (const a of actors)
+      assert.ok(
+        !a.incompleteSince || Date.now() - a.incompleteSince < 5000,
+        'Scene peers must recover within five seconds',
+      );
+    if (second % 10 === 0)
+      await Promise.all(
+        actors
+          .filter((_, i) => i % 5 === (second / 10) % 5)
+          .map(async (a) => {
+            const state = ok(await request(a, 'profile'));
+            assert.equal(state.profile.id, a.profile.id);
+          }),
+      );
+    await sleep(1000);
+  }
+  const measurementMs = Date.now() - measuredAt;
+  measuring = false;
+  await sleep(2000);
+  assert.equal(actors.length, roomCount * 5);
+  assert.equal(
+    new Set(actors.map((a) => a.membership.neighborhoodId)).size,
+    roomCount,
+  );
+  assert.equal(issues.length, 0, issues.slice(0, 5).join('; '));
+  assert.ok(
+    actors.every((a) => a.transport.ready),
+    'Every client remains ready',
+  );
+  assert.ok(
+    actors.every((a) => a.accepted >= durationSeconds * 2),
+    'Every client averages at least two accepted updates per scheduled second',
+  );
+  assert.ok(
+    counters.accepted / counters.sent > 0.99,
+    'At least 99% movement accepted',
+  );
+  assert.equal(
+    rtts.length + counters.unacknowledged,
+    counters.sent,
+    'Every measured move must be acknowledged',
+  );
+  assert.ok(
+    quantile(rtts, 0.95) < 1200,
+    'p95 send-to-ack below 1.2 seconds from this runner',
+  );
+  const positions = [];
+  for (let start = 0; start < actors.length; start += 5)
+    await Promise.all(
+      actors.slice(start, start + 5).map(async (a) => {
+        a.transitioning = true;
+        await a.transport.release();
+        const saved = ok(
+          await request(a, 'neighborhood-state', a.c.body(a.controller)),
+        );
+        assert.equal(saved.writerActive, false);
+        assert.deepEqual(
+          { x: saved.membership.x, z: saved.membership.z },
+          a.lastAccepted,
+        );
+        positions.push(a.index);
+      }),
+    );
+  report = {
+    runId,
+    status: 'passed',
+    completedAt: new Date().toISOString(),
+    scope: `Hosted Cloudflare Workers and Durable Objects; ${actors.length} synthetic RoomClients, ${roomCount} neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers`,
+    rampMs: measuredAt - began,
+    measurementMs,
+    ...counters,
+    correctionReasons,
+    durablePositions: positions.length,
+    moveRtt: {
+      p50: quantile(rtts, 0.5),
+      p95: quantile(rtts, 0.95),
+      p99: quantile(rtts, 0.99),
+    },
+    httpRtt: {
+      p50: quantile(httpRtts, 0.5),
+      p95: quantile(httpRtts, 0.95),
+    },
+    issues,
+  };
+} catch (e) {
+  report = {
+    runId,
+    status: 'failed',
+    at: new Date().toISOString(),
+    error: e.message,
+    ...counters,
+    correctionReasons,
+    moveRtt: {
+      p50: quantile(rtts, 0.5),
+      p95: quantile(rtts, 0.95),
+      p99: quantile(rtts, 0.99),
+    },
+    perActorAccepted: actors.map((a) => a.accepted),
+    issues,
+  };
+  throw e;
+} finally {
+  stopped = true;
+  measuring = false;
+  clearInterval(motion);
+  clearInterval(heartbeat);
+  clearTimeout(deadline);
+  await Promise.allSettled(tasks);
+  for (const a of actors) {
+    a.transport?.dispose();
+    a.socket?.terminate();
+  }
+  const cleanup = [];
+  for (let start = 0; start < actors.length; start += 5)
+    await Promise.all(
+      actors.slice(start, start + 5).map(async (a) => {
+        if (!a.profile) return;
+        try {
+          ok(await request(a, 'neighborhood-leave', a.c.body(a.controller)));
+          ok(await request(a, 'logout', a.c.body()));
+        } catch (e) {
+          cleanup.push({ index: a.index, error: e.message });
+        }
+      }),
+    );
+  if (report) {
+    report.cleanupErrors = cleanup;
+    if (cleanup.length) report.status = 'failed';
+    writeFileSync(
+      '/tmp/noobius-hosted-capacity-results.json',
+      JSON.stringify(report, null, 2),
+    );
+    console.log(JSON.stringify(report, null, 2));
+  }
+  assert.equal(
+    cleanup.length,
+    0,
+    'All generated sessions must leave and log out',
+  );
+}

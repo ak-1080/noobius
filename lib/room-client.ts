@@ -60,6 +60,7 @@ export class RoomClient {
   private point: Point;
   private deadline = 0;
   private lastMoveAt = 0;
+  private lastMoveAckAt = 0;
   private connected = false;
   private ended = false;
   private barrier = false;
@@ -218,6 +219,7 @@ export class RoomClient {
         this.authority(body, true);
         this.point = { x: body.membership.x, z: body.membership.z };
         this.lastMoveAt = this.now();
+        this.lastMoveAckAt = this.lastMoveAt;
         this.connected = true;
         this.barrier = false;
         this.options.onCorrection(this.point);
@@ -251,6 +253,7 @@ export class RoomClient {
       if (body.type === 'move-ack') {
         if (!validPoint(body.position) || body.inputSequence !== this.sequence)
           return;
+        this.lastMoveAckAt = this.now();
         this.point = { ...body.position };
         if (!body.accepted || body.corrected)
           this.options.onCorrection(this.point);
@@ -287,7 +290,11 @@ export class RoomClient {
       throw interrupted();
     const task = async () => {
       if (samePoint(this.options.readPosition(), this.point)) return true;
-      const delay = 160 - (this.now() - this.lastMoveAt);
+      // Send cadence alone cannot prevent network jitter from bunching arrivals.
+      // Leave the server's 100ms minimum after receipt of the previous ack, too,
+      // with a small margin for timer precision across the two runtimes.
+      const delay =
+        Math.max(this.lastMoveAt + 160, this.lastMoveAckAt + 110) - this.now();
       if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
       if (this.ended || !this.connected) throw interrupted();
       const target = { ...this.options.readPosition() };

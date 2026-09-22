@@ -187,6 +187,45 @@ test('exact final payload gets a frozen checkpoint before HTTP work, then explic
   );
 });
 
+test('a delayed movement acknowledgment cannot trigger an immediate catch-up packet', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const f = await fixture(t);
+  f.move({ x: 0, z: 16.8 });
+  const first = f.client.syncPosition();
+  assert.equal(f.socket.frames.filter((b) => b.type === 'move').length, 1);
+  // The ack arrives after the ordinary 160ms send interval has already elapsed.
+  f.time(1500);
+  f.frame('move-ack', {
+    inputSequence: 1,
+    position: { x: 0, z: 16.8 },
+    accepted: true,
+  });
+  assert.equal(await first, true);
+  f.move({ x: 0, z: 16.7 });
+  f.time(1501);
+  f.socket.handle = (body) => {
+    if (body.type === 'move')
+      f.frame('move-ack', {
+        inputSequence: body.inputSequence,
+        position: { x: body.x, z: body.z },
+        accepted: true,
+      });
+  };
+  const next = f.client.syncPosition();
+  f.time(1609);
+  t.mock.timers.tick(108);
+  await Promise.resolve();
+  assert.equal(
+    f.socket.frames.filter((b) => b.type === 'move').length,
+    1,
+    'No catch-up packet while the server may still be inside its rate limit',
+  );
+  f.time(1610);
+  t.mock.timers.tick(1);
+  assert.equal(await next, true);
+  assert.equal(f.socket.frames.filter((b) => b.type === 'move').length, 2);
+});
+
 test('authority renewals keep the client live; expired authority stops it', async (t) => {
   const f = await fixture(t);
   f.time(10500);
