@@ -5390,6 +5390,7 @@ a {
   color: #c8efab;
 }
 .tycoon-machine-copy {
+  min-width: 0;
   padding: 18px;
 }
 .tycoon-machine-copy > small {
@@ -5408,6 +5409,11 @@ a {
 }
 .tycoon-machine-copy button {
   width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
   margin: 0;
 }
 .tycoon-machine-copy .tycoon-short {
