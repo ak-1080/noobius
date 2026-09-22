@@ -67,3 +67,9 @@ Health: `https://play.noobius.io/api/health`.
 7. Finish release-specific operational checks: monitoring delivery, support ownership, abuse controls, wallet/mobile behavior, budget thresholds, clean release metadata and a GitHub deployment credential if CI deployment is wanted. GitHub source access is independent from Cloudflare authentication.
 
 This document is a deployment checkpoint, not a claim that the entire game or real-money economy is production complete.
+
+## Quota incident follow-up
+
+The private-host lookup in room authority previously compared a concatenation of every player's public ID with the current scene. It now checks the `home-` prefix and looks up the ID suffix through the existing unique player-ID index. Local SQLite query-plan checks cover the actual ticket/grant/refresh SQL and reject a host table scan; existing visit-revocation checks still pass. This removes an identified source of avoidable reads, but is not a measured production quota reduction or a substitute for Workers Paid.
+
+Known D1 daily read/write exhaustion now produces a no-store HTTP 503 with a clear player message and `Retry-After: 60`, rather than the generic 500. It does not claim an in-flight action was saved, automatically repeat a purchase, change authentication, or disable economic validation. 418 tests, typecheck, scoped lint and the Cloudflare production build passed. The game-only deployment requires no migration or root-site changes. Live mixed-gameplay acceptance remains outstanding until database service recovers.

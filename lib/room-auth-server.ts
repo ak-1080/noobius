@@ -59,7 +59,7 @@ type GrantRow = {
 // This predicate is repeated inside ticket/grant mutations, not just a read.
 function sceneGuard(alias: string) {
   return `(${alias}.room='commons' OR EXISTS(SELECT 1 FROM players host JOIN crew_presence host_presence ON host_presence.wallet=host.wallet
-    WHERE 'home-'||host.public_id=${alias}.room AND host_presence.neighborhood_id=${alias}.neighborhood_id
+    WHERE substr(${alias}.room,1,5)='home-' AND host.public_id=substr(${alias}.room,6) AND host_presence.neighborhood_id=${alias}.neighborhood_id
     AND host_presence.lease_until>MAX(?,${DB_CLOCK_SQL}) AND ${noBlockSql(alias + '.wallet', 'host.wallet')}))`;
 }
 async function authority(
@@ -73,7 +73,7 @@ async function authority(
   const row = await db
     .prepare(`SELECT c.*,n.realm,p.public_id,p.name,p.xp,p.facility_state,s.expires_at AS session_expires_at,
     g.writer_until,g.frozen_until,g.frozen_checkpoint,
-    (SELECT host.facility_state FROM players host WHERE 'home-'||host.public_id=c.room) AS host_facility
+    (SELECT host.facility_state FROM players host WHERE substr(c.room,1,5)='home-' AND host.public_id=substr(c.room,6)) AS host_facility
     FROM crew_presence c JOIN neighborhoods n ON n.id=c.neighborhood_id JOIN players p ON p.wallet=c.wallet
     JOIN sessions s ON s.wallet=c.wallet AND s.token_hash=?
     LEFT JOIN room_grants g ON g.grant_hash=? AND g.wallet=c.wallet
@@ -479,7 +479,13 @@ async function checkpointMovement(
   const saved = await previous();
   if (saved) return reply(saved);
   if (
-    !floorClear(context.navigation, row.scene === 'commons', input.x, input.z, context.membership.realm)
+    !floorClear(
+      context.navigation,
+      row.scene === 'commons',
+      input.x,
+      input.z,
+      context.membership.realm,
+    )
   )
     throw new RoomAuthError(400, 'Checkpoint is outside the accessible floor.');
   // Movement hops are validated by the trusted coordinator. Sparse D1 commits

@@ -603,3 +603,47 @@ test('narrow service operations reject arbitrary identity, checkpoints and clien
     nonceCount,
   );
 });
+
+test('room authority looks up private hosts by index instead of scanning every player', async (t) => {
+  const f = await fixture(t, 2);
+  const [host, guest] = f.crew;
+  const hostId = f.db.sqlite
+    .prepare('SELECT public_id FROM players WHERE wallet=?')
+    .get(host.session.wallet).public_id;
+  const scene = await changeScene(
+    f.db,
+    guest.session.wallet,
+    guest.controller,
+    'home-' + hostId,
+    now,
+  );
+  guest.controller.generation = scene.generation;
+  const queries = [];
+  const original = f.db.prepare;
+  f.db.prepare = (sql) => {
+    const prepared = original(sql);
+    const bind = prepared.bind.bind(prepared);
+    prepared.bind = (...args) => {
+      if (sql.includes('players host')) queries.push({ sql, args });
+      return bind(...args);
+    };
+    return prepared;
+  };
+  const connection = await f.connect(guest);
+  await f.service({ operation: 'authority-refresh', grant: connection.grant });
+  assert.ok(queries.length >= 4, 'Inspect ticket, grant and refresh queries');
+  for (const { sql, args } of queries) {
+    const plan = f.db.sqlite
+      .prepare('EXPLAIN QUERY PLAN ' + sql)
+      .all(...args)
+      .map((row) => row.detail)
+      .join('\n');
+    assert.match(plan, /SEARCH host USING INDEX idx_players_public_id/);
+    assert.doesNotMatch(plan, /SCAN host(?:\s|$)/);
+  }
+  // Matching an ID suffix alone must never authorize a malformed scene.
+  f.db.sqlite
+    .prepare('UPDATE crew_presence SET room=? WHERE wallet=?')
+    .run('oops-' + hostId, guest.session.wallet);
+  await assert.rejects(f.issue(guest), status(409));
+});

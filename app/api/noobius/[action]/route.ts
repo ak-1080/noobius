@@ -3,6 +3,7 @@ import { NeighborhoodError } from '@/lib/neighborhoods-server';
 import { RoomAuthError } from '@/lib/room-auth';
 import { FacilityError } from '@/lib/facility';
 import { ApiError, handleGame } from '@/lib/server';
+import { databaseQuotaResponse } from '@/lib/service-unavailable';
 export const dynamic = 'force-dynamic';
 async function respond(
   request: Request,
@@ -11,6 +12,11 @@ async function respond(
   try {
     return await handleGame(request, (await params).action);
   } catch (error) {
+    const unavailable = databaseQuotaResponse(error);
+    if (unavailable) {
+      console.error('Noobius database quota exceeded');
+      return unavailable;
+    }
     if (
       error instanceof ApiError ||
       error instanceof ComputeMarketError ||
