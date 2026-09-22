@@ -15,7 +15,7 @@ export type WorldWork = {
   phase: 'waiting' | 'running' | 'ready';
   caption: string;
   progress: number | null;
-  panel: 'contracts' | 'facility' | 'crafting' | 'compute';
+  panel: 'contracts' | 'facility' | 'crafting' | 'compute' | 'operations';
   view?: GuideView;
 };
 const remaining = (deadline: number, now: number) => {
@@ -90,6 +90,20 @@ export function worldWork(
       view: { jobsTab: 'board', jobId: run.id },
     });
   }
+  for (const run of f.commissions?.active ?? []) {
+    const ready = run.readyAt <= now;
+    signals.push({
+      key: 'client:' + run.id,
+      objectId: run.rack,
+      kind: 'client',
+      phase: ready ? 'ready' : 'running',
+      caption: ready
+        ? 'Client payment ready'
+        : `${run.client} · ${remaining(run.readyAt, now)}`,
+      progress: progress(run.startedAt, run.readyAt, now),
+      panel: 'operations',
+    });
+  }
   for (const loan of f.projectReservations ?? []) {
     // Its machine is free at the deadline, even before the ledger is reconciled.
     if (loan.readyAt <= now) continue;
@@ -145,6 +159,10 @@ export function workEffectTarget(
   f: Facility,
   action: Pick<FacilityAction, 'type' | 'id' | 'rack'>,
 ): string | undefined {
+  if (action.type.startsWith('commission-'))
+    return (
+      action.rack ?? f.commissions?.active.find((r) => r.id === action.id)?.rack
+    );
   if (!action.type.startsWith('contract-')) return undefined;
   const run = f.career?.active.find((r) => r.id === action.id);
   if (!run) return undefined;

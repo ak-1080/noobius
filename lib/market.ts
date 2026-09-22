@@ -5,6 +5,7 @@ export const TRADE_QUALIFICATION =
 export function canTrade(f: Facility) {
   return (
     completedContracts(careerFor(f)) >= 1 ||
+    Object.values(f.commissions?.completed ?? {}).some((n) => n > 0) ||
     f.computeBoost >= 1 ||
     Object.values(f.builds).reduce((total, n) => total + n, 0) >= 2 ||
     f.claims.includes('first-light') ||

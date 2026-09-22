@@ -1,4 +1,15 @@
 'use client';
+import { fieldSite } from '@/lib/realm-worlds';
+import RealmMiniMap from './RealmMiniMap';
+import CommissionDesk from './CommissionDesk';
+import RealmOperations from './RealmOperations';
+import { playerProgress } from '@/lib/progression';
+import {
+  realmFor,
+  realmRequirement,
+  REALM_WORKSITE,
+  type RealmId,
+} from '@/lib/realm-catalog';
 import { worldWork, workEffectTarget } from '@/lib/world-work';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
@@ -13,7 +24,6 @@ import ReturnBriefing from './ReturnBriefing';
 import { useReturnBriefing } from './useReturnBriefing';
 import { useCrewSignals } from './useCrewSignals';
 import CrewWidget from './CrewWidget';
-import { careerSuggestions } from '@/lib/job-choices';
 import { personalGoalObjective } from '@/lib/personal-goals';
 import { usePersonalGoals } from './usePersonalGoals';
 import PersonalGoals from './PersonalGoals';
@@ -69,6 +79,7 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Radio,
   Sparkles,
   Trophy,
   Volume2,
@@ -91,7 +102,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { JOBS, nextRank, titleFor, UPGRADES, type JobType } from '@/lib/game';
+import { JOBS, titleFor, UPGRADES, type JobType } from '@/lib/game';
 import { api, useNoobius } from './useNoobius';
 import Puzzle from './Puzzle';
 import TitleScene from './TitleScene';
@@ -120,6 +131,8 @@ const ICONS = { cooling: Fan, boot: Cpu, network: Cable };
 type Panel =
   | ExpansionPanel
   | 'world'
+  | 'field'
+  | 'operations'
   | 'appearance'
   | 'crewjob'
   | 'project'
@@ -215,7 +228,21 @@ export default function NoobiusGame() {
     ...(profile?.facility ?? newFacility()),
     compute: profile?.credits ?? 0,
   };
-  const scene = neighborhood.snapshot?.membership.scene;
+  const [fieldSiteId, setFieldSiteId] = useState<string | undefined>();
+  const [practiceWorld, setPracticeWorld] = useState<{
+    realm: RealmId;
+    home: boolean;
+  }>({ realm: 'commons', home: true });
+  const currentRealm =
+    mode === 'practice'
+      ? practiceWorld.realm
+      : (neighborhood.snapshot?.membership.realm ?? 'commons');
+  const scene =
+    mode === 'practice'
+      ? practiceWorld.home
+        ? undefined
+        : 'commons'
+      : neighborhood.snapshot?.membership.scene;
   const room = !scene || scene === 'home-' + profile?.id ? 'home' : scene;
   const [signalRevision, setSignalRevision] = useState(0);
   const [signalBarrier, setSignalBarrier] = useState<{
@@ -275,7 +302,11 @@ export default function NoobiusGame() {
   };
   const goWorld = async (next: string, arrived?: () => void) => {
     if (mode === 'practice') {
-      if (next !== 'home') show('wallet');
+      setPracticeWorld((previous) => ({ ...previous, home: next === 'home' }));
+      livePosition.current = { x: 0, z: 17 };
+      setPosition({ x: 0, z: 17 });
+      if (next === room) arrived?.();
+      else afterTravel.current = arrived ?? null;
       return;
     }
     if (travelPending.current) return;
@@ -297,10 +328,26 @@ export default function NoobiusGame() {
     }
   };
   const joinRealm = async (
-    realm: 'commons' | 'gpu',
+    realm: RealmId,
     target?: string,
     arrived?: () => void,
   ) => {
+    if (mode === 'practice') {
+      const requirement = realmRequirement(realm, profile?.xp ?? 0, true);
+      if (requirement) {
+        game.setNotice(requirement);
+        return false;
+      }
+      afterTravel.current = arrived ?? null;
+      setPracticeWorld({ realm, home: false });
+      livePosition.current = { x: 0, z: 17 };
+      setPosition({ x: 0, z: 17 });
+      if (realm === currentRealm && room === 'commons') {
+        arrived?.();
+        afterTravel.current = null;
+      }
+      return true;
+    }
     if (travelPending.current) return false;
     travelPending.current = true;
     afterTravel.current = arrived ?? null;
@@ -334,6 +381,7 @@ export default function NoobiusGame() {
     };
   }, [
     room,
+    currentRealm,
     profile?.wallet,
     neighborhood.snapshot?.membership.neighborhoodId,
     neighborhood.snapshot?.membership.generation,
@@ -360,7 +408,6 @@ export default function NoobiusGame() {
   const repaired =
     shift?.jobs.filter((j) => j.status === 'repaired').length ?? 0;
   const currentJob = shift?.jobs.find((j) => j.id === activeJob);
-  const rankTarget = nextRank(profile?.xp ?? 0);
   const partsPlan = profile ? partsPlans[profile.wallet] : undefined;
   const partsObjective = partsPlanObjective(
     facility,
@@ -395,7 +442,7 @@ export default function NoobiusGame() {
   const returnSuggestion =
     partsObjective ??
     pinnedObjective ??
-    careerSuggestions(facility, profile?.credits ?? 0, mode === 'wallet')[0];
+    shiftObjective(facility, profile?.credits ?? 0, now, mode === 'wallet');
   useEffect(() => {
     // A receipt stays readable for as long as its menu is open.
     if (!celebration || panel || activeJob) return;
@@ -549,6 +596,7 @@ export default function NoobiusGame() {
         'facility',
         'map',
         'contracts',
+        'operations',
         'crafting',
         'inventory',
         'jobs',
@@ -680,6 +728,11 @@ export default function NoobiusGame() {
       return;
     }
     if (inCampus) {
+      if (object.id === REALM_WORKSITE.id || object.panel === 'field') {
+        setFieldSiteId(object.panel === 'field' ? object.id : undefined);
+        show('field');
+        return;
+      }
       if (object.panel === 'neighbor') {
         const neighbor = neighborhood.snapshot?.neighbors.find(
           (n) => n.slot === Number(object.id.slice(9)),
@@ -910,7 +963,7 @@ export default function NoobiusGame() {
         >
           {!needsIdentity && (
             <Campus
-              key={`${profile?.wallet}:${neighborhood.snapshot?.membership.neighborhoodId}:${room}`}
+              key={`${profile?.wallet}:${neighborhood.snapshot?.membership.neighborhoodId}:${currentRealm}:${room}`}
               facility={viewFacility}
               playerName={profile?.name}
               playerId={profile?.id}
@@ -919,7 +972,7 @@ export default function NoobiusGame() {
               sharedCampus={inCampus}
               privateWork={room === 'home' && !visit}
               neighbors={neighborhood.snapshot?.neighbors}
-              realm={neighborhood.snapshot?.membership.realm}
+              realm={currentRealm}
               cluster={neighborhood.snapshot?.cluster}
               correction={neighborhood.correction}
               paused={
@@ -977,9 +1030,8 @@ export default function NoobiusGame() {
               {visit
                 ? `${visit.name}’s data center`
                 : inCampus
-                  ? (REALMS.find(
-                      (r) => r.id === neighborhood.snapshot?.membership.realm,
-                    )?.name ?? 'Crew Commons')
+                  ? (REALMS.find((r) => r.id === currentRealm)?.name ??
+                    'Crew Commons')
                   : 'Your data center'}
             </strong>
             <span>
@@ -996,25 +1048,52 @@ export default function NoobiusGame() {
               <ComputeIcon size={28} />
               {profile?.credits ?? 0} Compute
             </span>
+            <button
+              className="hud-player-level"
+              onClick={() => show('world')}
+              aria-label={`Player level ${playerProgress(profile?.xp ?? 0).level}. Open worlds and progression`}
+            >
+              LV {playerProgress(profile?.xp ?? 0).level}
+            </button>
           </div>
+          {inCampus && (
+            <RealmMiniMap
+              realm={currentRealm}
+              position={position}
+              onSelect={(id) => {
+                setFieldSiteId(id);
+                show('field');
+              }}
+            />
+          )}
+          {room === 'home' && facility.fieldWork?.active && (
+            <button className="field-return-hud" onClick={() => show('field')}>
+              <Radio size={16} />
+              {facility.fieldWork.active.readyAt &&
+              now >= facility.fieldWork.active.readyAt
+                ? 'Recovery ready · Collect'
+                : 'Your realm recovery'}
+              <ArrowRight size={16} />
+            </button>
+          )}
           {room !== 'home' && (
             <button
               className="objective-hud"
-              onClick={() => (inCampus ? show('project') : goWorld('home'))}
+              onClick={() => (inCampus ? show('field') : goWorld('home'))}
             >
-              <span>{inCampus ? 'NEIGHBORHOOD PROJECT' : 'VISITING'}</span>
+              <span>{inCampus ? 'REALM FIELDWORK' : 'VISITING'}</span>
               <strong>
                 {inCampus
-                  ? 'Build something together'
+                  ? realmFor(currentRealm).activity
                   : `${visit?.name}’s facility`}
               </strong>
               <small>
                 {inCampus
-                  ? 'Completed jobs + useful parts = your next cluster.'
+                  ? realmFor(currentRealm).purpose
                   : 'Look around. Your own equipment is safe at home.'}
               </small>
               <span className="objective-action">
-                {inCampus ? 'Open the project' : 'Return home'}{' '}
+                {inCampus ? 'Open field station' : 'Return home'}{' '}
                 <ArrowRight size={15} />
               </span>
             </button>
@@ -1138,7 +1217,7 @@ export default function NoobiusGame() {
                 name: 'Center',
                 Icon: Hammer,
               },
-              { id: 'contracts', name: 'Jobs', Icon: Trophy },
+              { id: 'operations', name: 'Clients', Icon: Trophy },
               { id: 'world', name: 'Crew', Icon: Map },
               { id: 'appearance', name: 'Locker', Icon: Headphones },
             ]
@@ -1160,7 +1239,7 @@ export default function NoobiusGame() {
                 >
                   <Icon size={19} />
                   <span>{name}</span>
-                  {id === 'contracts' && readyDaily && (
+                  {id === 'operations' && readyDaily && (
                     <span
                       className="dock-reward-dot"
                       aria-label="Daily bonus ready"
@@ -1286,7 +1365,7 @@ export default function NoobiusGame() {
           <DialogContent
             key={panel ?? 'closed'}
             initialFocus={panelHeading}
-            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel === 'map' ? 'room-modal' : ''} ${panel === 'wallet' ? 'wallet-modal' : ''} ${panel === 'contracts' ? 'goals-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
+            className={`noobius-modal game-panel-shell ${panel === 'welcome-back' ? 'return-modal' : ''} ${panel === 'appearance' ? 'locker-modal' : ''} ${panel === 'briefing' ? 'briefing-modal' : ''} ${panel === 'guide' ? 'guide-modal' : ''} ${panel === 'map' ? 'room-modal' : ''} ${panel === 'wallet' ? 'wallet-modal' : ''} ${panel === 'contracts' ? 'goals-modal' : ''} ${panel === 'world' ? 'worlds-modal' : ''} ${panel === 'field' ? 'field-modal' : ''} ${panel === 'operations' ? 'operations-modal' : ''} ${panel && panel in PANEL_COPY ? 'expansion-modal' : ''}`}
           >
             <DialogTitle
               className="modal-heading"
@@ -1300,7 +1379,9 @@ export default function NoobiusGame() {
                       Object.entries(PANEL_COPY).map(([k, v]) => [k, v[0]]),
                     ),
                     'welcome-back': 'Welcome back.',
-                    world: 'Your crew',
+                    world: 'Worlds & crew',
+                    field: 'Realm fieldwork',
+                    operations: 'The client desk',
                     project: 'Build something together',
                     appearance: 'Locker',
                     crewjob: 'Cluster down',
@@ -1332,7 +1413,12 @@ export default function NoobiusGame() {
                       ),
                       'welcome-back':
                         'Review your saved work and choose what to do next.',
-                      world: 'Grow your own facility. Meet the crew next door.',
+                      operations:
+                        'Build a reputation. Put your center to work.',
+                      world:
+                        'Earn levels. Explore realms. Keep your own center.',
+                      field:
+                        'Useful parts, a new challenge, and a reason to return.',
                       project:
                         'Completed jobs and crafted parts bring your neighborhood cluster online.',
                       appearance: 'Same noob. Your style.',
@@ -1420,6 +1506,11 @@ export default function NoobiusGame() {
               {panel === 'world' && (
                 <>
                   <WorldPanel
+                    xp={profile?.xp ?? 0}
+                    facility={facility}
+                    currentRealm={currentRealm}
+                    onField={() => show('field')}
+                    onJobs={() => show('contracts')}
                     onConnect={() => show('wallet')}
                     onChat={() => show('social')}
                     room={room}
@@ -1442,6 +1533,69 @@ export default function NoobiusGame() {
                     </Button>
                   )}
                 </>
+              )}
+              {panel === 'operations' && (
+                <CommissionDesk
+                  facility={facility}
+                  now={now}
+                  busy={busy}
+                  onAction={act}
+                  onJobs={() => show('contracts')}
+                  dailyReady={readyDaily}
+                  onDaily={() =>
+                    show('contracts', undefined, { jobsTab: 'progress' })
+                  }
+                  onWorlds={() => show('world')}
+                  onBuild={() => show('facility')}
+                  onParts={(items) => {
+                    if (profile)
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: { items },
+                      }));
+                    show('inventory');
+                  }}
+                />
+              )}
+              {panel === 'field' && (
+                <RealmOperations
+                  realm={currentRealm}
+                  facility={facility}
+                  now={now}
+                  busy={busy}
+                  onAction={act}
+                  initialSite={fieldSiteId}
+                  atStation={(id) => {
+                    const site = fieldSite(id);
+                    return (
+                      !!site &&
+                      inCampus &&
+                      Math.hypot(position.x - site.x, position.z - site.z) <= 4
+                    );
+                  }}
+                  onWalk={(id) => {
+                    const walk = () => {
+                      setPanel(null);
+                      setGuideCommand({
+                        id,
+                        revision: Date.now(),
+                      });
+                    };
+                    if (inCampus) walk();
+                    else void goWorld('commons', walk);
+                  }}
+                  onParts={(items) => {
+                    if (profile)
+                      setPartsPlans((previous) => ({
+                        ...previous,
+                        [profile.wallet]: { items },
+                      }));
+                    show('inventory');
+                  }}
+                  onStorage={() =>
+                    show('inventory', undefined, { inventoryTab: 'bank' })
+                  }
+                />
               )}
               {panel === 'appearance' && (
                 <LockerPanel
@@ -1932,7 +2086,10 @@ export default function NoobiusGame() {
                     <div>
                       <span>NOOBIUS / FACILITY 01</span>
                       <strong>{profile.name}</strong>
-                      <small>{titleFor(profile.xp)}</small>
+                      <small>
+                        Level {playerProgress(profile.xp).level} ·{' '}
+                        {titleFor(profile.xp)}
+                      </small>
                     </div>
                   </div>
                   <label className="input-label" htmlFor="employee-name">
@@ -1957,21 +2114,15 @@ export default function NoobiusGame() {
                       <strong>{profile.shifts}</strong>shifts
                     </span>
                   </div>
-                  {rankTarget ? (
-                    <>
-                      <Progress
-                        value={(profile.xp / rankTarget) * 100}
-                        aria-label="Progress to next rank"
-                      />
-                      <p className="muted-small">
-                        {rankTarget - profile.xp} XP to your next promotion.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="muted-small">
-                      Shift Lead. Management is still not answering.
-                    </p>
-                  )}
+                  <Progress
+                    value={playerProgress(profile.xp).percent}
+                    aria-label="Progress to next player level"
+                  />
+                  <p className="muted-small">
+                    {playerProgress(profile.xp).remaining} XP to player level{' '}
+                    {playerProgress(profile.xp).level + 1}.
+                  </p>
+
                   <Button
                     className="primary-action"
                     disabled={busy || name.trim().length < 2}

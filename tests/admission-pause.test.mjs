@@ -16,6 +16,7 @@ async function fixture(t) {
       'INSERT INTO players(wallet,name,created_at,facility_state) VALUES (?,?,?,?)',
     )
     .run(wallet, 'Pause test', now, JSON.stringify(newFacility(now)));
+  db.sqlite.prepare('UPDATE players SET xp=800 WHERE wallet=?').run(wallet);
   const a = crypto.randomUUID().replaceAll('-', ''),
     b = crypto.randomUUID().replaceAll('-', '');
   for (const id of [a, b])
@@ -129,7 +130,9 @@ test('paused takeover stays in its reserved room instead of running matchmaking'
   for (let i = 0; i < 3; i++) {
     const w = '0x' + String(i + 1).repeat(40);
     f.db.sqlite
-      .prepare('INSERT INTO players(wallet,name,created_at) VALUES (?,?,?)')
+      .prepare(
+        'INSERT INTO players(wallet,name,created_at,xp) VALUES (?,?,?,800)',
+      )
       .run(w, 'Neighbor', f.now);
     await joinNeighborhood(
       f.db,

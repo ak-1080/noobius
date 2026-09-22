@@ -281,7 +281,7 @@ test('GPU writes reject revoked holdings at commit and safe return preserves the
   f.career.modules = ['fast'];
   f.career.commissioned = 1;
   db.sqlite
-    .prepare('UPDATE players SET facility_state=? WHERE wallet=?')
+    .prepare('UPDATE players SET facility_state=?,xp=800 WHERE wallet=?')
     .run(JSON.stringify(f), wallet);
   await realmAccess(db, wallet, values, false, now, transport().fetcher);
   const permit = { policy: tokenPolicy(values).key, localTest: false };

@@ -25,7 +25,13 @@ const slides = [
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'Server rack with green lights',
     title: 'Choose a job. Make it yours.',
-    text: 'Open Jobs: repair, deliver parts, or run a computing job. “Find missing parts” guides you to supplies. Finish, collect your payment, then upgrade or choose another job.',
+    text: 'Open Clients: book a computing job, or choose Repair & parts jobs. “Find missing parts” guides you to supplies. Finish, collect your payment, then upgrade or choose another job.',
+  },
+  {
+    image: '/assets/facility.png',
+    alt: 'The Noobius data-center world',
+    title: 'Level up. Explore further.',
+    text: 'Completed work earns XP. Tap your level beside Compute to see new worlds. Level 3 opens Cooling Works: bring supplies, connect the coolant pipes and recover parts for your next job.',
   },
 ];
 export default function HowToSlides({

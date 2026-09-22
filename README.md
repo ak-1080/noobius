@@ -4,17 +4,22 @@ A browser data-center tycoon with a cinematic title screen, a fullscreen 3D worl
 
 ## Current game
 
-Margo introduces one free machine. Machines produce Compute every 15 seconds; the starter earns 24 per minute. Collect it, buy a first speed upgrade for 20, build more machines, then open new rooms. All core building purchases use Compute alone. Each machine has three levels, later rooms have stronger equipment, and five speed upgrades improve the whole facility. Storage holds one hour of current production.
+Margo introduces one free machine. Machines produce Compute every 15 seconds; the starter earns 24 per minute. Collect it, buy a first speed upgrade for 20, build more machines, then open new rooms. All core building purchases use Compute alone. Each machine has three levels, later rooms add equipment with more workload capacity, and five speed upgrades improve the whole facility. Storage holds one hour of current production.
 
 Jobs remain available after the center is upgraded. Choose service repairs, supply deliveries or client workloads; gather/craft their inputs, configure Fast/Efficient/Stable equipment, and complete the work explicitly. Workloads reserve machine capacity. Twelve job templates renew, with career reputation, an earned Operator license and mastery cosmetics. These are repeatable systems; long-term retention still needs human playtests.
 
-The next-action card guides travel and opens the relevant menu; it cannot purchase, repair or claim for you. The main dock is Center, Jobs, Crew and Locker. Character creation and the large Locker support names, outfits and accessories, followed by a four-slide introduction.
+The next-action card guides travel and opens the relevant menu; it cannot purchase, repair or claim for you. The main dock is Center, Clients, Crew and Locker. Clients includes the new commission desk and access to hands-on repair and parts jobs. Character creation and the large Locker support names, outfits and accessories, followed by a five-slide introduction.
 
-Connected accounts keep one personal center and join five-player neighborhoods. Visit neighbors, trade parts through escrow, invite friends and contribute completed-job reports and crafted parts to persistent shared cluster projects. Movement and authority are checked by the server through 1.5-second HTTP polling. Free Crew Commons includes the core loop. GPU District requires an earned license and verified holdings when a real token policy is configured; no live token configuration is supplied. Its present verification adapter supports EVM holdings only, while both EVM and Solana accounts can play the free game.
+Connected accounts keep one personal center and join five-player neighborhoods. Visit neighbors, trade parts through escrow, invite friends and contribute completed-job reports and crafted parts to persistent shared cluster projects. Movement and authority are checked by the server through 1.5-second HTTP polling. Earned player XP opens four realm destinations: Crew Commons at level 1, Cooling Works at 3, GPU District at 5 and Archive Depths at 8. The first two are free; the latter two also require an earned Operator license and verified holdings when a real token policy is configured. No live token configuration is supplied. Solo practice previews holder destinations after their level gates. Each realm now has its own navigable layout, industrial landmarks and three physical worksites: a salvage yard, a cooling ring, accelerator lanes and archive islands. Four randomized activities cover sorting damaged hardware, routing coolant, scheduling GPU batches and restoring checkpoints. Balanced, Deep recovery and Quick pass exchange resources, time and output; paid work stays finishable after leaving a realm or losing access. Its present verification adapter supports EVM holdings only, while both EVM and Solana accounts can play the free game.
+
+Fully upgraded centers can choose between three competing client requests with changing demand. Bookings reserve machines and freeze their supply costs, time and payment. Three certification branches change speed, resource use and capacity. Repeatable facility distinctions require fresh client work, different specialties, two realm recoveries and crafted supplies; each lights a permanent monument without resetting the center. Compute remains game currency, with no connected real-token payouts. This supports ongoing play, while human retention testing remains outstanding.
 
 - `/how-to-play`: illustrated instructions and game captures.
 - `/docs`: saving, currencies, multiplayer and help.
-- [Current implementation and verification](docs/neighborhoods-implementation-status.md).
+- [Distinct worlds, client economy, endgame verification and human playtest protocol](docs/endgame-worlds-2026-09-20.md).
+- [Earlier realm progression implementation and verification](docs/realms-implementation-2026-09-20.md).
+- [Kintara, comparable games, architecture and production research](docs/research/game-architecture-2026-09-20.md).
+- [Earlier neighborhood implementation and verification](docs/neighborhoods-implementation-status.md).
 - [Neighborhood design](docs/neighborhoods-upgrade-plan.md).
 - [Operations and remaining release gates](docs/neighborhoods-operations.md).
 - [Public-launch checklist](docs/public-launch-plan.md).
@@ -28,6 +33,8 @@ Requires Node 22.18 or newer (the `.nvmrc` selects Node 24). Run `npm ci`, then 
 - `npm run test:api`: authentication, account isolation and concurrent rewards.
 - `npm run test:campus-api`: D1 crafting, escrow, competing buyers, cosmetics, presence and chat.
 - `npm run test:multiplayer-api`: five-player admission, visits, movement, cooperative jobs, social controls and tab takeover.
+- `npm run test:realms-api`: local HTTP level/worksite authority, malformed commands, frozen recovery and concurrent start/claim protection.
+- `npm run test:clients-api`: local HTTP ownership, input validation, competing bookings and one-time client payment.
 - `npm run test:wallet-api`: separate EVM/Solana saves, signed challenges, replay and account isolation.
 - `NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 node tests/neighborhood-load.mjs`: HTTP load probe using the isolated QA database, not ordinary player saves.
 - `NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 npm run test:room-load-api`: ten-neighborhood WebSocket load check against isolated economy/coordinator servers on ports 3003/3004. Local results do not certify hosted capacity.
@@ -55,7 +62,7 @@ Real $NOOBIUS transfers, live quotes and a settlement service are not connected.
 
 ## Release limits
 
-The Site remains owner-private. Local automated API/load tests, request logs, admission/trade/project controls and persisted player reports are implemented. Real-wallet/device acceptance, hosted load/cost measurements, verified backup restoration, moderation staffing and multi-session human playtests remain release gates. Real token redemption remains separate. Shared movement uses periodic updates; this is not a console-ready or AAA game.
+The Site remains owner-private. Local automated API/load tests, request logs, admission/trade/project controls and persisted player reports are implemented. Real-wallet/device acceptance, hosted load/cost measurements, verified backup restoration, moderation staffing and multi-session human playtests remain release gates. Real player-to-player Compute sales for tokens remain separate. Shared movement uses periodic updates; this is not a console-ready or AAA game.
 
 ## Assets and research
 

@@ -32,7 +32,7 @@ test('collection coach recognizes below, exact, and above the purchase threshold
   }
 });
 
-test('fully upgraded data center offers an available bonus or the Locker, never a completed daily loop', () => {
+test('fully upgraded data center offers an available bonus or client work, never a completed daily loop', () => {
   const now = Date.UTC(2026, 8, 8, 12),
     f = newFacility(now);
   f.builds = Object.fromEntries(
@@ -50,13 +50,13 @@ test('fully upgraded data center offers an available bonus or the Locker, never 
   f.computeBoost = 5;
   f.seen.push('intro:welcome');
   f.workdays = 3;
-  assert.equal(tycoonObjective(f, 0, now).panel, 'appearance');
+  assert.equal(tycoonObjective(f, 0, now).panel, 'operations');
   f.daily.computeEarned = 100;
   assert.equal(tycoonObjective(f, 0, now).panel, 'contracts');
   f.lastWorkday = f.day;
   const done = tycoonObjective(f, 0, now);
-  assert.equal(done.panel, 'appearance');
-  assert.match(done.detail, /tomorrow/);
+  assert.equal(done.panel, 'operations');
+  assert.match(done.detail, /client/);
   const tomorrow = tycoonObjective(f, 0, now + 86400000);
   assert.equal(tomorrow.action.type, 'compute-harvest');
 });

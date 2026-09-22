@@ -16,6 +16,8 @@ import { Slider } from '@/components/ui/slider';
 import { JOBS, type Job, type Equipment } from '@/lib/game';
 const SYMBOLS = ['△', '◇', '○', '□'];
 type Props = {
+  repeatable?: boolean;
+  stationLabel?: string;
   initialReveal: boolean;
   job: Job;
   equipment: Equipment;
@@ -25,6 +27,8 @@ type Props = {
   onClose: () => void;
 };
 export default function Puzzle({
+  repeatable = false,
+  stationLabel,
   initialReveal,
   job,
   equipment,
@@ -122,14 +126,20 @@ export default function Puzzle({
     <div className="puzzle">
       <div className="puzzle-meta">
         <span>
-          STATION {JOBS.findIndex((j) => j.id === job.id) + 1} /{' '}
+          {stationLabel ??
+            `STATION ${JOBS.findIndex((j) => j.id === job.id) + 1}`}{' '}
+          /{' '}
           {job.id === 'cooling'
             ? 'COOLING'
             : job.id === 'boot'
               ? 'GPU BOOT'
               : 'NETWORK'}
         </span>
-        <span>{3 - job.attempts} attempts left</span>
+        <span>
+          {repeatable
+            ? `${job.attempts} checks · Retry freely`
+            : `${3 - job.attempts} attempts left`}
+        </span>
       </div>
       {job.id === 'cooling' && (
         <>

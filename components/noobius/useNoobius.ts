@@ -823,7 +823,11 @@ export function useNoobius() {
       let data: GameData;
       if (p.wallet === 'practice') {
         const before = p.facility ?? newFacility();
-        const next = applyFacility(before, a, p.credits);
+        const next = applyFacility(before, a, p.credits, Date.now(), {
+          xp: p.xp,
+          realm: a.realm ?? before.fieldWork?.active?.realm ?? 'commons',
+          practice: true,
+        });
         data = {
           profile: {
             ...p,

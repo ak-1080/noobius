@@ -9066,3 +9066,847 @@ a {
     max-height: calc(100dvh - 295px);
   }
 }
+.realm-directory {
+  display: grid;
+  gap: 22px;
+  margin-block: 22px;
+}
+.player-level-card {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid #9fca8060;
+  background: #182e32;
+  border-radius: 18px;
+}
+.player-level-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 68px;
+  height: 68px;
+  border: 2px solid var(--lime, #b9ed85);
+  border-radius: 50%;
+  color: #c8f39b;
+  font-size: 30px;
+  font-weight: 700;
+}
+.player-level-card > div {
+  flex: 1;
+  min-width: 0;
+}
+.player-level-card p {
+  margin: 4px 0 9px;
+  font-size: 15px;
+}
+.player-level-card small {
+  display: block;
+  font-size: 14px;
+  color: #b5c7c8;
+}
+.player-level-card progress {
+  width: 100%;
+  height: 8px;
+  accent-color: #c0ef8f;
+}
+.realm-directory-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+.realm-directory-heading h3 {
+  margin: 0;
+}
+.realm-directory-heading span,
+.realm-practice-note {
+  font-size: 14px;
+  color: #b7cbd1;
+}
+.realm-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.realm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 22px;
+  background: #122830;
+  border: 1px solid #9eb9c130;
+  border-top: 3px solid var(--realm-color);
+  border-radius: 16px;
+}
+.realm-card.current {
+  background: #1b3338;
+}
+.realm-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--realm-color);
+  font-size: 13px;
+  font-weight: 600;
+}
+.realm-card h3 {
+  font-size: 24px;
+  margin: 0;
+}
+.realm-card p {
+  margin: 0;
+  font-size: 16px;
+}
+.realm-card small {
+  font-size: 14px;
+  color: #b7cbd1;
+}
+.realm-card-activity {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-top: 1px solid #9eb9c130;
+  padding-top: 15px;
+}
+.realm-card-activity svg {
+  color: var(--realm-color);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.realm-card-activity small {
+  display: block;
+  margin-top: 4px;
+}
+.realm-card-proof,
+.realm-gate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px !important;
+}
+.realm-card > button {
+  margin-top: auto;
+  white-space: normal;
+  min-height: 46px;
+  height: auto;
+}
+.realm-operation-panel {
+  display: grid;
+  gap: 20px;
+}
+.realm-operation-heading {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #a9c9cd35;
+}
+.realm-operation-heading > svg {
+  color: var(--realm-color);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.realm-operation-heading small {
+  color: var(--realm-color);
+  font-size: 14px;
+}
+.realm-operation-heading h3 {
+  font-size: 27px;
+  margin: 5px 0;
+}
+.realm-operation-heading p {
+  margin: 0;
+}
+.field-approaches {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.field-approaches button {
+  display: grid;
+  gap: 7px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid #98b4bc55;
+  padding: 15px;
+  background: #10242c;
+  color: #edf4ef;
+}
+.field-approaches button[aria-pressed='true'] {
+  border-color: #c4f291;
+  background: #26403b;
+}
+.field-approaches small {
+  font-size: 14px;
+  color: #becdd1;
+}
+.field-approaches span {
+  font-size: 14px;
+}
+.field-manifest {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: #0c2028;
+  border-radius: 12px;
+}
+.field-manifest strong:not(:first-child) {
+  padding-top: 10px;
+  border-top: 1px solid #9eb9c130;
+}
+.field-manifest > span {
+  font-size: 15px;
+}
+.field-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+.field-steps li {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-bottom: 3px solid #41606a;
+  font-size: 15px;
+}
+.field-steps .done {
+  color: #c4f291;
+  border-color: #c4f291;
+}
+.field-steps .current {
+  color: #f4e2aa;
+  border-color: #f4e2aa;
+}
+.field-result {
+  text-align: center;
+  padding: 18px;
+}
+.field-result > svg {
+  color: #c4f291;
+  margin-inline: auto;
+}
+.field-result h3 {
+  font-size: 25px;
+  margin: 12px 0;
+}
+.field-last,
+.field-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+  background: #20373a;
+  border-radius: 12px;
+}
+.field-last strong {
+  width: 100%;
+}
+.field-abandon {
+  color: #bed0d4;
+  font-size: 14px;
+}
+.field-abandon label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block: 12px;
+}
+.field-abandon input {
+  width: 18px;
+  height: 18px;
+}
+.hud-player-level {
+  border-left: 1px solid #aec6bc60;
+  padding-left: 12px;
+  margin-left: 12px;
+  color: #cbefa1;
+  font-size: 14px;
+  font-weight: 700;
+}
+.field-return-hud {
+  position: absolute;
+  top: 80px;
+  right: 22px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  background: #102630ed;
+  border: 1px solid #94b1b755;
+  border-radius: 12px;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .realm-cards,
+  .field-approaches {
+    grid-template-columns: 1fr;
+  }
+  .realm-card {
+    padding: 18px;
+  }
+  .player-level-card {
+    gap: 12px;
+    padding: 16px;
+  }
+  .player-level-number {
+    flex-basis: 52px;
+    height: 52px;
+    font-size: 24px;
+  }
+  .realm-directory-heading {
+    display: block;
+  }
+  .field-return-hud {
+    top: 110px;
+    right: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+.noobius-modal.worlds-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: 960px;
+}
+.noobius-modal.field-modal {
+  width: min(740px, calc(100vw - 32px));
+  max-width: 740px;
+}
+.worlds-modal .realm-directory {
+  gap: 16px;
+  margin-block: 16px;
+}
+.worlds-modal .player-level-card {
+  padding: 16px;
+}
+.player-level-card progress {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #365056;
+}
+.player-level-card progress::-webkit-progress-bar {
+  background: #365056;
+}
+.player-level-card progress::-webkit-progress-value {
+  background: #c0ef8f;
+  border-radius: 10px;
+}
+.player-level-card progress::-moz-progress-bar {
+  background: #c0ef8f;
+}
+.field-terminal-note {
+  font-size: 14px;
+  color: #b9cdd0;
+}
+
+/* The dispatch desk and realm stations share the game's quiet control-room UI. */
+.operations-modal {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: 1120px;
+}
+.commission-desk,
+.realm-challenge {
+  display: grid;
+  gap: 22px;
+}
+.commission-banner {
+  padding: 24px;
+  border: 1px solid #b9ec8440;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #243e32, #13252c);
+}
+.commission-banner > span,
+.distinction-panel > small {
+  color: #bcec88;
+  font: 600 11px/1.5 monospace;
+  letter-spacing: 0.16em;
+}
+.commission-banner h3 {
+  font-size: clamp(24px, 3vw, 36px);
+  letter-spacing: -0.04em;
+  margin: 8px 0;
+}
+.commission-banner p,
+.commission-offer p,
+.realm-challenge > p {
+  color: #aabdc0;
+  line-height: 1.55;
+}
+.commission-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #09191f;
+}
+.commission-tabs button {
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: 10px;
+  color: #9cafaf;
+  font-weight: 600;
+}
+.commission-tabs button[aria-pressed='true'] {
+  background: #28463e;
+  color: #d7f5bf;
+}
+.commission-setup {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.commission-setup label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #aebec0;
+}
+.commission-setup select,
+.commission-setup input {
+  background: #142830;
+  color: #eef5ed;
+  border: 1px solid #385058;
+  border-radius: 9px;
+  padding: 10px 12px;
+  height: 44px;
+}
+.commission-setup input {
+  width: 90px;
+}
+.commission-setup > span {
+  flex: 1;
+  min-width: 170px;
+  padding-bottom: 7px;
+  font-size: 12px;
+  color: #90a6ac;
+}
+.commission-offers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.commission-offer {
+  --client: #91c8f5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 13px;
+  padding: 20px;
+  border: 1px solid #355059;
+  border-top: 3px solid var(--client);
+  border-radius: 15px;
+  background: #11262e;
+}
+.commission-offer.efficient {
+  --client: #b8e783;
+}
+.commission-offer.stable {
+  --client: #c1a5f2;
+}
+.commission-type {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--client);
+  font-weight: 650;
+}
+.commission-offer > small {
+  color: #90a6ac;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.commission-offer h3 {
+  min-height: 2.6em;
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.commission-offer p {
+  font-size: 13px;
+}
+.commission-quote {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-block: 1px solid #2e464f;
+}
+.commission-quote strong {
+  font-size: 25px;
+  color: #e2f1d7;
+}
+.commission-quote strong small {
+  display: block;
+  font-weight: 400;
+  color: #afc2bb;
+  font-size: 12px;
+}
+.commission-quote span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #a2b6bc;
+}
+.commission-parts {
+  display: flex;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #d0dfd8;
+}
+.commission-parts span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.commission-offer > .primary-action {
+  margin-top: auto;
+}
+.commission-links {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.commission-running {
+  display: grid;
+  gap: 12px;
+}
+.commission-running article {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px;
+  background: #203c34;
+  border-radius: 14px;
+}
+.commission-running article > div {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+}
+.commission-running small,
+.commission-running span {
+  font-size: 12px;
+  color: #b1c8bd;
+}
+.commission-desk progress {
+  width: 100%;
+  height: 6px;
+  accent-color: #b6ed80;
+}
+.commission-desk .muted-small {
+  font-size: 12px;
+  color: #91a6ac;
+}
+.commission-desk .text-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b9ed85;
+  font-size: 12px;
+}
+.distinction-panel {
+  display: grid;
+  justify-items: start;
+  gap: 19px;
+  padding: 28px;
+  border: 1px solid #b2d68750;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at top right, #345332, #12282f 70%);
+}
+.distinction-panel > svg {
+  color: #cbed8e;
+}
+.distinction-panel h3 {
+  font-size: 30px;
+  letter-spacing: -0.035em;
+}
+.distinction-panel p {
+  max-width: 680px;
+  line-height: 1.6;
+  color: #b4c6c4;
+}
+.distinction-panel ul {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.distinction-panel li {
+  padding: 14px;
+  border: 1px solid #416050;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.realm-site-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.realm-site-list button {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  border: 1px solid #38545c;
+  border-radius: 12px;
+  padding: 15px;
+  background: #12282e;
+}
+.realm-site-list button[aria-pressed='true'] {
+  border-color: #b8eb84;
+  background: #244438;
+}
+.realm-site-list span {
+  font-size: 12px;
+  color: #acbfc4;
+  line-height: 1.5;
+}
+.realm-site-list small {
+  color: #bad896;
+  font-size: 11px;
+}
+.realm-challenge {
+  border-top: 1px solid #36515a;
+  padding-top: 22px;
+}
+.realm-challenge h3 {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.realm-challenge > p {
+  font-size: 14px;
+}
+.challenge-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.challenge-cards article {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: #142c34;
+  border: 1px solid #37525b;
+  border-radius: 12px;
+}
+.challenge-cards article > span {
+  color: #aec1c5;
+  font-size: 13px;
+}
+.challenge-cards article > div {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.challenge-cards button,
+.snapshot-cards button {
+  border: 1px solid #4d676d;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+.challenge-cards button[aria-pressed='true'],
+.snapshot-cards button[aria-pressed='true'] {
+  border-color: #bbea82;
+  background: #315140;
+  color: #e4f9cf;
+}
+.pipe-board {
+  width: min(340px, 100%);
+  margin: auto;
+  display: grid;
+  gap: 8px;
+}
+.pipe-board > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #08191f;
+  border: 1px solid #46646b;
+  padding: 6px;
+  gap: 5px;
+  border-radius: 12px;
+}
+.pipe-board button {
+  aspect-ratio: 1;
+  background: #19313a;
+  border: 1px solid #45616b;
+  border-radius: 7px;
+}
+.pipe-board svg {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.16s;
+}
+.pipe-board path {
+  fill: none;
+  stroke: #66818b;
+  stroke-width: 18;
+}
+.pipe-board .flowing path {
+  stroke: #83e8df;
+  filter: drop-shadow(0 0 5px #65cbdc);
+}
+.pipe-board > span {
+  font: 600 12px monospace;
+  color: #91e8df;
+}
+.pipe-board > span:last-child {
+  text-align: right;
+}
+.scheduler-capacity {
+  display: flex;
+  gap: 10px;
+}
+.scheduler-capacity strong {
+  flex: 1;
+  padding: 14px;
+  background: #203d36;
+  border-radius: 10px;
+  color: #bfed9a;
+}
+.scheduler-capacity .over {
+  color: #ffc5a2;
+  background: #4c3027;
+}
+.snapshot-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.snapshot-cards button {
+  display: grid;
+  text-align: left;
+  gap: 10px;
+  padding: 20px;
+  background: #172c35;
+}
+.snapshot-cards span,
+.snapshot-cards small {
+  color: #b6c6cd;
+}
+.realm-challenge output {
+  color: #efc796;
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .commission-offers,
+  .realm-site-list {
+    grid-template-columns: 1fr;
+  }
+  .commission-offer h3 {
+    min-height: 0;
+  }
+  .commission-running article {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .distinction-panel {
+    padding: 18px;
+  }
+  .distinction-panel ul {
+    grid-template-columns: 1fr;
+  }
+  .commission-banner {
+    padding: 18px;
+  }
+}
+@media (max-width: 460px) {
+  .challenge-cards,
+  .snapshot-cards {
+    grid-template-columns: 1fr;
+  }
+  .commission-tabs button {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pipe-board svg {
+    transition: none;
+  }
+}
+.demand-badge {
+  display: block;
+  color: #d2ef91;
+  margin-top: 8px;
+  padding: 5px 8px;
+  background: #31492e;
+  border-radius: 5px;
+  font-size: 10px;
+  width: fit-content;
+}
+.realm-mini-map {
+  position: absolute;
+  right: 24px;
+  top: 86px;
+  width: 165px;
+  padding: 12px;
+  background: #0d242ceb;
+  border: 1px solid #35525c;
+  border-radius: 14px;
+  pointer-events: auto;
+}
+.realm-mini-map > span {
+  font: 600 9px monospace;
+  letter-spacing: 0.12em;
+  color: #a6bfc3;
+}
+.realm-mini-map svg {
+  width: 100%;
+  height: 135px;
+  margin: 5px 0;
+}
+.realm-mini-map button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-size: 10px;
+  padding: 5px 0;
+  color: #d4e3e2;
+}
+.realm-mini-map b {
+  font-size: 11px;
+}
+@media (max-width: 650px) {
+  .realm-mini-map {
+    top: auto;
+    bottom: 98px;
+    right: 12px;
+    width: 105px;
+    padding: 8px;
+  }
+  .realm-mini-map svg {
+    height: 80px;
+  }
+  .realm-mini-map > div {
+    display: flex;
+    gap: 5px;
+  }
+  .realm-mini-map button {
+    font-size: 0;
+    justify-content: center;
+    padding: 5px;
+  }
+  .realm-mini-map b {
+    font-size: 12px;
+  }
+  .realm-mini-map > span {
+    font-size: 8px;
+  }
+}

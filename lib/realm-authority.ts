@@ -1,5 +1,7 @@
 // This context is built by the server, never from request JSON. The SQL check
 // runs at the write as well as before it, so a concurrent revocation wins.
+import { REALMS, realmFor, type RealmId } from './realm-catalog.ts';
+import { xpForLevel } from './progression.ts';
 export type RealmPermit = { policy: string | null; localTest: boolean };
 const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
 export function localRealmTest(
@@ -26,8 +28,18 @@ export function holdingGuard(walletSql: string, permit?: RealmPermit) {
 }
 export function realmWriteGuard(alias: string, permit?: RealmPermit) {
   if (!/^[a-z_]+$/.test(alias)) throw new Error('Invalid authority alias');
+  const free = REALMS.filter((r) => !r.holderOnly)
+    .map((r) => quote(r.id))
+    .join(',');
+  const holders = REALMS.filter((r) => r.holderOnly)
+    .map((r) => quote(r.id))
+    .join(',');
   return `EXISTS(SELECT 1 FROM neighborhoods realm WHERE realm.id=${alias}.neighborhood_id AND
-    (realm.realm='commons' OR (realm.realm='gpu' AND ${holdingGuard(alias + '.wallet', permit)})))`;
+    (realm.realm IN (${free}) OR (realm.realm IN (${holders}) AND ${holdingGuard(alias + '.wallet', permit)})))`;
 }
 export const walletHoldingGuard = (wallet: string, permit?: RealmPermit) =>
   holdingGuard(quote(wallet), permit);
+
+/** Player XP is immutable upward; still gate the actual admission write. */
+export const realmLevelGuard = (wallet: string, realm: RealmId) =>
+  `EXISTS(SELECT 1 FROM players admission WHERE admission.wallet=${quote(wallet)} AND admission.xp>=${xpForLevel(realmFor(realm).minimumLevel)})`;

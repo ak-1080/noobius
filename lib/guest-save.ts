@@ -1,3 +1,5 @@
+import { validCommissions, validCommissionContext } from './commissions.ts';
+import { validFieldWork } from './realm-operations.ts';
 import { validCareer } from './contracts.ts';
 import { validProjectReservations } from './commissioning.ts';
 import {
@@ -51,6 +53,14 @@ const date = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 function facility(v: unknown): v is Facility {
+  if (
+    record(v) &&
+    v.commissions !== undefined &&
+    (!validCommissions(v.commissions) || !validCommissionContext(v))
+  )
+    return false;
+  if (record(v) && v.fieldWork !== undefined && !validFieldWork(v.fieldWork))
+    return false;
   if (
     record(v) &&
     v.projectReservations !== undefined &&

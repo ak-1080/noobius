@@ -3,6 +3,7 @@ export function planPath(
   to: [number, number],
   clear: (x: number, z: number) => boolean,
   cell = 0.25,
+  searchBudget = 5000,
 ): [number, number][] {
   const snap = (p: [number, number]) =>
     [Math.round(p[0] / cell), Math.round(p[1] / cell)] as [number, number];
@@ -79,7 +80,7 @@ export function planPath(
   const cost = new Map([[key(start), 0]]),
     previous = new Map<string, [number, number]>(),
     closed = new Set<string>();
-  for (let count = 0; open.length && count < 5000; count++) {
+  for (let count = 0; open.length && count < searchBudget; count++) {
     const current = pop(),
       ck = key(current);
     if (closed.has(ck)) continue;

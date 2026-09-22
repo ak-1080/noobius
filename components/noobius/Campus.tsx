@@ -22,6 +22,9 @@ import {
   type RealmId,
   type NeighborhoodSnapshot,
 } from '@/lib/neighborhoods';
+import { realmSiteObjects } from '@/lib/realm-worlds';
+import { buildRealmWorld } from './realmWorldBuilder';
+import { realmFor } from '@/lib/realm-catalog';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
 import { floorClear } from '@/lib/world-navigation';
@@ -86,7 +89,17 @@ export default function Campus(props: Props) {
     const host = mount.current!;
     if (!host) return;
     const sceneObjects: WorldObject[] = [
-      ...OBJECTS,
+      ...OBJECTS.filter(
+        (o) => !live.current.sharedCampus || o.zone === 'commons',
+      ).map((object) =>
+        live.current.sharedCampus && object.id === 'bank'
+          ? {
+              ...object,
+              name: realmFor(live.current.realm ?? 'commons').destination,
+              panel: 'field',
+            }
+          : object,
+      ),
       ...(live.current.sharedCampus
         ? CENTER_ENTRANCES.map((point, slot) => ({
             ...point,
@@ -98,6 +111,8 @@ export default function Campus(props: Props) {
           }))
         : []),
     ];
+    if (live.current.sharedCampus)
+      sceneObjects.push(...realmSiteObjects(live.current.realm ?? 'commons'));
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let renderer: T.WebGLRenderer;
     try {
@@ -123,8 +138,16 @@ export default function Campus(props: Props) {
       'Noobius compute campus. Click to walk, click a character or station to interact. WASD to move, E to interact, mouse wheel to zoom, R to rotate. Click work labels to open their jobs.',
     );
     const scene = new T.Scene();
-    scene.background = new T.Color('#13222d');
-    scene.fog = new T.Fog('#13222d', 70, 125);
+    const realmBackdrop = live.current.sharedCampus
+      ? {
+          commons: '#13222d',
+          thermal: '#102d32',
+          gpu: '#1c2038',
+          core: '#2a201d',
+        }[live.current.realm ?? 'commons']
+      : '#13222d';
+    scene.background = new T.Color(realmBackdrop);
+    scene.fog = new T.Fog(realmBackdrop, 70, 125);
     const camera = new T.OrthographicCamera(-10, 10, 10, -10, 0.1, 180),
       focus = new T.Vector3(0, 0.5, 15),
       offset = new T.Vector3(16, 22, 20);
@@ -296,63 +319,21 @@ export default function Campus(props: Props) {
     const clusterLights: T.MeshStandardMaterial[] = [];
     let clusterLabel: T.Sprite | null = null,
       lastClusterText = '';
+    const realmMovers = live.current.sharedCampus
+      ? buildRealmWorld(live.current.realm ?? 'commons', scene, {
+          box,
+          mesh,
+          mat,
+          label,
+        })
+      : [];
     if (live.current.sharedCampus) {
-      const gpu = live.current.realm === 'gpu',
-        count = gpu ? 6 : 3,
-        height = gpu ? 4.5 : 3.2;
-      const rackMaterial = mat(gpu ? '#222e52' : '#1a3440');
-      const trim = mat(
-        gpu ? '#a3b0ff' : '#bce98e',
-        0.2,
-        gpu ? '#394680' : '#294432',
-      );
-      for (let n = 0; n < count; n++) {
-        const x = (n - (count - 1) / 2) * (gpu ? 2.45 : 3.5);
-        box(1.75, height, 1.3, rackMaterial, scene, x, height / 2, 1.3);
-        box(1.8, 0.16, 1.4, trim, scene, x, height, 1.3);
-        for (let row = 0; row < 4; row++) {
-          box(
-            1.38,
-            0.45,
-            0.12,
-            dark,
-            scene,
-            x,
-            0.6 + (row * (height - 0.8)) / 4,
-            2.01,
-          );
-          const lamp = mat('#28404a', 0.1, '#172c30');
-          box(
-            0.72,
-            0.07,
-            0.13,
-            lamp,
-            scene,
-            x,
-            0.6 + (row * (height - 0.8)) / 4,
-            2.1,
-          );
-          clusterLights.push(lamp);
-        }
-      }
-      if (gpu) {
-        for (const x of [-8.5, 8.5]) {
-          box(0.22, 5.5, 0.22, silver, scene, x, 2.75, 1.4);
-          pipe(
-            new T.Vector3(x, 5.4, 1.4),
-            new T.Vector3(0, 6, 1.4),
-            0.08,
-            trim,
-            scene,
-          );
-        }
-      }
       clusterLabel = label(
-        'Meet Margo · build a cluster',
-        gpu ? '#a3b0ff' : '#bce98e',
-        6.5,
+        'Crew project',
+        realmFor(live.current.realm ?? 'commons').color,
+        5,
       );
-      clusterLabel.position.set(0, height + 1, 1.3);
+      clusterLabel.position.set(-4, 4, 9);
       scene.add(clusterLabel);
     }
     const texCanvas = document.createElement('canvas');
@@ -381,7 +362,7 @@ export default function Campus(props: Props) {
     materials.push(groundM);
     const ground = mesh(
       new T.PlaneGeometry(150, 150),
-      groundM,
+      live.current.sharedCampus ? dark : groundM,
       scene,
       0,
       -0.16,
@@ -389,9 +370,11 @@ export default function Campus(props: Props) {
     );
     ground.rotation.x = -Math.PI / 2;
     // Continuous aisles link all seven departments, including the future wings.
-    for (const z of [12, -10]) box(64, 0.07, 3.6, steel, scene, 0, -0.04, z);
-    for (const x of [-22, 0, 22])
-      box(3.6, 0.07, 39, steel, scene, x, -0.04, -6);
+    if (!live.current.sharedCampus)
+      for (const z of [12, -10]) box(64, 0.07, 3.6, steel, scene, 0, -0.04, z);
+    if (!live.current.sharedCampus)
+      for (const x of [-22, 0, 22])
+        box(3.6, 0.07, 39, steel, scene, x, -0.04, -6);
     for (const zone of ZONES) {
       if (live.current.sharedCampus && zone.id !== 'commons') continue;
       const g = new T.Group();
@@ -404,21 +387,23 @@ export default function Campus(props: Props) {
       tiles.rotation.x = -Math.PI / 2;
       tiles.castShadow = false;
       const accent = mat(
-        live.current.sharedCampus && live.current.realm === 'gpu'
-          ? '#9cacf8'
+        live.current.sharedCampus
+          ? realmFor(live.current.realm ?? 'commons').color
           : zone.color,
         0.1,
       );
       box(18, 0.08, 0.12, accent, g, 0, 0.09, 7.6);
       box(0.12, 0.08, 16, accent, g, -8.7, 0.09, 0);
-      for (const side of [-1, 1]) {
-        box(7.2, 1.5, 0.25, dark, g, side * 5.4, 0.62, -8);
-        box(0.2, 0.55, 6.2, dark, g, -9, 0.25, side * 4.9);
-      }
-      for (let x = -8; x <= 8; x += 4) {
-        box(0.12, 2.2, 0.16, silver, g, x, 1, -7.7);
-        box(2, 0.08, 0.08, accent, g, x, 2, -7.55);
-      }
+      if (!live.current.sharedCampus)
+        for (const side of [-1, 1]) {
+          box(7.2, 1.5, 0.25, dark, g, side * 5.4, 0.62, -8);
+          box(0.2, 0.55, 6.2, dark, g, -9, 0.25, side * 4.9);
+        }
+      if (!live.current.sharedCampus)
+        for (let x = -8; x <= 8; x += 4) {
+          box(0.12, 2.2, 0.16, silver, g, x, 1, -7.7);
+          box(2, 0.08, 0.08, accent, g, x, 2, -7.55);
+        }
       const title = label(
         live.current.sharedCampus
           ? (REALMS.find(
@@ -999,9 +984,30 @@ export default function Campus(props: Props) {
     for (const side of [-1, 1])
       for (let y = 0; y < 3; y++)
         box(0.2, 0.07, 0.1, silver, trophy, side * 0.5, 1.1 + y * 0.23, 0);
+    const distinctionLabel = label('', '#d4ec9f', 4.5);
+    distinctionLabel.position.y = 2.55;
+    trophy.add(distinctionLabel);
+    const distinctionRings = [0, 1, 2].map((i) => {
+      const ring = mesh(
+        new T.TorusGeometry(0.7 + i * 0.12, 0.035, 6, 48),
+        mint,
+        trophy,
+        0,
+        0.8 + i * 0.5,
+        0,
+      );
+      ring.rotation.x = Math.PI / 2;
+      return ring;
+    });
     const peers = new Map<string, T.Group>();
     const clear = (x: number, z: number) =>
-      floorClear(live.current.facility, !!live.current.sharedCampus, x, z);
+      floorClear(
+        live.current.facility,
+        !!live.current.sharedCampus,
+        x,
+        z,
+        live.current.realm ?? 'commons',
+      );
     let target: T.Vector3 | null = null,
       waypoints: T.Vector3[] = [],
       targetObject: WorldObject | null = null,
@@ -1020,11 +1026,12 @@ export default function Campus(props: Props) {
         [x, z],
         clear,
         0.5,
+        live.current.sharedCampus ? 18000 : 5000,
       );
       waypoints = path.map(([x, z]) => new T.Vector3(x, 0, z));
       target = waypoints.shift() ?? null;
       targetObject = target ? object : null;
-      if (object && !target) live.current.onCancelGuide();
+      return !!target;
     };
     const walkObject = (obj: WorldObject) => {
       const options = [
@@ -1039,9 +1046,8 @@ export default function Campus(props: Props) {
           (a, b) =>
             Math.hypot(a[0] - avatar.g.position.x, a[1] - avatar.g.position.z) -
             Math.hypot(b[0] - avatar.g.position.x, b[1] - avatar.g.position.z),
-        )[0];
-      if (dest) go(dest[0], dest[1], obj);
-      else live.current.onCancelGuide();
+        );
+      if (!dest.some(([x, z]) => go(x, z, obj))) live.current.onCancelGuide();
     };
     correct.current = (x, z) => {
       avatar.g.position.set(x, 0, z);
@@ -1581,10 +1587,18 @@ export default function Campus(props: Props) {
         p.neighbors?.map((n) => [n.slot, n.name, n.online, n.level]),
         f.career?.accent,
         f.career?.trophy,
+        f.commissions?.milestone,
         activeIncident(f)?.rack,
       ]);
-      trophy.visible = !p.sharedCampus && !!f.career?.trophy;
+      const distinctions = f.commissions?.milestone ?? 0;
+      trophy.visible =
+        !p.sharedCampus && (!!f.career?.trophy || distinctions > 0);
+      distinctionLabel.visible = distinctions > 0;
+      distinctionRings.forEach((ring, i) => {
+        ring.visible = distinctions > i;
+      });
       if (appearance !== lastAppearance) {
+        relabel(distinctionLabel, `DISTINCTION ${distinctions}`);
         const nameCanvas = you.material.map!.image as HTMLCanvasElement;
         const nameContext = nameCanvas.getContext('2d')!;
         nameContext.clearRect(8, 8, 496, 84);
@@ -1702,6 +1716,9 @@ export default function Campus(props: Props) {
           signal.phase === 'ready' ? '#ccf7a5' : '#ffffff',
         );
       }
+      if (!motion.matches)
+        for (const mover of realmMovers)
+          mover.rotation[mover.userData.spinAxis === 'z' ? 'z' : 'y'] += 0.003;
       for (const [id, machine] of machines) {
         const work = signals.find((w) => w.objectId === id);
         machine.setWork(work?.phase ?? null, work?.progress ?? null);

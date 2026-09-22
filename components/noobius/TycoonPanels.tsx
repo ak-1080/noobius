@@ -1,4 +1,6 @@
 'use client';
+import RealmDirectory from './RealmDirectory';
+import { realmExists } from '@/lib/realm-catalog';
 import { useEffect, useState } from 'react';
 import {
   Check,
@@ -17,11 +19,7 @@ import {
 } from 'lucide-react';
 import { ACCESSORIES, OUTFITS, type Facility } from '@/lib/facility';
 import { EMERGENCY_STATIONS, type SharedWorld } from '@/lib/multiplayer';
-import {
-  REALMS,
-  type NeighborhoodSnapshot,
-  type RealmId,
-} from '@/lib/neighborhoods';
+import { type NeighborhoodSnapshot, type RealmId } from '@/lib/neighborhoods';
 import { Button } from '@/components/ui/button';
 import { api } from './useNoobius';
 import type { SocialSnapshot } from '@/lib/social';
@@ -212,6 +210,11 @@ export function LockerPanel({
   );
 }
 export function WorldPanel({
+  xp,
+  facility,
+  currentRealm,
+  onField,
+  onJobs,
   onConnect,
   onChat,
   room,
@@ -225,6 +228,11 @@ export function WorldPanel({
   onTakeover,
   onRealm,
 }: {
+  xp: number;
+  facility: Facility;
+  currentRealm: RealmId;
+  onField: () => void;
+  onJobs: () => void;
   room: string;
   practice: boolean;
   onGo: (r: string) => void;
@@ -299,8 +307,8 @@ export function WorldPanel({
     } catch {
       /* A plain invitation code is also accepted. */
     }
-    const match = /^(commons|gpu):([a-f0-9]{32})$/.exec(code);
-    if (!match) {
+    const match = /^([a-z]+):([a-f0-9]{32})$/.exec(code);
+    if (!match || !realmExists(match[1])) {
       setInviteNotice('Paste a Noobius invitation link or neighborhood code.');
       return;
     }
@@ -338,6 +346,19 @@ export function WorldPanel({
         </span>
         <ArrowRight />
       </button>
+      <RealmDirectory
+        xp={xp}
+        facility={facility}
+        practice={practice}
+        current={currentRealm}
+        atHome={room === 'home'}
+        access={accessError ? null : access}
+        loading={accessLoading && !practice}
+        traveling={traveling}
+        onTravel={(id) => void travel(id)}
+        onWork={onField}
+        onJobs={onJobs}
+      />
       {practice ? (
         <div className="neighborhood-invite">
           <Users />
@@ -461,41 +482,6 @@ export function WorldPanel({
                 ))}
             </details>
           )}
-          <h3>Realms</h3>
-          {REALMS.map((realm) => (
-            <button
-              className="world-destination"
-              key={realm.id}
-              disabled={
-                traveling ||
-                snapshot?.membership.realm === realm.id ||
-                (realm.holderOnly &&
-                  (accessLoading ||
-                    !!accessError ||
-                    !(access?.allowed && access.licensed)))
-              }
-              onClick={() => void travel(realm.id)}
-            >
-              <Radio />
-              <span>
-                <strong>{realm.name}</strong>
-                <small>
-                  {snapshot?.membership.realm === realm.id
-                    ? 'Your current realm'
-                    : realm.holderOnly
-                      ? accessLoading
-                        ? 'Checking your access…'
-                        : accessError
-                          ? 'Access check unavailable'
-                          : !access?.licensed
-                            ? 'Earn your Operator license in Crew Commons'
-                            : access.message
-                      : 'Free to play'}
-                </small>
-              </span>
-              <ArrowRight />
-            </button>
-          ))}
           {accessError && (
             <div role="alert">
               <p>{accessError}</p>
@@ -508,22 +494,6 @@ export function WorldPanel({
               </Button>
             </div>
           )}
-          <div className="realm-preview">
-            <strong>Inside GPU District</strong>
-            <p>
-              Choose a Fast client launch, a Stable overnight build or an
-              Efficient supply project. Finish jobs with that equipment, then
-              bring the completed work back to your crew. Your center stays
-              yours.
-            </p>
-            <small>
-              {access?.status === 'test'
-                ? access.message
-                : access?.status === 'unconfigured'
-                  ? access.message
-                  : `Entry: Operator license + ${access?.threshold ?? '…'} $NOOBIUS held. Tokens stay in your wallet.`}
-            </small>
-          </div>
           {error && <p role="alert">{error}</p>}
           {needsTakeover && (
             <Button className="primary-action" onClick={onTakeover}>

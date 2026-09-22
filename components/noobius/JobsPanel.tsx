@@ -954,7 +954,7 @@ export default function JobsPanel(props: Props) {
         <div>
           <strong>{licensed ? 'Licensed operator' : 'Your career'}</strong>
           <span>
-            Level {careerLevel(c)} · {c.reputation} reputation ·{' '}
+            Reputation tier {careerLevel(c)} · {c.reputation} reputation ·{' '}
             {completedContracts(c)} jobs completed
           </span>
           {(c.commissioned ?? 0) > 0 && (

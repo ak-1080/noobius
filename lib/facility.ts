@@ -1,3 +1,18 @@
+import {
+  applyCommission,
+  CommissionError,
+  validCommissions,
+  validCommissionContext,
+  type Commissions,
+} from './commissions.ts';
+import {
+  applyFieldOperation,
+  FieldError,
+  isFieldAction,
+  validFieldWork,
+  type FieldWork,
+  type FieldContext,
+} from './realm-operations.ts';
 import { machinePerTick } from './production.ts';
 import {
   validProjectReservations,
@@ -42,6 +57,8 @@ export type SkillId = 'salvaging' | 'engineering' | 'operations';
 export type Bag = Partial<Record<ItemId, number>>;
 export type CraftVariant = 'standard' | 'recovered';
 export type Facility = {
+  commissions?: Commissions;
+  fieldWork?: FieldWork;
   career?: Career;
   economyVersion?: number;
   tycoonVersion?: number;
@@ -831,6 +848,17 @@ export function normalizeFacility(
     throw new FacilityError(
       'This save uses a newer production system. Refresh before playing.',
     );
+  if (saved.fieldWork !== undefined && !validFieldWork(saved.fieldWork))
+    throw new FacilityError(
+      'This save contains unsupported realm work. Refresh before playing.',
+    );
+  if (
+    saved.commissions !== undefined &&
+    (!validCommissions(saved.commissions) || !validCommissionContext(saved))
+  )
+    throw new FacilityError(
+      'Unsupported commission save. Refresh before playing.',
+    );
   const fresh = newFacility(now);
   const f = {
     ...fresh,
@@ -954,7 +982,11 @@ export function computeForecast(f: Facility, now: number) {
     f.computeAt +
     (Math.max(0, Math.floor((now - f.computeAt) / 15000)) + 1) * 15000;
   const occupied = new Set(
-    [...(f.career?.active ?? []), ...(f.projectReservations ?? [])]
+    [
+      ...(f.career?.active ?? []),
+      ...(f.projectReservations ?? []),
+      ...(f.commissions?.active ?? []),
+    ]
       .filter(
         (r) =>
           r.rack &&
@@ -1045,6 +1077,8 @@ export function buildCost(level: number): { items: Bag; credits: number } {
       : { items: { board: 2, fiber: 6, core: 1 }, credits: 120 };
 }
 export type FacilityAction = {
+  realm?: import('./realm-catalog.ts').RealmId;
+  answer?: unknown;
   type: string;
   id?: string;
   item?: ItemId;
@@ -1072,6 +1106,7 @@ export function applyFacility(
   action: FacilityAction,
   credits: number,
   now = Date.now(),
+  context?: FieldContext,
 ): { facility: Facility; credits: number; xp: number; message: string } {
   const f = normalizeFacility(structuredClone(previous), now);
   f.compute = credits;
@@ -1109,7 +1144,26 @@ export function applyFacility(
         'Storage is full. Bank or sell some parts first.',
       );
   };
-  if (
+  if (action.type.startsWith('commission-')) {
+    try {
+      const result = applyCommission(f, action, now);
+      xp = result.xp;
+      message = result.message;
+    } catch (error) {
+      if (error instanceof CommissionError)
+        throw new FacilityError(error.message);
+      throw error;
+    }
+  } else if (isFieldAction(action.type)) {
+    try {
+      const result = applyFieldOperation(f, action, now, context);
+      xp = result.xp;
+      message = result.message;
+    } catch (error) {
+      if (error instanceof FieldError) throw new FacilityError(error.message);
+      throw error;
+    }
+  } else if (
     action.type.startsWith('contract-') ||
     action.type.startsWith('module-')
   ) {
@@ -1146,6 +1200,10 @@ export function applyFacility(
         break;
       }
       case 'compute-upgrade': {
+        if (f.commissions?.active.some((r) => r.readyAt > now))
+          throw new FacilityError(
+            'Finish running commissions before changing facility speed.',
+          );
         if (f.projectReservations?.some((r) => r.readyAt > now))
           throw new FacilityError(
             'Wait for your commissioning runs before changing the facility speed.',
@@ -1362,6 +1420,14 @@ export function applyFacility(
       }
       case 'build': {
         if (
+          f.commissions?.active.some(
+            (r) => r.rack === action.id && r.readyAt > now,
+          )
+        )
+          throw new FacilityError(
+            'This machine is booked by a client. Wait for the commission to finish.',
+          );
+        if (
           f.projectReservations?.some(
             (r) => r.rack === action.id && r.readyAt > now,
           )
@@ -1411,8 +1477,8 @@ export function applyFacility(
         xp = 10;
         message =
           action.id === 'power'
-            ? 'More power. Room for 3 more rack levels.'
-            : 'More cooling. Room for 4 more rack levels.';
+            ? 'More reserve power. Throughput commissions gain one batch slot.'
+            : 'More cooling. Reliability commissions gain one batch slot.';
         break;
       }
       case 'unlock': {

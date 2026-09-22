@@ -1,3 +1,5 @@
+import { BOOST_PRICES, RACK_PRICES } from '@/lib/facility';
+import { MACHINE_POWER } from '@/lib/production';
 import {
   ArrowRight,
   Gamepad2,
@@ -44,10 +46,10 @@ export const GUIDE_TOPICS = [
   {
     id: 'growth',
     title: 'Keep finding useful work',
-    text: 'A fully built center is ready for bigger choices. Repair a fault, craft an order or reserve a machine for a client workload. Completing a job reveals a new offer.',
+    text: 'Open Clients. Compare three customers, reserve a machine and supply a batch. Demand changes after each booking. Choose Repair & parts jobs for hands-on jobs.',
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'A server machine ready for another shift',
-    tip: 'Try Fast, Efficient and Stable modules. Different setups earn mastery stamps and change the time, parts or reputation a job offers.',
+    tip: 'Complete commissions to certify Throughput, Resourceful or Reliability. In Distinctions, combine fresh client work, realm recoveries and crafted supplies to build a permanent monument. Then start another portfolio.',
   },
   {
     id: 'bonuses',
@@ -60,10 +62,10 @@ export const GUIDE_TOPICS = [
   {
     id: 'daily',
     title: 'A little win every day',
-    text: 'Collect 100 Compute that day. In Jobs → Milestones, open “Daily bonus” and claim 35 more. Finish on three different days to unlock the gold outfit.',
+    text: 'Collect 100 Compute that day. In Clients → Repair & parts jobs → Milestones, open “Daily bonus” and claim 35 more. Finish on three different days to unlock the gold outfit.',
     image: '/assets/guide/daily-goal.png',
     alt: 'Completed daily goal beside progress toward the three-day gold outfit reward',
-    tip: 'Preview the gold outfit right from Jobs → Milestones. No streak to lose. Take a day off whenever you like.',
+    tip: 'Preview the gold outfit right from Clients → Repair & parts jobs → Milestones. No streak to lose. Take a day off whenever you like.',
   },
   {
     id: 'locker',
@@ -91,11 +93,11 @@ export const GUIDE_TOPICS = [
   },
   {
     id: 'realms',
-    title: 'Explore GPU District',
-    text: 'Earn an Operator license with two jobs of each kind, a built module and a completed neighborhood cluster. GPU District adds projects needing Fast workloads, Stable repairs or Efficient deliveries. Select the required equipment before starting the job.',
+    title: 'Earn levels. Explore new worlds.',
+    text: 'Tap your level beside Compute. Crew Commons opens at level 1, Cooling Works at 3, GPU District at 5 and Archive Depths at 8. Each world has three stations on its district map. Sort salvage, route coolant pipes, schedule GPU work or restore archive snapshots. Choose extra parts or a quicker finish.',
     image: '/assets/facility.png',
     alt: 'A larger computing facility',
-    tip: 'Holder access is checked separately when available. Your free center keeps working, and losing realm access never deletes your equipment or earned rewards.',
+    tip: 'Live holder realms also need verified holdings and an Operator license: two jobs of each kind, a built module and a completed cluster. Solo practice keeps the level gates. Paid recoveries can be finished from anywhere.',
   },
   {
     id: 'controls',
@@ -300,33 +302,38 @@ function GuideDetails() {
               <tr>
                 <th>Machine</th>
                 <th>Build cost</th>
-                <th>Compute / min</th>
+                <th>Starting batch capacity</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                ['Starter', 'Free', 24],
-                ['Second machine', 75, 24],
-                ['Chiller', 180, 48],
-                ['Inference', 450, 72],
-                ['Training', 800, 96],
-                ['Exchange', 1800, 144],
-                ['The big one', 4500, 240],
-              ].map(([name, cost, rate]) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  <td>{cost}</td>
-                  <td>{rate}</td>
+              {Object.entries(RACK_PRICES).map(([id, cost], index) => (
+                <tr key={id}>
+                  <td>
+                    {
+                      [
+                        'Starter',
+                        'Second machine',
+                        'Chiller',
+                        'Inference',
+                        'Training',
+                        'Exchange',
+                        'The big one',
+                      ][index]
+                    }
+                  </td>
+                  <td>{cost || 'Free'}</td>
+                  <td>{MACHINE_POWER[id]} units</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p>
-          Each speed upgrade adds half of the original income again to every
-          machine level. The five speed upgrades cost 20, 200, 900, 3,500, and
-          12,000 Compute. Room prices are 100, 750, 2,000, and 6,000 Compute;
-          each door shows its machine-level requirement.
+          New machines each make 24 Compute per minute before upgrades. Larger
+          machines hold bigger client batches; they do not process the same
+          batch faster. Speed upgrades cost {BOOST_PRICES.join(', ')} Compute
+          and improve passive production. Room prices and requirements appear on
+          each door before you spend.
         </p>
       </section>
       <section id="saving">

@@ -297,7 +297,7 @@ test('a fully upgraded player still has renewable offers and cannot purchase qua
   );
   f.career.commissioned = 1;
   assert.ok(operatorLicense(f.career));
-  assert.equal(shiftObjective(f, f.compute, now).panel, 'contracts');
+  assert.equal(shiftObjective(f, f.compute, now).panel, 'operations');
   assert.equal(f.career.completed.service, 12);
   assert.equal(f.career.completed.supply, 12);
   assert.equal(f.career.completed.workload, 12);

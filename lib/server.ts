@@ -1,3 +1,5 @@
+import { realmFor, realmRequirement } from './realm-catalog';
+import { playerBand, playerLevel } from './progression';
 import {
   httpMovementGuard,
   roomActionIntent,
@@ -48,7 +50,7 @@ import {
   requireMembership,
   visitCenter,
 } from './neighborhoods-server';
-import { levelBand, realmExists } from './neighborhoods';
+import { realmExists } from './neighborhoods';
 import { careerFor, operatorLicense } from './contracts';
 import { EMERGENCY_STATIONS, eventAt } from './multiplayer';
 import { facilityReceipt } from './game-feedback';
@@ -495,7 +497,10 @@ async function accessFor(request: Request, wallet: string) {
 }
 async function readableRealm(request: Request, wallet: string) {
   const membership = await requireMembership(db(), wallet);
-  if (membership.realm === 'gpu' && !(await accessFor(request, wallet)).allowed)
+  if (
+    realmFor(membership.realm!).holderOnly &&
+    !(await accessFor(request, wallet)).allowed
+  )
     throw new ApiError(
       403,
       'Your realm access changed. Return to Crew Commons; your progress is safe.',
@@ -509,7 +514,7 @@ async function recoverRealm(
 ) {
   const controller = controllerFrom(body),
     membership = await requireMembership(db(), wallet, controller);
-  if (membership.realm !== 'gpu') return null;
+  if (!realmFor(membership.realm!).holderOnly) return null;
   const access = await accessFor(request, wallet);
   if (access.allowed) return null;
   const p = await player(wallet);
@@ -517,7 +522,7 @@ async function recoverRealm(
     db(),
     wallet,
     'commons',
-    levelBand(p.facility!),
+    playerBand(p.xp),
     controller.clientId,
     { expectedGeneration: membership.generation },
   );
@@ -581,6 +586,7 @@ export async function handleGame(request: Request, action: string) {
       return result({
         ...(await accessFor(request, wallet)),
         licensed: operatorLicense(careerFor(p.facility!)),
+        level: playerLevel(p.xp),
       });
     }
     if (action === 'projects') {
@@ -877,7 +883,8 @@ export async function handleGame(request: Request, action: string) {
     (action === 'facility' &&
       !!body.action &&
       typeof body.action === 'object' &&
-      needsHome(body.action as FacilityAction));
+      (needsHome(body.action as FacilityAction) ||
+        (body.action as FacilityAction).type === 'field-start'));
   if (realmBound) {
     const recovered = await recoverRealm(request, wallet, body);
     if (recovered) {
@@ -1011,7 +1018,13 @@ export async function handleGame(request: Request, action: string) {
     const p = await player(wallet);
     if (!realmExists(body.realm) || typeof body.clientId !== 'string')
       throw new ApiError(400, 'Choose a realm.');
-    if (body.realm === 'gpu') {
+    const needed = realmRequirement(
+      body.realm,
+      p.xp,
+      operatorLicense(careerFor(p.facility!)),
+    );
+    if (needed) throw new ApiError(403, needed);
+    if (realmFor(body.realm).holderOnly) {
       if (!operatorLicense(careerFor(p.facility!)))
         throw new ApiError(
           403,
@@ -1028,7 +1041,7 @@ export async function handleGame(request: Request, action: string) {
       db(),
       wallet,
       body.realm,
-      levelBand(p.facility!),
+      playerBand(p.xp),
       body.clientId,
       {
         target: typeof body.target === 'string' ? body.target : undefined,
@@ -1110,13 +1123,20 @@ export async function handleGame(request: Request, action: string) {
     if (!a || typeof a.type !== 'string' || typeof a.requestId !== 'string')
       throw new ApiError(400, 'Choose a valid facility action.');
     const now = Date.now(),
-      homeRequired = needsHome(a);
-    const controller = homeRequired ? controllerFrom(body) : null;
+      homeRequired = needsHome(a),
+      fieldRequired = a.type === 'field-start';
+    const controller =
+      homeRequired || fieldRequired ? controllerFrom(body) : null;
     const presence = controller
       ? await requireMembership(db(), wallet, controller, now)
       : null;
-    if (presence && presence.room !== 'home-' + p.id)
+    if (presence && homeRequired && presence.room !== 'home-' + p.id)
       throw new ApiError(403, 'Return to your own center to do this job.');
+    if (fieldRequired && (!presence || presence.room !== 'commons'))
+      throw new ApiError(
+        403,
+        'Visit the field station in the shared realm first.',
+      );
     const worksite = actionWorksite(previous, a);
     if (
       worksite &&
@@ -1125,7 +1145,13 @@ export async function handleGame(request: Request, action: string) {
         Math.hypot(presence.x - worksite.x, presence.z - worksite.z) > 4)
     )
       throw new ApiError(400, 'Walk to ' + worksite.name + ' first.');
-    const updated = applyFacility(previous, a, p.credits, now);
+    const updated = applyFacility(
+      previous,
+      a,
+      p.credits,
+      now,
+      presence?.realm ? { xp: p.xp, realm: presence.realm } : undefined,
+    );
     if (updated.facility.version !== previous.version) {
       const authority = controller
         ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room=?
@@ -1145,7 +1171,7 @@ export async function handleGame(request: Request, action: string) {
           controller.clientId,
           controller.generation,
           now,
-          'home-' + p.id,
+          fieldRequired ? 'commons' : 'home-' + p.id,
           worksite ? 1 : 0,
           now - 10000,
           worksite?.x ?? 0,

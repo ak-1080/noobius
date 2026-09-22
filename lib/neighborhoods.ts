@@ -3,25 +3,9 @@ import type { CrewSignalPacket } from './social';
 import { careerFor, careerLevel } from './contracts.ts';
 import type { Facility } from './facility.ts';
 
-export const REALMS = [
-  {
-    id: 'commons',
-    name: 'Crew Commons',
-    description: 'Your first center. A whole shift of possibilities.',
-    holderOnly: false,
-    color: '#bddf8b',
-  },
-  {
-    id: 'gpu',
-    name: 'GPU District',
-    description: 'Commission bigger workloads with a licensed crew.',
-    holderOnly: true,
-    color: '#aebaff',
-  },
-] as const;
-export type RealmId = (typeof REALMS)[number]['id'];
-export const realmExists = (value: unknown): value is RealmId =>
-  REALMS.some((r) => r.id === value);
+export { REALMS, realmExists } from './realm-catalog.ts';
+import type { RealmId } from './realm-catalog.ts';
+export type { RealmId } from './realm-catalog.ts';
 export const NEIGHBORHOOD_CAPACITY = 5;
 export const CENTER_ENTRANCES = [
   { x: -7, z: 5.5 },

@@ -1,3 +1,5 @@
+import { xpForLevel } from './progression.ts';
+import { realmFor, realmRequirement } from './realm-catalog.ts';
 import { normalizeFacility, newFacility, type ZoneId } from './facility.ts';
 import { operatorLicense, careerFor } from './contracts.ts';
 import { MEMBERSHIP_LEASE_MS, type Membership } from './neighborhoods.ts';
@@ -69,7 +71,7 @@ async function authority(
   grantHash?: string,
 ): Promise<RoomAuthority> {
   const row = await db
-    .prepare(`SELECT c.*,n.realm,p.public_id,p.name,p.facility_state,s.expires_at AS session_expires_at,
+    .prepare(`SELECT c.*,n.realm,p.public_id,p.name,p.xp,p.facility_state,s.expires_at AS session_expires_at,
     g.writer_until,g.frozen_until,g.frozen_checkpoint,
     (SELECT host.facility_state FROM players host WHERE 'home-'||host.public_id=c.room) AS host_facility
     FROM crew_presence c JOIN neighborhoods n ON n.id=c.neighborhood_id JOIN players p ON p.wallet=c.wallet
@@ -94,7 +96,8 @@ async function authority(
       now,
     )
     .first<{
-      realm: 'commons' | 'gpu';
+      realm: import('./realm-catalog.ts').RealmId;
+      xp: number;
       public_id: string;
       name: string;
       facility_state: string;
@@ -115,10 +118,16 @@ async function authority(
       'Room authority changed. Request a fresh connection.',
     );
   const own = normalizeFacility(JSON.parse(row.facility_state || '{}'), now);
-  if (row.realm === 'gpu' && !operatorLicense(careerFor(own)))
+  // Existing GPU memberships predate earned level gates. Honor their session
+  // and projects until departure; every new admission enforces the current gate.
+  const sessionXp =
+    row.realm === 'gpu'
+      ? Math.max(row.xp, xpForLevel(realmFor('gpu').minimumLevel))
+      : row.xp;
+  if (realmRequirement(row.realm, sessionXp, operatorLicense(careerFor(own))))
     throw new RoomAuthError(
       403,
-      'Earn your Operator license before entering this room.',
+      realmRequirement(row.realm, sessionXp, operatorLicense(careerFor(own)))!,
     );
   const navigation = row.host_facility
     ? normalizeFacility(JSON.parse(row.host_facility), now)
@@ -470,7 +479,7 @@ async function checkpointMovement(
   const saved = await previous();
   if (saved) return reply(saved);
   if (
-    !floorClear(context.navigation, row.scene === 'commons', input.x, input.z)
+    !floorClear(context.navigation, row.scene === 'commons', input.x, input.z, context.membership.realm)
   )
     throw new RoomAuthError(400, 'Checkpoint is outside the accessible floor.');
   // Movement hops are validated by the trusted coordinator. Sparse D1 commits

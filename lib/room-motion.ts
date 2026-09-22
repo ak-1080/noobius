@@ -1,3 +1,4 @@
+import { realmExists } from './realm-catalog.ts';
 import type { RoomAuthority } from './room-auth-server.ts';
 import { floorClear, legalMovement } from './world-navigation.ts';
 
@@ -58,6 +59,8 @@ function copyAuthority(value: Authority): Authority {
   if (
     !value?.membership ||
     !value.player ||
+    (value.membership.realm !== undefined &&
+      !realmExists(value.membership.realm)) ||
     !value.navigation ||
     !Array.isArray(value.navigation.unlocked) ||
     !validSequence(value.membership.sequence) ||
@@ -178,6 +181,7 @@ export class RoomMotion {
         this.currentPosition,
         input,
         elapsed,
+        this.authority.membership.realm,
       )
     )
       return this.result(false, 'illegal-movement');
@@ -288,6 +292,7 @@ export class RoomMotion {
         next.membership.scene === 'commons',
         this.position.x,
         this.position.z,
+        next.membership.realm,
       )
     ) {
       this.rebase(next, now);

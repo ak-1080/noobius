@@ -132,6 +132,9 @@ function finishJob(
 const gpuNow = 1000000;
 const gpuPermit = { policy: 'project-sql-test-policy', localTest: false };
 async function enterGpu(db, p) {
+  db.sqlite
+    .prepare('UPDATE players SET xp=MAX(xp,800) WHERE wallet=?')
+    .run(p.wallet);
   const clock = Date.now();
   db.sqlite
     .prepare(`INSERT OR REPLACE INTO realm_entitlements

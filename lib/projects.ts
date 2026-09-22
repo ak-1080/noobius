@@ -12,7 +12,7 @@ export type ProjectVariant = {
   name: string;
   description: string;
   extra: ContractFamily | null;
-  realms: readonly ('commons' | 'gpu')[];
+  realms: readonly import('./realm-catalog.ts').RealmId[];
   requirements: Partial<Record<ContractFamily, ModuleStyle>>;
 };
 export const PROJECT_VARIANTS: readonly ProjectVariant[] = [
@@ -68,12 +68,50 @@ export const PROJECT_VARIANTS: readonly ProjectVariant[] = [
     realms: ['gpu'],
     requirements: { supply: 'efficient' },
   },
+  {
+    id: 'thermal-loop',
+    name: 'Closed-loop cooling',
+    description:
+      'Use Efficient supply reports to assemble a recovery loop. Recovered coolant supplies the next pump order.',
+    extra: 'supply',
+    realms: ['thermal'],
+    requirements: { supply: 'efficient' },
+  },
+  {
+    id: 'thermal-backup',
+    name: 'Reserve cooling',
+    description: 'Prepare reliable standby cooling with Stable repair reports.',
+    extra: 'service',
+    realms: ['thermal'],
+    requirements: { service: 'stable' },
+  },
+  {
+    id: 'core-restore',
+    name: 'Archive rebuild',
+    description:
+      'Bring recovered boards and Stable computing reports to restore an archive cluster.',
+    extra: 'workload',
+    realms: ['core'],
+    requirements: { workload: 'stable' },
+  },
+  {
+    id: 'core-salvage',
+    name: 'Recovery relay',
+    description:
+      'Complete Fast supply orders to prepare a relay for recovered data.',
+    extra: 'supply',
+    realms: ['core'],
+    requirements: { supply: 'fast' },
+  },
 ];
-export const projectVariantsFor = (realm: 'commons' | 'gpu') =>
-  PROJECT_VARIANTS.filter((v) => v.realms.includes(realm));
+export const projectVariantsFor = (
+  realm: import('./realm-catalog.ts').RealmId,
+) => PROJECT_VARIANTS.filter((v) => v.realms.includes(realm));
 export function projectBenefitFor(variant: string): DispatchBenefit | null {
   const v = PROJECT_VARIANTS.find((v) => v.id === variant);
-  return v?.extra && v.requirements[v.extra] && v.realms.includes('gpu')
+  return v?.extra &&
+    v.requirements[v.extra] &&
+    v.realms.some((realm) => realm !== 'commons')
     ? { version: 1, kind: 'dispatch', family: v.extra, storedLimit: 2 }
     : null;
 }
@@ -179,7 +217,7 @@ export type ProjectSnapshot = {
     dispatchUnits?: number;
     id: string;
     neighborhoodId: string;
-    realm: 'commons' | 'gpu';
+    realm: import('./realm-catalog.ts').RealmId;
     variant: string;
     state: string;
     units: number;

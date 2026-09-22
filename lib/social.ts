@@ -44,7 +44,7 @@ export type RecentNeighbor = {
   id: string;
   name: string;
   neighborhoodId: string | null;
-  realm: 'commons' | 'gpu' | null;
+  realm: import('./realm-catalog.ts').RealmId | null;
 };
 export type SocialSnapshot = {
   preferences: SocialPerson[];

@@ -1,10 +1,14 @@
+import { newCommissions } from './commissions.ts';
+import { playerLevel } from './progression.ts';
+import { realmFor } from './realm-catalog.ts';
 import { noBlockSql } from './social.ts';
 import {
   realmWriteGuard,
+  realmLevelGuard,
   walletHoldingGuard,
   type RealmPermit,
 } from './realm-authority.ts';
-import { careerFor, careerLevel, newCareer } from './contracts.ts';
+import { newCareer } from './contracts.ts';
 import { newFacility, normalizeFacility, type Facility } from './facility.ts';
 import {
   MEMBERSHIP_LEASE_MS,
@@ -138,6 +142,15 @@ export async function joinNeighborhood(
     throw new NeighborhoodError(400, 'Choose a valid realm.');
   if (options.target && !/^[a-f0-9]{32}$/.test(options.target))
     throw new NeighborhoodError(400, 'That neighborhood code is not valid.');
+  const entrant = await db
+    .prepare('SELECT xp FROM players WHERE wallet=?')
+    .bind(wallet)
+    .first<{ xp: number }>();
+  if (!entrant || playerLevel(entrant.xp) < realmFor(realm).minimumLevel)
+    throw new NeighborhoodError(
+      403,
+      `Reach player level ${realmFor(realm).minimumLevel} to enter ${realmFor(realm).name}.`,
+    );
   await ensurePublicId(db, wallet);
   const old = await presenceFor(db, wallet);
   if (
@@ -148,10 +161,10 @@ export async function joinNeighborhood(
       409,
       'Your connection changed. Rejoin to resync.',
     );
-  const admissionGuard =
-    realm === 'commons' ? '1' : walletHoldingGuard(wallet, options.permit);
+  const admissionGuard = `(${realmLevelGuard(wallet, realm)} AND ${realmFor(realm).holderOnly ? walletHoldingGuard(wallet, options.permit) : '1'})`;
   const paused =
-    options.admissionPaused || (realm === 'gpu' && options.gpuAdmissionPaused);
+    options.admissionPaused ||
+    (realmFor(realm).holderOnly && options.gpuAdmissionPaused);
   if (paused) {
     // Resumption is an in-place operation, never a route back into matchmaking.
     // In particular, takeover without a target must not select another room.
@@ -163,8 +176,8 @@ export async function joinNeighborhood(
     )
       throw new NeighborhoodError(
         503,
-        realm === 'gpu' && options.gpuAdmissionPaused
-          ? 'New GPU District arrivals are paused. You can keep playing in Crew Commons; your center and earned rewards are safe.'
+        realmFor(realm).holderOnly && options.gpuAdmissionPaused
+          ? 'New holder-realm arrivals are paused. You can keep playing in Crew Commons; your center and earned rewards are safe.'
           : 'New neighborhood arrivals are paused. Your center and saved progress are safe. Try again shortly.',
       );
     const takeover = old.client_id !== clientId;
@@ -356,11 +369,12 @@ export async function neighborhoodSnapshot(
   const self = await requireMembership(db, wallet, controller, now);
   const rows = (
     await db
-      .prepare(`SELECT p.public_id,p.name,p.facility_state,c.slot,c.room,c.x,c.z,c.updated_at
+      .prepare(`SELECT p.public_id,p.name,p.xp,p.facility_state,c.slot,c.room,c.x,c.z,c.updated_at
     FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.neighborhood_id=? AND c.lease_until>? ORDER BY c.slot`)
       .bind(self.neighborhood_id, now)
       .all<{
         public_id: string;
+        xp: number;
         name: string;
         facility_state: string;
         slot: number;
@@ -381,7 +395,7 @@ export async function neighborhoodSnapshot(
       slot: r.slot,
       scene: r.room,
       online: r.updated_at > now - VISIBLE_FOR_MS,
-      level: careerLevel(careerFor(f)),
+      level: playerLevel(r.xp),
       racks: Object.values(f.builds).reduce((n, v) => n + v, 0),
       outfit: f.outfit,
       accessory: f.accessory ?? 'none',
@@ -599,6 +613,7 @@ export async function syncNeighborhood(
     self,
     position,
     now - self.updated_at,
+    self.realm,
   );
   const updated = await db
     .prepare(`UPDATE crew_presence SET x=?,z=?,sequence=?,updated_at=?,lease_until=MAX(lease_until,?)
@@ -664,6 +679,10 @@ export async function visitCenter(
         accent: f.career?.accent,
         trophy: f.career?.trophy,
         commissioned: f.career?.commissioned,
+      },
+      commissions: {
+        ...newCommissions(),
+        milestone: f.commissions?.milestone ?? 0,
       },
       visiting: true,
     } as Facility,

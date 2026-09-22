@@ -8,6 +8,7 @@ import {
 import { careerFor, contractFor, type ModuleStyle } from './contracts.ts';
 import { resolveObjective } from './objectives.ts';
 import type { Objective } from './objectives.ts';
+import { commissionsFor, milestoneProgress } from './commissions.ts';
 import { tycoonObjective } from './tycoon.ts';
 import { careerSuggestions, jobSetup, jobSelection } from './job-choices.ts';
 
@@ -62,6 +63,30 @@ export function shiftObjective(
     reward: 'Compute · reputation · new equipment',
     ...step,
   });
+  const commissions = commissionsFor(f),
+    readyClient = commissions.active.find((r) => r.readyAt <= now),
+    field = f.fieldWork?.active;
+  if (readyClient)
+    return wrap({
+      title: 'Your client has paid',
+      detail: `${readyClient.client} · ${readyClient.reward} Compute ready to collect.`,
+      cta: 'Review payment',
+      panel: 'operations',
+      progress: 100,
+    });
+  if (field && (field.readyAt === null || field.readyAt <= now))
+    return wrap({
+      title:
+        field.readyAt !== null && field.readyAt <= now
+          ? 'Your recovery is ready'
+          : 'Finish your realm recovery',
+      detail:
+        field.readyAt === null
+          ? 'Open your station plan. Supplies are already committed.'
+          : 'Collect into Storage when processing finishes, or explore while you wait.',
+      cta: 'Open recovery',
+      panel: 'field',
+    });
   const current =
     career.active.find((r) => r.id === career.selected) ?? career.active[0];
   if (current) {
@@ -134,12 +159,30 @@ export function shiftObjective(
           : current.steps * 25,
     });
   }
-  if (!Object.values(career.completed).some((n) => n > 0))
+  if (
+    !Object.values(career.completed).some((n) => n > 0) &&
+    commissions.serial === 1 &&
+    modules(f) < 9
+  )
     return wrap({
       title: 'Pick your first job',
       detail:
         'Fix a fault, deliver parts, or run a computing job. Accept one to see exactly what you need.',
       view: { jobsTab: 'board' },
     });
+  if (modules(f) >= 9 || commissions.active.length || commissions.serial > 1) {
+    const p = milestoneProgress(f);
+    return wrap({
+      title: p.ready
+        ? `Build distinction ${p.chapter}`
+        : 'Choose your next client',
+      detail: p.ready
+        ? 'Your portfolio is complete. Prepare the build materials and commission your monument.'
+        : `${p.jobs}/${p.needed} client jobs toward distinction ${p.chapter}. Mix specialties and bring supplies from the realms.`,
+      cta: 'Open client desk',
+      panel: 'operations',
+      reward: 'Specialty records · permanent distinctions',
+    });
+  }
   return careerSuggestions(f, credits, connected)[0] ?? wrap({});
 }

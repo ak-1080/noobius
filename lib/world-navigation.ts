@@ -1,3 +1,5 @@
+import { sharedRealmFloor } from './realm-worlds.ts';
+import type { RealmId } from './realm-catalog.ts';
 import { OBJECTS, ZONES, type Facility } from './facility.ts';
 import { CENTER_ENTRANCES } from './neighborhoods.ts';
 import { planPath } from './navigation.ts';
@@ -25,18 +27,19 @@ export function floorClear(
   shared: boolean,
   x: number,
   z: number,
+  realm: RealmId = 'commons',
 ) {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
-  if (
-    shared &&
-    (Math.abs(x) > 8 ||
-      z < 4 ||
-      z > 20 ||
-      CENTER_ENTRANCES.some(
+  if (shared)
+    return (
+      sharedRealmFloor(realm, x, z) &&
+      !CENTER_ENTRANCES.some(
         (o) => Math.abs(x - o.x) < 1 && Math.abs(z - o.z) < 0.6,
-      ))
-  )
-    return false;
+      ) &&
+      !obstacles
+        .filter((o) => o.z >= 4 && Math.abs(o.x) < 9)
+        .some((o) => Math.abs(x - o.x) < o.w && Math.abs(z - o.z) < o.d)
+    );
   if (Math.abs(x) > 32 || z > 21 || z < -40) return false;
   const zone = ZONES.find(
     (d) => Math.abs(x - d.x) < 9 && Math.abs(z - d.z) < 8,
@@ -57,8 +60,10 @@ export function legalMovement(
   from: { x: number; z: number },
   to: { x: number; z: number },
   elapsed: number,
+  realm: RealmId = 'commons',
 ) {
-  if (elapsed < 0 || !floorClear(facility, shared, to.x, to.z)) return false;
+  if (elapsed < 0 || !floorClear(facility, shared, to.x, to.z, realm))
+    return false;
   // Renderer walks at 4.2 units/s. Allow bounded transport/rounding tolerance,
   // not a fresh allowance per packet; sequence/time are committed together.
   const allowance = (Math.min(10000, elapsed) / 1000) * 4.8;
@@ -67,7 +72,7 @@ export function legalMovement(
   const path = planPath(
     [from.x, from.z],
     [to.x, to.z],
-    (x, z) => floorClear(facility, shared, x, z),
+    (x, z) => floorClear(facility, shared, x, z, realm),
     0.5,
   );
   if (!path.length) return false;

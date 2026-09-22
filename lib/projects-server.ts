@@ -164,7 +164,7 @@ export async function projectSnapshot(
       .all<{
         id: string;
         neighborhoodId: string;
-        realm: 'commons' | 'gpu';
+        realm: import('./realm-catalog.ts').RealmId;
         variant: string;
         state: string;
         units: number;

@@ -446,6 +446,7 @@ export function availableRacks(f: Facility, now = Date.now()): string[] {
     (id) =>
       f.builds[id] > 0 &&
       !reserved.includes(id) &&
+      !f.commissions?.active.some(r=>r.rack===id) &&
       !(f.workload?.rack === id && f.workload.readyAt > now) &&
       !f.projectReservations?.some((r) => r.rack === id && r.readyAt > now),
   );
@@ -537,7 +538,7 @@ export function contractQuote(
 
 /** Amount already occupied by workloads at the same 15-second production ticks. */
 export function reservedProduction(f: Facility, until: number): number {
-  return [...(f.career?.active ?? []), ...(f.projectReservations ?? [])].reduce(
+  return [...(f.career?.active ?? []), ...(f.projectReservations ?? []), ...(f.commissions?.active??[])].reduce(
     (sum, r) => {
       if (!r.rack || r.startedAt === null || r.readyAt === null) return sum;
       const end = Math.floor(
@@ -610,7 +611,7 @@ export function applyContract(
     };
   }
   if (a.type === 'contract-accept') {
-    if (c.active.length >= 2)
+    if (c.active.length+(f.commissions?.active.length??0) >= 2)
       fail('Finish or cancel a job before accepting another.');
     const offer = c.offers.find(
       (o) => o.id === a.id && !c.active.some((r) => r.id === o.id),

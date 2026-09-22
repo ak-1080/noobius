@@ -234,12 +234,10 @@ export function tycoonObjective(
     );
   return wrap(
     {
-      title: 'Your empire is humming',
-      detail: done
-        ? `${rate} Compute/min. Every machine is maxed. Next daily goal tomorrow.`
-        : `${rate} Compute/min. Every machine is maxed. Try a new look while your machines earn.`,
-      cta: 'Customize Noobius',
-      panel: 'appearance',
+      title: 'Put your empire to work',
+      detail: `${rate} Compute/min. Book competing clients, develop specialties and earn your next facility distinction.`,
+      cta: 'Open client desk',
+      panel: 'operations',
     },
     100,
   );

@@ -262,7 +262,7 @@ test('movement rejects teleporting, locked rooms, burst packets and stale sequen
     p.wallet,
     c,
     15,
-    { x: 0, z: -10 },
+    { x: 12, z: 17 },
     12000,
   );
   assert.equal(snapshot.corrected, true);

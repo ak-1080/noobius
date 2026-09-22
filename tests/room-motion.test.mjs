@@ -118,8 +118,8 @@ test('locked rooms, machine footprints and plaza bounds use the actual floor rul
     0,
   );
   assert.equal(move(obstacle, 1, -4, 1000, 9).reason, 'illegal-movement');
-  const boundary = new RoomMotion(authority({ membership: { x: 7.9 } }), 0);
-  assert.equal(move(boundary, 1, 8.1, 100).reason, 'illegal-movement');
+  const boundary = new RoomMotion(authority({ membership: { x: 8.9 } }), 0);
+  assert.equal(move(boundary, 1, 9.1, 100).reason, 'illegal-movement');
 });
 
 test('invalid coordinates, sequences and clock rollback never change position', () => {

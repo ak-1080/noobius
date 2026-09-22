@@ -20,7 +20,13 @@ export type ReturnWork = {
   title: string;
   detail: string;
   phase: 'ready' | 'waiting' | 'running';
-  panel: 'contracts' | 'crafting' | 'project' | 'compute';
+  panel:
+    | 'contracts'
+    | 'crafting'
+    | 'project'
+    | 'compute'
+    | 'operations'
+    | 'field';
   view?: GuideView;
 };
 const timeLeft = (deadline: number, now: number) => {
@@ -84,6 +90,23 @@ export function facilityReceipt(
         title = 'Every machine upgraded!';
         detail += ' · Ready for client work and crew projects.';
       }
+      break;
+    case 'commission-claim':
+      title = 'Client paid!';
+      detail = `${reward} · +${result.xp} XP · Specialty record earned.`;
+      break;
+    case 'commission-certify':
+      title = 'Certification earned!';
+      detail = 'Your next bookings use your improved specialty.';
+      break;
+    case 'commission-milestone':
+      title = `Distinction ${after.commissions?.milestone} earned!`;
+      detail =
+        'Your monument is lit. A new portfolio is ready; every upgrade stays.';
+      break;
+    case 'field-claim':
+      title = 'Recovery collected!';
+      detail = `+${result.xp} XP · Your parts are safe in Storage.`;
       break;
     case 'contract-claim':
       title = 'Job complete!';
@@ -172,6 +195,32 @@ export function returnSummary(f: Facility, now: number, connected = false) {
       phase,
       panel: 'contracts',
       view: { jobsTab: 'board', jobId: run.id },
+    });
+  }
+  for (const run of f.commissions?.active ?? [])
+    work.push({
+      id: 'client:' + run.id,
+      title: run.client,
+      detail:
+        run.readyAt <= now
+          ? `${run.reward} Compute payment ready`
+          : timeLeft(run.readyAt, now),
+      phase: run.readyAt <= now ? 'ready' : 'running',
+      panel: 'operations',
+    });
+  if (f.fieldWork?.active) {
+    const run = f.fieldWork.active,
+      ready = run.readyAt !== null && run.readyAt <= now;
+    work.push({
+      id: 'field:' + run.id,
+      title: 'Realm recovery',
+      detail: ready
+        ? 'Parts ready for Storage'
+        : run.readyAt === null
+          ? 'Your station needs a plan'
+          : timeLeft(run.readyAt, now),
+      phase: ready ? 'ready' : run.readyAt === null ? 'waiting' : 'running',
+      panel: 'field',
     });
   }
   if (f.craft) {

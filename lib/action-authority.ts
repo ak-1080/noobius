@@ -1,3 +1,5 @@
+import { fieldSite } from './realm-worlds.ts';
+import { REALM_WORKSITE } from './realm-catalog.ts';
 import { careerFor, contractFor } from './contracts.ts';
 import {
   OBJECTS,
@@ -12,6 +14,8 @@ export function actionWorksite(
   f: Facility,
   action: Pick<FacilityAction, 'type' | 'id'>,
 ) {
+  if (action.type === 'field-start')
+    return fieldSite(action.id) ?? REALM_WORKSITE;
   if (action.type === 'gather') return OBJECTS.find((o) => o.id === action.id);
   if (action.type === 'craft' || action.type === 'collect')
     return OBJECTS.find((o) => o.id === 'workbench');
@@ -26,6 +30,9 @@ export function actionWorksite(
   return undefined;
 }
 export function needsHome(action: Pick<FacilityAction, 'type'>) {
+  if (typeof action.type !== 'string') return false;
+  if (action.type === 'commission-claim') return false;
+  if (action.type.startsWith('field-')) return false;
   return ![
     'buy',
     'sell',
