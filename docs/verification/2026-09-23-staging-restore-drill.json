@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-23",
+  "source": "Cloudflare D1 noobius-game-staging",
+  "destination": "temporary Cloudflare D1 noobius-restore-drill-20260923",
+  "result": "passed for export, import, and selected row counts",
+  "exportBytes": 39031,
+  "importQueries": 167,
+  "matchingSourceAndRestoredCounts": {
+    "players": 12,
+    "computeCredits": 0,
+    "computeListings": 0,
+    "computePayments": 0,
+    "sessions": 12,
+    "migrations": 13
+  },
+  "cleanup": "The temporary restored database and local SQL export were deleted after comparison.",
+  "limitations": "Only isolated staging data was restored. There were no in-flight token payments to reconcile. Cloudflare D1 rejected PRAGMA integrity_check with SQLITE_AUTH, so this does not prove full table-by-table integrity or a live Worker cutover. Production backup/restore, payment-ledger reconciliation, and application reads against a restored database remain separate launch checks."
+}
