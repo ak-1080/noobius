@@ -1,6 +1,7 @@
 {
   "checkedAt": "2026-09-23T04:50:33.390Z",
   "workerVersion": "a890dae1-8e6d-43a7-8f86-c7e956019449",
+  "paymentRecoveryWorkerVersion": "a199debb-2a23-406b-b7fc-2b077c003259",
   "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
   "database": "noobius-game-staging",
   "network": "devnet",
@@ -13,5 +14,5 @@
     "Compute marketplace reported unavailable and listing creation returned 503",
     "generated test account matched one staging player and zero production players"
   ],
-  "limits": "No real token, wallet extension, hosted checkout or staging multiplayer was tested. Staging room auth is intentionally disabled."
+  "limits": "No real token, wallet extension, hosted checkout or staging multiplayer was tested. Staging room auth is intentionally disabled; the recovery cron was deployed but had no pending payment to recover."
 }

@@ -1,0 +1,28 @@
+{
+  "name": "noobius-payment-recovery-staging",
+  "account_id": "818bac5a5a12b327928ded9344c453bb",
+  "main": "../../services/payment-recovery/worker.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "noobius-game-staging",
+      "database_id": "c996298e-b0ee-4edb-9684-33e44c22d5d8",
+      "migrations_dir": "../../drizzle"
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "NOOBIUS_PAYMENTS_ENABLED": "false",
+    "NOOBIUS_TOKEN_ECOSYSTEM": "solana",
+    "NOOBIUS_SOLANA_NETWORK": "devnet"
+  }
+}

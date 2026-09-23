@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 const target = JSON.parse(
   readFileSync('deploy/cloudflare/staging-game.json', 'utf8'),
 );
+const recovery = JSON.parse(
+  readFileSync('deploy/cloudflare/staging-payments.json', 'utf8'),
+);
 if (
   target.name !== 'noobius-game-staging' ||
   target.d1_databases?.[0]?.database_id !==
@@ -13,6 +16,14 @@ if (
   target.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false'
 )
   throw Error('Unexpected staging deployment destination or token settings.');
+if (
+  recovery.name !== 'noobius-payment-recovery-staging' ||
+  recovery.d1_databases?.[0]?.database_id !==
+    target.d1_databases[0].database_id ||
+  recovery.vars?.NOOBIUS_SOLANA_NETWORK !== 'devnet' ||
+  recovery.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false'
+)
+  throw Error('Unexpected staging payment recovery destination.');
 
 function run(command, args) {
   const result = spawnSync(command, args, { stdio: 'inherit' });
@@ -42,4 +53,9 @@ run('./node_modules/.bin/wrangler', [
   'deploy',
   '--config',
   'dist/server/wrangler.json',
+]);
+run('./node_modules/.bin/wrangler', [
+  'deploy',
+  '--config',
+  'deploy/cloudflare/staging-payments.json',
 ]);
