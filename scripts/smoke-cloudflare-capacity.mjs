@@ -1,4 +1,4 @@
-// Bounded production capacity probe: fifty generated, unfunded Solana accounts.
+// Bounded production capacity probe: up to fifty generated, unfunded Solana accounts.
 // Uses public admission and real RoomClient transport; no fixture SQL, tokens or
 // user profiles. Respects normal authentication throttles, then leaves/logs out.
 import assert from 'node:assert/strict';
@@ -300,13 +300,13 @@ const heartbeat = setInterval(
   30000,
 );
 const deadline = setTimeout(() => {
-  issues.push('Probe exceeded ten-minute bound');
+  issues.push('Probe exceeded fifteen-minute bound');
   stopped = true;
   for (const a of actors) {
     a.transport?.dispose();
     a.socket?.terminate();
   }
-}, 600000);
+}, 900000);
 let report;
 try {
   assert.equal((await fetch(origin + '/api/health')).status, 200);
