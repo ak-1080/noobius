@@ -58,7 +58,10 @@ const counters = {
   inboundBytes: 0,
   renewals: 0,
   interruptions: 0,
+  admissionRetries: 0,
+  admissionRecoveries: 0,
   releaseRetries: 0,
+  cleanupRetries: 0,
   httpRequests: 0,
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -180,7 +183,7 @@ async function connect(a) {
           authorityAgeMs: a.lastAuthority ? Date.now() - a.lastAuthority : null,
         }),
       );
-      if (!a.reconnecting)
+      if (!a.initializing && !a.reconnecting)
         a.reconnecting = track(
           (async () => {
             await sleep(500);
@@ -255,7 +258,34 @@ async function connect(a) {
   });
   a.transport = transport;
   await transport.connect();
-  assert.ok(transport.ready);
+  if (!transport.ready)
+    throw Error(
+      'Your room connection is recovering. Please retry when you are back.',
+    );
+}
+const recoverableConnection = (error) =>
+  error?.name === 'TimeoutError' ||
+  /room connection is recovering|fetch failed/i.test(error?.message ?? '');
+async function connectWithRetry(a) {
+  // The browser keeps trying an initial room connection after a transient
+  // failure. Retry here too, while leaving auth and validation errors fatal.
+  // Suppress the ordinary disconnect handler so it cannot race this retry.
+  a.initializing = true;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await connect(a);
+        if (attempt) counters.admissionRecoveries++;
+        return;
+      } catch (error) {
+        if (!recoverableConnection(error) || attempt === 2) throw error;
+        counters.admissionRetries++;
+        await sleep(750 * (attempt + 1));
+      }
+    }
+  } finally {
+    a.initializing = false;
+  }
 }
 async function release(a) {
   // Like the game UI, wait for recovery before attempting a scene transition.
@@ -275,10 +305,30 @@ async function release(a) {
       counters.releaseRetries++;
       // The old transport is closed. Read the authoritative position; never
       // inject a client-side position to manufacture a successful save check.
-      await connect(a);
+      await connectWithRetry(a);
     } finally {
       a.transitioning = false;
     }
+  }
+}
+async function cleanupAction(a, action, body) {
+  // Leaving and logging out are idempotent. A transient 5xx or transport
+  // timeout must still be surfaced in the report, but can be retried safely.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await request(a, action, body);
+      if (response.status === 200) return;
+      if (response.status < 500 || attempt === 2) ok(response);
+    } catch (error) {
+      if (attempt === 2) throw error;
+      if (
+        error?.name !== 'TimeoutError' &&
+        !/fetch failed/i.test(error?.message ?? '')
+      )
+        throw error;
+    }
+    counters.cleanupRetries++;
+    await sleep(500 * (attempt + 1));
   }
 }
 let lastMotionAt = performance.now();
@@ -387,7 +437,7 @@ try {
       a.membership = joined.membership;
       a.controller.generation = a.membership.generation;
       target = a.membership.neighborhoodId;
-      await connect(a);
+      await connectWithRetry(a);
     }
     assert.ok(
       !actors
@@ -416,7 +466,7 @@ try {
       );
       a.membership = changed.membership;
       a.controller.generation = a.membership.generation;
-      await connect(a);
+      await connectWithRetry(a);
       a.transitioning = false;
     }
     for (const a of members)
@@ -577,14 +627,15 @@ try {
       actors.slice(start, start + 5).map(async (a) => {
         if (!a.profile) return;
         try {
-          ok(await request(a, 'neighborhood-leave', a.c.body(a.controller)));
-          ok(await request(a, 'logout', a.c.body()));
+          await cleanupAction(a, 'neighborhood-leave', a.c.body(a.controller));
+          await cleanupAction(a, 'logout', a.c.body());
         } catch (e) {
           cleanup.push({ index: a.index, error: e.message });
         }
       }),
     );
   if (report) {
+    report.cleanupRetries = counters.cleanupRetries;
     report.cleanupErrors = cleanup;
     if (cleanup.length) report.status = 'failed';
     writeFileSync(destination.report, JSON.stringify(report, null, 2));

@@ -1,0 +1,44 @@
+{
+  "runId": "46b76ea0-cd75-4de5-8c25-fdfac7326f52",
+  "status": "failed",
+  "motionMode": "full-speed",
+  "beganAt": "2026-09-23T17:51:53.828Z",
+  "measuredAt": "2026-09-23T18:01:21.186Z",
+  "completedAt": "2026-09-23T18:02:21.491Z",
+  "scope": "Hosted Cloudflare Workers and Durable Objects; 100 synthetic RoomClients, 20 neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers",
+  "rampMs": 567358,
+  "measurementMs": 32163,
+  "unacknowledged": 13,
+  "sent": 17599,
+  "accepted": 17569,
+  "corrected": 17,
+  "peerFrames": 19399,
+  "inboundBytes": 12411707,
+  "renewals": 66,
+  "interruptions": 21,
+  "admissionRetries": 0,
+  "admissionRecoveries": 0,
+  "releaseRetries": 0,
+  "httpRequests": 1063,
+  "correctionReasons": {
+    "illegal-movement": 6,
+    "rate-limited": 11
+  },
+  "durablePositions": 100,
+  "moveRtt": {
+    "p50": 39,
+    "p95": 103.2,
+    "p99": 274.6
+  },
+  "httpRtt": {
+    "p50": 455.1,
+    "p95": 826.3
+  },
+  "issues": [],
+  "cleanupErrors": [
+    {
+      "index": 79,
+      "error": "{\"error\":\"The facility hit a snag. Please try again.\"}\n\n500 !== 200\n"
+    }
+  ]
+}
