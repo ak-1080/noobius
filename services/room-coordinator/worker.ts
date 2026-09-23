@@ -98,6 +98,10 @@ const failureFields = (
         reason:
           error instanceof ServiceTransportFailure ? error.reason : 'unknown',
       };
+const retryableRoomServiceFailure = (error: unknown) =>
+  error instanceof ServiceTransportFailure ||
+  (error instanceof ServiceFailure &&
+    [429, 500, 502, 503, 504].includes(error.status));
 const recoveryFields = (value: Outbox) => ({
   recoveryId: value.recoveryId,
   attempt: value.attempts ?? 0,
@@ -665,10 +669,28 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           }
           if (Date.now() - a.lastUpkeepAt < 4500) return;
           if (nowFor(a) < a.authority.frozenUntil) return;
-          const authority = await this.service<RoomAuthority>({
-            operation: 'authority-refresh',
-            grant: a.grant,
-          });
+          let authority: RoomAuthority;
+          try {
+            authority = await this.service<RoomAuthority>({
+              operation: 'authority-refresh',
+              grant: a.grant,
+            });
+          } catch (error) {
+            // A transient read timeout is not a revocation. Preserve the
+            // current short lease and retry on the next alarm; never grant
+            // movement after that lease expires or retry uncertain writes.
+            if (
+              retryableRoomServiceFailure(error) &&
+              nowFor(a) < a.authority.authorizedUntil - 500
+            ) {
+              emitOperationalEvent({
+                event: 'room-authority-retry',
+                ...failureFields(error),
+              });
+              return;
+            }
+            throw error;
+          }
           if (this.closed.has(ws) || this.actors.get(ws) !== a) return;
           const refreshed = a.motion.refreshAuthority(authority, nowFor(a));
           if (!refreshed.accepted || refreshed.rebased)

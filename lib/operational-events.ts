@@ -8,6 +8,7 @@ const names = [
   'room-release-deferred',
   'room-recovery-delayed',
   'room-connection-failed',
+  'room-authority-retry',
   'holder-verification',
   'holder-storage-failed',
 ] as const;

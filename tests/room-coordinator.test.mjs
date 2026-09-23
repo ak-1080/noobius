@@ -951,6 +951,87 @@ test('idle room upkeep renews authority without a position write, then saves mov
   assert.equal(calls.filter((v) => v === 'movement-checkpoint').length, 1);
 });
 
+test('a transient authority timeout retries within the existing lease without closing the room', async () => {
+  let calls = 0;
+  const f = await fixture({
+    fetch: async () => {
+      calls++;
+      if (calls === 1) {
+        const error = new Error('Private upstream detail');
+        error.name = 'TimeoutError';
+        throw error;
+      }
+      return Response.json({
+        ...actor.authority,
+        serverNow: f.clock.now,
+        authorizedUntil: f.clock.now + 10_000,
+        writerUntil: f.clock.now + 10_000,
+      });
+    },
+  });
+  const { ws, actor } = installActor(f, 'retry-grant');
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(calls, 1);
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  assert.equal(f.room.actors.get(ws), actor);
+  assert.deepEqual(
+    f.events.filter((e) => e?.event === 'room-authority-retry'),
+    [{ event: 'room-authority-retry', reason: 'timeout' }],
+  );
+  assert.equal(
+    f.events.some((e) => e?.event === 'room-connection-failed'),
+    false,
+  );
+
+  f.clock.now += 1000;
+  await f.room.alarm();
+  assert.equal(calls, 2);
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  assert.ok(ws.sent.some((body) => body.type === 'authority'));
+});
+
+test('authority timeouts cannot keep a room connected beyond its lease', async () => {
+  const f = await fixture({
+    fetch: async () => {
+      const error = new Error('Private upstream detail');
+      error.name = 'TimeoutError';
+      throw error;
+    },
+  });
+  const { ws } = installActor(f, 'expired-retry-grant');
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.CLOSING);
+  assert.ok(
+    f.events.some(
+      (e) => e?.event === 'room-connection-failed' && e.reason === 'timeout',
+    ),
+  );
+});
+
+test('revoked authority closes immediately instead of being retried', async () => {
+  const f = await fixture({
+    fetch: async () => Response.json({ error: 'Revoked' }, { status: 409 }),
+  });
+  const { ws } = installActor(f, 'revoked-grant');
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.CLOSING);
+  assert.equal(
+    f.events.some((e) => e?.event === 'room-authority-retry'),
+    false,
+  );
+  assert.ok(
+    f.events.some(
+      (e) => e?.event === 'room-connection-failed' && e.status === 409,
+    ),
+  );
+});
+
 test('movement arriving during a position save remains unsaved until the next upkeep', async () => {
   const f = await fixture();
   const { ws, actor } = installActor(f, 'moving-grant');
