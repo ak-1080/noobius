@@ -381,6 +381,32 @@ test('a failed fast reconnect backs off before another attempt', async (t) => {
   assert.equal(f.render().canMove, true);
 });
 
+test('an expired room membership rejoins after a long coordinator outage', async (t) => {
+  let joins = 0;
+  let states = 0;
+  const f = fixture(t, {
+    request: (action) => {
+      if (action === 'neighborhood-join')
+        return snapshot(walletA, { generation: 42 + joins++ });
+      if (action === 'neighborhood-state' && states++ === 0)
+        throw new ClientError(
+          'Your neighborhood connection expired. Rejoin to continue.',
+          409,
+        );
+    },
+  });
+  f.render();
+  await settle();
+  f.rooms[0].disconnect('interrupted');
+  await f.advance(1500);
+  assert.equal(f.render().snapshot, null);
+  await f.advance(1500);
+  assert.equal(joins, 2);
+  assert.equal(f.render().snapshot.membership.generation, 43);
+  assert.equal(f.render().canMove, true);
+  assert.equal(f.controllers.at(-1).generation, 43);
+});
+
 for (const stage of ['ticket', 'connect'])
   test(
     stage + ' failure retries without repeating the scene change',

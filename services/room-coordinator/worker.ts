@@ -166,10 +166,16 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     super(ctx, env);
     this.config = configuration(env);
     void ctx.blockConcurrencyWhile(async () => {
+      const attached = ctx.getWebSockets();
+      emitOperationalEvent({
+        event: 'room-restore-start',
+        socketCount: attached.length,
+      });
+      let restored = 0;
       // Live sockets get priority and recover concurrently. A long orphan
       // backlog must not exhaust another player's ten-second writer lease.
       await Promise.all(
-        ctx.getWebSockets().map(async (ws) => {
+        attached.map(async (ws) => {
           const a = ws.deserializeAttachment() as Attachment;
           if (a.phase !== 'ready' || !a.grant) {
             ws.close(1012, 'Reconnect to recover your room.');
@@ -197,7 +203,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             ws.serializeAttachment(a);
             this.actors.set(ws, this.actor(a.grant, a.connectionId, authority));
             this.joined(ws, 'rebase');
-          } catch {
+            restored++;
+          } catch (error) {
+            emitOperationalEvent({
+              event: 'room-restore-failed',
+              ...failureFields(error),
+            });
             ws.close(1012, 'Reconnect to recover your room.');
             if (!(await ctx.storage.get('checkpoint:' + a.grant))) {
               try {
@@ -217,6 +228,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           }
         }),
       );
+      emitOperationalEvent({
+        event: 'room-restore-complete',
+        socketCount: restored,
+      });
       // The alarm that woke a hibernated room is already due. Replacing it
       // here can cancel the upkeep that renews every player's short lease.
       // Initial admission and each alarm schedule the following upkeep.
@@ -272,31 +287,56 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private async service<T = Record<string, unknown>>(
     body: Record<string, unknown>,
   ): Promise<T> {
-    const raw = JSON.stringify(body);
-    const headers = await roomServiceHeaders(this.config, raw);
-    let response: Response;
+    const started = Date.now();
+    const operation = body.operation as OperationalEvent['operation'];
+    let succeeded = false;
     try {
-      const serviceFetch = this.env.GAME
-        ? this.env.GAME.fetch.bind(this.env.GAME)
-        : fetch;
-      response = await serviceFetch(this.config.audience + ROOM_SERVICE_PATH, {
-        method: 'POST',
-        body: raw,
-        redirect: 'manual',
-        signal: AbortSignal.timeout(4000),
-        headers,
+      const raw = JSON.stringify(body);
+      const headers = await roomServiceHeaders(this.config, raw);
+      let response: Response;
+      try {
+        const serviceFetch = this.env.GAME
+          ? this.env.GAME.fetch.bind(this.env.GAME)
+          : fetch;
+        response = await serviceFetch(
+          this.config.audience + ROOM_SERVICE_PATH,
+          {
+            method: 'POST',
+            body: raw,
+            redirect: 'manual',
+            signal: AbortSignal.timeout(4000),
+            headers,
+          },
+        );
+      } catch (error) {
+        throw new ServiceTransportFailure(
+          timedOut(error) ? 'timeout' : 'network',
+        );
+      }
+      if (!response.ok)
+        throw new ServiceFailure(response.status < 400 ? 503 : response.status);
+      try {
+        const result = await response.json<T>();
+        succeeded = true;
+        return result;
+      } catch (error) {
+        throw new ServiceTransportFailure(timedOut(error) ? 'timeout' : 'json');
+      }
+    } catch (error) {
+      emitOperationalEvent({
+        event: 'room-service-failed',
+        operation,
+        durationMs: Date.now() - started,
+        ...failureFields(error),
       });
-    } catch (error) {
-      throw new ServiceTransportFailure(
-        timedOut(error) ? 'timeout' : 'network',
-      );
-    }
-    if (!response.ok)
-      throw new ServiceFailure(response.status < 400 ? 503 : response.status);
-    try {
-      return await response.json<T>();
-    } catch (error) {
-      throw new ServiceTransportFailure(timedOut(error) ? 'timeout' : 'json');
+      throw error;
+    } finally {
+      if (succeeded && Date.now() - started >= 1000)
+        emitOperationalEvent({
+          event: 'room-service-slow',
+          operation,
+          durationMs: Date.now() - started,
+        });
     }
   }
   private actor(
@@ -906,7 +946,19 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       });
     }
   }
-  async webSocketClose(ws: WebSocket) {
+  async webSocketClose(
+    ws: WebSocket,
+    code?: number,
+    _reason?: string,
+    wasClean?: boolean,
+  ) {
+    if (code !== 1000 && code !== 1012)
+      emitOperationalEvent({
+        event: 'room-socket-closed',
+        closeCode: code,
+        clean: wasClean,
+        socketCount: this.ctx.getWebSockets().length,
+      });
     this.closed.add(ws);
     if (this.admissionActive?.ws === ws) this.admissionActive.finish();
     this.rates.delete(ws);
@@ -930,6 +982,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     }
   }
   async webSocketError(ws: WebSocket) {
+    emitOperationalEvent({
+      event: 'room-socket-error',
+      socketCount: this.ctx.getWebSockets().length,
+    });
     ws.close(1011, 'Room connection interrupted.');
     await this.webSocketClose(ws);
   }

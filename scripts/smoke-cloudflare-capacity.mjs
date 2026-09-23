@@ -61,6 +61,8 @@ const counters = {
   interruptions: 0,
   admissionRetries: 0,
   admissionRecoveries: 0,
+  expiredRejoins: 0,
+  maxRecoveryMs: 0,
   releaseRetries: 0,
   cleanupRetries: 0,
   httpRequests: 0,
@@ -127,9 +129,21 @@ async function authenticate(a) {
 async function connect(a) {
   if (stopped) return;
   a.transport?.dispose();
-  const state = ok(
-    await request(a, 'neighborhood-state', a.c.body(a.controller)),
-  );
+  const previousRoom = a.membership?.neighborhoodId;
+  let response = await request(a, 'neighborhood-state', a.c.body(a.controller));
+  if (response.status === 409 && /expired/i.test(response.data?.error ?? '')) {
+    response = await request(
+      a,
+      'neighborhood-join',
+      a.c.body({ clientId: a.controller.clientId, realm: a.membership.realm }),
+    );
+    const rejoined = ok(response);
+    a.controller.generation = rejoined.membership.generation;
+    counters.expiredRejoins++;
+    if (rejoined.membership.neighborhoodId !== previousRoom)
+      issues.push('Recovered in a different neighborhood: actor ' + a.index);
+  }
+  const state = ok(response);
   a.membership = state.membership;
   a.point = { x: a.membership.x, z: a.membership.z };
   const ticket = ok(await request(a, 'room-ticket', a.c.body(a.controller)));
@@ -174,7 +188,10 @@ async function connect(a) {
         if (p.measured) counters.unacknowledged++;
       a.pending.clear();
       if (reason === 'renew') counters.renewals++;
-      else counters.interruptions++;
+      else {
+        counters.interruptions++;
+        a.recoveryStartedAt ||= Date.now();
+      }
       console.log(
         'Connection recovery',
         JSON.stringify({
@@ -188,16 +205,20 @@ async function connect(a) {
         a.reconnecting = track(
           (async () => {
             await sleep(500);
-            for (let attempt = 0; attempt < 3 && !stopped; attempt++) {
+            const until = Date.now() + 60000;
+            for (let attempt = 0; Date.now() < until && !stopped; attempt++) {
               try {
                 await connect(a);
                 return;
               } catch (e) {
-                if (attempt === 2)
+                if (!recoverableConnection(e)) {
                   issues.push('Reconnect failed: ' + e.message);
-                else await sleep(1500);
+                  return;
+                }
+                await sleep(Math.min(5000, 750 * (attempt + 1)));
               }
             }
+            if (!stopped) issues.push('Reconnect exceeded 60 seconds');
           })().finally(() => {
             a.reconnecting = null;
           }),
@@ -301,6 +322,13 @@ async function connect(a) {
     throw Error(
       'Your room connection is recovering. Please retry when you are back.',
     );
+  if (a.recoveryStartedAt) {
+    counters.maxRecoveryMs = Math.max(
+      counters.maxRecoveryMs,
+      Date.now() - a.recoveryStartedAt,
+    );
+    a.recoveryStartedAt = 0;
+  }
 }
 const recoverableConnection = (error) =>
   error?.name === 'TimeoutError' ||
@@ -311,17 +339,19 @@ async function connectWithRetry(a) {
   // Suppress the ordinary disconnect handler so it cannot race this retry.
   a.initializing = true;
   try {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const until = Date.now() + 60000;
+    for (let attempt = 0; Date.now() < until; attempt++) {
       try {
         await connect(a);
         if (attempt) counters.admissionRecoveries++;
         return;
       } catch (error) {
-        if (!recoverableConnection(error) || attempt === 2) throw error;
+        if (!recoverableConnection(error)) throw error;
         counters.admissionRetries++;
-        await sleep(750 * (attempt + 1));
+        await sleep(Math.min(5000, 750 * (attempt + 1)));
       }
     }
+    throw Error('Room admission did not recover within 60 seconds');
   } finally {
     a.initializing = false;
   }

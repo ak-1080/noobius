@@ -6,6 +6,13 @@ const names = [
   'room-outbox-expired',
   'room-admission-blocked',
   'room-admission-timeout',
+  'room-restore-start',
+  'room-restore-failed',
+  'room-restore-complete',
+  'room-socket-closed',
+  'room-socket-error',
+  'room-service-failed',
+  'room-service-slow',
   'room-release-deferred',
   'room-recovery-delayed',
   'room-connection-failed',
@@ -45,6 +52,13 @@ const reasons = [
   'unknown',
   'outbox-backlog',
 ] as const;
+const operations = [
+  'ticket-consume',
+  'authority-refresh',
+  'movement-checkpoint',
+  'action-complete',
+  'authority-release',
+] as const;
 export type OperationalEvent = {
   event: (typeof names)[number];
   recoveryId?: string;
@@ -60,6 +74,10 @@ export type OperationalEvent = {
   ageMs?: number;
   pendingAtLeast?: number;
   limit?: number;
+  socketCount?: number;
+  closeCode?: number;
+  clean?: boolean;
+  operation?: (typeof operations)[number];
 };
 export function operationalRecord(event: OperationalEvent) {
   const name = event.event;
@@ -79,6 +97,7 @@ export function operationalRecord(event: OperationalEvent) {
     ['checkpoint', outcomes],
     ['release', outcomes],
     ['outcome', outcomes],
+    ['operation', operations],
   ] as const) {
     const candidate = event[key];
     if (choices.includes(candidate as never)) record[key] = candidate!;
@@ -90,6 +109,7 @@ export function operationalRecord(event: OperationalEvent) {
     ['ageMs', 86400000],
     ['pendingAtLeast', 64],
     ['limit', 64],
+    ['socketCount', 64],
   ] as const) {
     const value = event[key];
     if (typeof value === 'number' && Number.isFinite(value))
@@ -98,6 +118,10 @@ export function operationalRecord(event: OperationalEvent) {
   const status = event.status;
   if (Number.isInteger(status) && status! >= 100 && status! <= 599)
     record.status = status!;
+  const closeCode = event.closeCode;
+  if (Number.isInteger(closeCode) && closeCode! >= 1000 && closeCode! <= 4999)
+    record.closeCode = closeCode!;
+  if (typeof event.clean === 'boolean') record.clean = String(event.clean);
   return record;
 }
 export function emitOperationalEvent(event: OperationalEvent) {

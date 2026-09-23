@@ -23,8 +23,11 @@ test('operational fields are preserved without mutating the input', () => {
     ageMs: 8000,
     pendingAtLeast: 3,
     limit: 64,
+    socketCount: 5,
+    closeCode: 1006,
+    clean: false,
   });
-  assert.deepEqual(operationalRecord(input), input);
+  assert.deepEqual(operationalRecord(input), { ...input, clean: 'false' });
 });
 test('operational records drop secrets without traversing unrelated values or serializers', () => {
   const input = {
@@ -61,6 +64,7 @@ test('operational measurements clamp finite values and omit invalid values', () 
     ageMs: 86400000,
     pendingAtLeast: 64,
     limit: 64,
+    socketCount: 64,
   })) {
     for (const [value, expected] of [
       [-1, 0],
@@ -99,6 +103,45 @@ test('operational measurements clamp finite values and omit invalid values', () 
         key,
       );
   }
+});
+test('room close diagnostics keep only bounded codes and flags', () => {
+  assert.deepEqual(
+    operationalRecord({
+      event: 'room-socket-closed',
+      closeCode: 1006,
+      clean: false,
+    }),
+    { event: 'room-socket-closed', closeCode: 1006, clean: 'false' },
+  );
+  for (const closeCode of [0, 999, 5000, '1006', NaN, null])
+    assert.deepEqual(
+      operationalRecord({
+        event: 'room-socket-closed',
+        closeCode,
+        clean: secret,
+      }),
+      { event: 'room-socket-closed' },
+    );
+});
+test('room service diagnostics accept only known operations', () => {
+  assert.deepEqual(
+    operationalRecord({
+      event: 'room-service-failed',
+      operation: 'authority-refresh',
+      reason: 'timeout',
+      durationMs: 4000,
+    }),
+    {
+      event: 'room-service-failed',
+      operation: 'authority-refresh',
+      reason: 'timeout',
+      durationMs: 4000,
+    },
+  );
+  assert.deepEqual(
+    operationalRecord({ event: 'room-service-failed', operation: secret }),
+    { event: 'room-service-failed' },
+  );
 });
 test('operational labels allow only known events and enum values', () => {
   for (const value of ['', secret, '__proto__', undefined, null, 1, {}, []])
