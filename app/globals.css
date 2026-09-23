@@ -8531,6 +8531,12 @@ a {
 .world-reconnect p {
   margin: 0.75rem 0 1.25rem;
 }
+.world-reconnect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}
 @media (max-width: 540px) {
   .neighbor-slots {
     grid-template-columns: 1fr;

@@ -211,6 +211,7 @@ export default function NoobiusGame() {
       revision: number;
     } | null>(null);
   const playing = mode !== 'lobby' && !!shift;
+  const [checkingCapacity, setCheckingCapacity] = useState(false);
   const livePosition = useRef({ x: 0, z: 17 });
   const neighborhood = useNeighborhood(
     profile,
@@ -220,6 +221,11 @@ export default function NoobiusGame() {
     game.setRoomWork,
   );
   const connection = neighborhood.status;
+  const facilityFull =
+    playing &&
+    mode === 'wallet' &&
+    !neighborhood.snapshot &&
+    /facility is at its player limit/i.test(neighborhood.error);
   const people = (neighborhood.snapshot?.people ?? []).filter(
     (p) => p.id !== profile?.id,
   );
@@ -1018,6 +1024,33 @@ export default function NoobiusGame() {
               </Button>
             </div>
           )}
+          {facilityFull && (
+            <div className="world-reconnect" aria-live="polite">
+              <strong>The facility is full right now.</strong>
+              <p>
+                Your data center and earned progress are safe. We’ll keep
+                checking for an open place.
+              </p>
+              <div className="world-reconnect-actions">
+                <Button
+                  disabled={checkingCapacity}
+                  onClick={async () => {
+                    setCheckingCapacity(true);
+                    try {
+                      await neighborhood.join();
+                    } finally {
+                      setCheckingCapacity(false);
+                    }
+                  }}
+                >
+                  {checkingCapacity ? 'Checking…' : 'Try again now'}
+                </Button>
+                <Button variant="outline" onClick={() => game.setMode('lobby')}>
+                  Back to title
+                </Button>
+              </div>
+            </div>
+          )}
           <button
             className="game-menu-button"
             aria-label="Open game menu"
@@ -1335,7 +1368,7 @@ export default function NoobiusGame() {
       )}
       {((error && panel !== 'wallet') ||
         soundError ||
-        (playing && neighborhood.error)) && (
+        (playing && neighborhood.error && !facilityFull)) && (
         <div className="error-notice" role="alert">
           <span>
             {(panel !== 'wallet' && error) || soundError || neighborhood.error}
