@@ -41,6 +41,7 @@
     "smoke:gameplay": "node scripts/smoke-gameplay.mjs",
     "smoke:solana-local": "npm install --prefix .wrangler/surfpool --no-save @solana/surfpool@1.5.0 && NOOBIUS_LOCAL_SURFNET=1 node scripts/smoke-solana-devnet.mjs",
     "smoke:solana-local:token2022": "npm install --prefix .wrangler/surfpool --no-save @solana/surfpool@1.5.0 && NOOBIUS_LOCAL_SURFNET=1 NOOBIUS_TEST_TOKEN_2022=1 NOOBIUS_TEST_MARKET_API=1 node scripts/smoke-solana-devnet.mjs",
+    "preflight:solana-mint": "node scripts/preflight-solana-mint.mjs",
     "smoke:capacity": "NOOBIUS_TEST_ORIGIN=https://play.noobius.io node scripts/smoke-cloudflare-capacity.mjs"
   },
   "dependencies": {
