@@ -28,7 +28,11 @@ export async function reconcileComputePayment(
   if (!payment.buyer_signature || !payment.buyer_transaction)
     throw Error('Recorded payment is incomplete.');
   const quote = JSON.parse(payment.quote_json) as ComputePaymentQuote;
-  const observed = await rpc.observe(quote, payment.buyer_signature);
+  const observed = await rpc.observe(
+    quote,
+    payment.buyer_signature,
+    payment.status === 'recorded' && !payment.authorized_transaction,
+  );
   if (observed.status === 'settled')
     return (
       await settleFinalizedComputePayment(db, id, observed.transaction, now)

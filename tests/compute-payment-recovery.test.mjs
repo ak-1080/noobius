@@ -335,38 +335,27 @@ void test('known finalized failure releases the listing without crediting buyer 
     1000,
   );
 });
-void test('expiry requires finalized lifetime exhaustion, invalid blockhash, available history and absent signature', async () => {
+void test('buyer-only checkout expires after finalized blockhash lifetime; missing RPC history alone never releases it', async () => {
   const f = await fixture();
   await f.record();
   const p = await getComputePayment(f.db, f.quote.quoteId);
   assert.equal(
-    (await f.rpc.observe(f.quote, p.buyer_signature)).status,
+    (await f.rpc.observe(f.quote, p.buyer_signature, true)).status,
     'pending',
   );
   f.state.height = 101;
   f.state.valid = true;
   assert.equal(
-    (await f.rpc.observe(f.quote, p.buyer_signature)).status,
+    (await f.rpc.observe(f.quote, p.buyer_signature, true)).status,
     'pending',
   );
   f.state.valid = false;
-  f.state.ledgerStart = 51;
   assert.equal(
     (await f.rpc.observe(f.quote, p.buyer_signature)).status,
     'pending',
   );
-  f.state.ledgerStart = 1;
-  f.state.status = { confirmationStatus: 'confirmed', err: null };
   assert.equal(
-    (await f.rpc.observe(f.quote, p.buyer_signature)).status,
-    'pending',
-  );
-  f.state.status = null;
-  f.state.statusSlot = 119;
-  await assert.rejects(f.rpc.observe(f.quote, p.buyer_signature), /Stale/);
-  f.state.statusSlot = 120;
-  assert.equal(
-    (await f.rpc.observe(f.quote, p.buyer_signature)).status,
+    (await f.rpc.observe(f.quote, p.buyer_signature, true)).status,
     'expired',
   );
   await reconcileComputePayment(f.db, f.quote.quoteId, f.rpc, f.signer.keyPair);
@@ -376,6 +365,27 @@ void test('expiry requires finalized lifetime exhaustion, invalid blockhash, ava
   );
   assert.equal((await getComputeListing(f.db, f.id)).status, 'open');
   assert.equal(f.state.sent.length, 0);
+});
+void test('signed and broadcastable checkout stays reserved when an RPC has no transaction history', async () => {
+  const f = await fixture();
+  await f.record();
+  await reconcileComputePayment(f.db, f.quote.quoteId, f.rpc, f.signer.keyPair);
+  const payment = await getComputePayment(f.db, f.quote.quoteId);
+  assert.equal(payment.status, 'submitted');
+  assert.ok(payment.authorized_transaction);
+  f.state.height = 101;
+  f.state.valid = false;
+  f.state.ledgerStart = 1;
+  f.state.status = null;
+  assert.equal(
+    (await f.rpc.observe(f.quote, payment.buyer_signature)).status,
+    'pending',
+  );
+  await reconcileComputePayment(f.db, f.quote.quoteId, f.rpc);
+  assert.equal((await getComputePayment(f.db, f.quote.quoteId)).status, 'submitted');
+  assert.equal((await getComputeListing(f.db, f.id)).status, 'reserved');
+  assert.equal(f.state.sent.length, 2);
+  assert.deepEqual(f.state.sent[0], f.state.sent[1]);
 });
 void test('recovery jobs preserve uncertain reservations and expire unsigned quotes without needing RPC', async () => {
   const f = await fixture();

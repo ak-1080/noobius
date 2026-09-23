@@ -153,6 +153,7 @@ export class ComputePaymentRpc {
   async observe(
     quote: ComputePaymentQuote,
     signature: string,
+    neverAuthorized = false,
   ): Promise<PaymentObservation> {
     if (
       quote.network !== this.policy.network ||
@@ -182,8 +183,12 @@ export class ComputePaymentRpc {
         ? { status: 'settled', transaction }
         : { status: 'failed', signature, slot: verified.slot };
     }
-    // Absence alone is insufficient. Observe a finalized root beyond the exact
-    // transaction lifetime, then ask for historical status at a non-stale node.
+    // A null transaction is not proof of non-execution: the node may not have
+    // transaction history even when its local ledger covers the quote slot.
+    // A recorded buyer-only signature cannot land because the server Memo
+    // signature has never been persisted or exposed. Only that state can be
+    // released after the finalized blockhash lifetime has ended.
+    if (!neverAuthorized) return { status: 'pending' };
     const slot = await this.call('getSlot', [
       { commitment: 'finalized', minContextSlot: quote.contextSlot },
     ]);
@@ -202,21 +207,6 @@ export class ComputePaymentRpc {
       slot,
     );
     if (valid.value !== false) return { status: 'pending' };
-    const ledgerStart = await this.call('minimumLedgerSlot');
-    if (!safeInteger(ledgerStart) || ledgerStart > quote.contextSlot)
-      return { status: 'pending' };
-    const statuses = contextual(
-      await this.call('getSignatureStatuses', [
-        [signature],
-        { searchTransactionHistory: true },
-      ]),
-      valid.slot,
-    );
-    if (!Array.isArray(statuses.value) || statuses.value.length !== 1)
-      throw Error('Malformed payment status.');
-    // Any known transaction remains reserved until its exact finalized bytes
-    // can be obtained and verified, even if the status says it failed.
-    if (statuses.value[0] !== null) return { status: 'pending' };
-    return { status: 'expired', signature, slot: statuses.slot };
+    return { status: 'expired', signature, slot: valid.slot };
   }
 }
