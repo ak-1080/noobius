@@ -81,6 +81,66 @@ test('a sixth targeted join and a failed move preserve the previous membership',
   assert.equal(still.generation, sixth.generation);
 });
 
+test('global player cap rejects a new arrival without evicting active players, then frees a place on departure', async () => {
+  const db = database(),
+    [first, second, waiting] = users(db, 3);
+  const firstMembership = await joinNeighborhood(
+    db,
+    first.wallet,
+    'commons',
+    0,
+    first.clientId,
+    { maxActive: 2 },
+    1000,
+  );
+  await joinNeighborhood(
+    db,
+    second.wallet,
+    'commons',
+    0,
+    second.clientId,
+    { maxActive: 2 },
+    1000,
+  );
+  await assert.rejects(
+    joinNeighborhood(
+      db,
+      waiting.wallet,
+      'commons',
+      0,
+      waiting.clientId,
+      { maxActive: 2 },
+      1000,
+    ),
+    /facility is at its player limit/,
+  );
+  assert.equal(
+    db.sqlite.prepare('SELECT count(*) AS n FROM crew_presence').get().n,
+    2,
+  );
+  const resumed = await joinNeighborhood(
+    db,
+    first.wallet,
+    'commons',
+    0,
+    first.clientId,
+    { maxActive: 2 },
+    1001,
+  );
+  assert.equal(resumed.generation, firstMembership.generation);
+  await leaveNeighborhood(db, first.wallet, controller(first, resumed));
+  const admitted = await joinNeighborhood(
+    db,
+    waiting.wallet,
+    'commons',
+    0,
+    waiting.clientId,
+    { maxActive: 2 },
+    1002,
+  );
+  assert.ok(admitted.neighborhoodId);
+});
+
 test('visitors count toward the five slots and cross-neighborhood visits are refused', async () => {
   const db = database(),
     crew = users(db, 6),
