@@ -27,7 +27,7 @@ The local run requires the economy service on port 3003, room coordinator on por
 
 For the restart variant, start only the game service on port 3003. Leave port 3004 free: the harness owns a separate local coordinator there and deliberately kills and restarts it after all three players complete the first repair step. It then checks each socket reported interruption, reconnects through fresh room tickets, and verifies the unfinished job, inventory, Compute, and last confirmed worksite position before continuing. The same run then checks the rewards, visit privacy, competing purchase, and fresh login. Restart mode is refused for the hosted origin. The coordinator writes its log to `/tmp/noobius-local-room-restart.log` and uses the ignored QA state directory.
 
-The hosted run first checks database health and does not create accounts if that fails. It still creates three real profiles and a briefly visible ordinary item listing; run only with owner authorization and available quotas. Do not run during the known D1 quota outage. The item purchase uses in-game Compute, not $NOOBIUS or SOL.
+The hosted run first checks database health and does not create accounts if that fails. It still creates three real profiles and a briefly visible ordinary item listing; run only with owner authorization and available quotas. Do not run during D1 quota exhaustion. The item purchase uses in-game Compute, not $NOOBIUS or SOL.
 
 The report is written to `/tmp/noobius-gameplay-acceptance.json`. Console output identifies each completed check. Requests have a 20-second timeout; the harness also has a ten-minute work deadline. Failure is a nonzero exit, including cleanup failures.
 
@@ -36,3 +36,7 @@ The report is written to `/tmp/noobius-gameplay-acceptance.json`. Console output
 The local September 22 run passed using the real Worker/D1/room processes and current production game logic. See the committed report in `verification/2026-09-22-local-gameplay.json`. This extends coverage beyond movement-only testing but does **not** prove the hosted path, physical phones, rendered browser concurrency, real wallet extensions, mainnet settlement, sustained capacity or uncoached retention. Those remain separate launch gates.
 
 The local restart variant also passed on September 22. Its evidence is `verification/2026-09-22-local-room-restart.json`. This checks a complete local coordinator process restart during three ordinary unfinished repairs, not a Cloudflare deployment/restart or a database outage.
+
+The hosted flow passed September 23, immediately after the free D1 daily quota reset. See `verification/2026-09-23-hosted-gameplay.json`. All four gameplay checks and cleanup passed in 67.6 seconds, and the five-surface public health check still passed afterward. This proves the tested online flow at that moment, not sustained quota headroom or a rendered three-browser/real-wallet experience.
+
+The same hosted flow passed again after Workers Paid activation at 00:35 UTC on September 23. See `verification/2026-09-23-hosted-gameplay-paid.json`. All four checks and cleanup passed in 67.6 seconds. This is ordinary Compute item trading, not a live token transfer.

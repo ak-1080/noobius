@@ -9,7 +9,7 @@ import {
   repairLoot,
   type FacilityAction,
 } from '@/lib/facility';
-import { signInWallet, signInSolanaWallet } from '@/lib/wallet';
+import { signInSolanaWallet } from '@/lib/wallet';
 import { getWallets } from '@wallet-standard/app';
 import {
   solanaWalletProvider,
@@ -20,7 +20,6 @@ import {
   accountKey,
   accountEcosystem,
   matchesAccount,
-  type WalletEcosystem,
 } from '@/lib/wallet-identity';
 import { facilityReceipt, type FacilityReceipt } from '@/lib/game-feedback';
 import {
@@ -40,18 +39,8 @@ import {
   type Shift,
   type Upgrade,
 } from '@/lib/game';
-import {
-  mergeWalletOption,
-  legacyWalletName,
-  type Provider,
-  type WalletOption,
-} from '@/lib/wallet-options';
+import { type Provider, type WalletOption } from '@/lib/wallet-options';
 export type { Provider, WalletOption } from '@/lib/wallet-options';
-declare global {
-  interface Window {
-    ethereum?: Provider;
-  }
-}
 export class ClientError extends Error {
   constructor(
     message: string,
@@ -269,42 +258,6 @@ export function useNoobius() {
       .finally(() => {
         if (alive) setInitializing(false);
       });
-    let found: WalletOption[] = [];
-    const add = (
-      id: string,
-      name: string,
-      provider: Provider,
-      rdns?: string,
-      ecosystem?: WalletEcosystem,
-    ) => {
-      found = mergeWalletOption(found, { id, name, provider, rdns, ecosystem });
-      setWallets(found);
-    };
-    const announce = (event: Event) => {
-      const detail = (event as CustomEvent).detail;
-      if (
-        detail &&
-        typeof detail.info?.uuid === 'string' &&
-        typeof detail.info?.name === 'string'
-      )
-        add(
-          detail.info.uuid,
-          detail.info.name.slice(0, 40),
-          detail.provider,
-          typeof detail.info.rdns === 'string'
-            ? detail.info.rdns.slice(0, 255)
-            : undefined,
-        );
-    };
-    window.addEventListener('eip6963:announceProvider', announce);
-    window.dispatchEvent(new Event('eip6963:requestProvider'));
-    const fallback = setTimeout(() => {
-      const p = window.ethereum;
-      if (p) {
-        for (const provider of p.providers ?? [p])
-          add('injected' + found.length, legacyWalletName(provider), provider);
-      }
-    }, 300);
     const registry = getWallets();
     const adapters = new Map<
       StandardWallet,
@@ -312,7 +265,7 @@ export function useNoobius() {
     >();
     let nextSolanaId = 0;
     const refreshSolana = () => {
-      found = found.filter((option) => option.ecosystem !== 'solana');
+      const found: WalletOption[] = [];
       for (const wallet of registry.get()) {
         if (!supportsSolanaWallet(wallet)) continue;
         if (!adapters.has(wallet))
@@ -324,6 +277,7 @@ export function useNoobius() {
         found.push({
           ...adapted,
           name: wallet.name.slice(0, 40),
+          icon: wallet.icon,
           ecosystem: 'solana',
         });
       }
@@ -343,8 +297,6 @@ export function useNoobius() {
     refreshSolana();
     return () => {
       alive = false;
-      clearTimeout(fallback);
-      window.removeEventListener('eip6963:announceProvider', announce);
       offRegister();
       offUnregister();
       listeners.current?.();
@@ -484,6 +436,8 @@ export function useNoobius() {
   }, []);
   const connect = async (option: WalletOption) =>
     run(async () => {
+      if (option.ecosystem !== 'solana')
+        throw new Error('Choose a Solana wallet to play.');
       let verified: GameData | undefined;
       const verify = async (signature: string) => {
         const data = await api<GameData>('verify', { signature });
@@ -492,27 +446,15 @@ export function useNoobius() {
       };
       let result: { data: GameData; address: string };
       try {
-        result =
-          option.ecosystem === 'solana'
-            ? await signInSolanaWallet(
-                option.provider,
-                (address) =>
-                  api<{ message: string }>('nonce', {
-                    address,
-                    ecosystem: 'solana',
-                  }),
-                verify,
-              )
-            : await signInWallet(
-                option.provider,
-                (address, chainId) =>
-                  api<{ message: string }>('nonce', {
-                    address,
-                    chainId,
-                    ecosystem: 'evm',
-                  }),
-                verify,
-              );
+        result = await signInSolanaWallet(
+          option.provider,
+          (address) =>
+            api<{ message: string }>('nonce', {
+              address,
+              ecosystem: 'solana',
+            }),
+          verify,
+        );
       } catch (error) {
         // A wallet change during verification must not leave a newly-issued session active.
         if (verified?.profile)
@@ -528,7 +470,7 @@ export function useNoobius() {
           }).catch(() => {});
         return;
       }
-      const wallet = accountKey(result.address, option.ecosystem ?? 'evm');
+      const wallet = accountKey(result.address, 'solana');
       if (result.data.profile?.wallet !== wallet)
         throw new Error(
           'The wallet login returned a different account. Sign in again.',
@@ -542,7 +484,7 @@ export function useNoobius() {
           JSON.stringify({
             name: option.name,
             rdns: option.rdns,
-            ecosystem: option.ecosystem ?? 'evm',
+            ecosystem: 'solana',
           }),
         );
       } catch {
@@ -571,7 +513,7 @@ export function useNoobius() {
         try {
           remembered = JSON.parse(stored);
         } catch {
-          remembered = { name: stored, ecosystem: 'evm' };
+          remembered = null;
         }
       }
     } catch {
@@ -579,10 +521,11 @@ export function useNoobius() {
     }
     if (!remembered || typeof remembered !== 'object') return;
     const family = accountEcosystem(profile.wallet);
+    if (family !== 'solana') return;
     const chosen = wallets.find(
       (option) =>
-        (option.ecosystem ?? 'evm') === family &&
-        (remembered!.ecosystem ?? 'evm') === family &&
+        option.ecosystem === family &&
+        remembered!.ecosystem === family &&
         (remembered!.rdns
           ? option.rdns === remembered!.rdns
           : option.name === remembered!.name),
@@ -593,7 +536,7 @@ export function useNoobius() {
     // Read already-authorized accounts only; never request connection or signing on reload.
     chosen.provider
       .request({
-        method: family === 'solana' ? 'solana_accounts' : 'eth_accounts',
+        method: 'solana_accounts',
       })
       .then((accounts) => {
         // An empty initial read can mean the extension has not restored its

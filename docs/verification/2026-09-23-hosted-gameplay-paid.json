@@ -1,0 +1,15 @@
+{
+  "origin": "https://play.noobius.io",
+  "beganAt": "2026-09-23T00:35:06.026Z",
+  "checks": [
+    "Three independent players earned repair rewards; replayed claims paid once and new jobs appeared",
+    "Visitor sees the center but cannot read private inventory or harvest its income",
+    "Competing item buyers settle once; seller payment, buyer debit and inventories balance",
+    "Dropped socket recovers and fresh signed logins retain earned balances and traded items"
+  ],
+  "actors": 3,
+  "ok": true,
+  "cleanupFailures": [],
+  "elapsedMs": 67604,
+  "completedAt": "2026-09-23T00:36:13.630Z"
+}

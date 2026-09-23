@@ -15,6 +15,7 @@ export type WalletOption = {
   name: string;
   provider: Provider;
   rdns?: string;
+  icon?: string;
   ecosystem?: WalletEcosystem;
 };
 export const WALLET_CATALOG = [

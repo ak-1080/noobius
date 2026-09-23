@@ -1,0 +1,28 @@
+{
+  "origin": "https://play.noobius.io",
+  "beganAt": "2026-09-23T00:07:16.322Z",
+  "completedAt": "2026-09-23T00:08:23.906Z",
+  "elapsedMs": 67584,
+  "actors": 3,
+  "ok": true,
+  "cleanupFailures": [],
+  "checks": [
+    "Three independent players earned repair rewards; replayed claims paid once and new jobs appeared",
+    "Visitor sees the center but cannot read private inventory or harvest its income",
+    "Competing item buyers settle once; seller payment, buyer debit and inventories balance",
+    "Dropped socket recovers and fresh signed logins retain earned balances and traded items"
+  ],
+  "runtimeSourceCommit": "4626f764701547a6cfc687c6cafa096a801a8fbd",
+  "harnessSourceCommit": "427c7dce3a1d94e0dc114236efab7421b8cfb9f9",
+  "harnessSHA256": "3901036f1810401bf77c015e9ff1802b92924b8c1346e9e9902da72fb36dd1e2",
+  "postRunPublicHealth": {
+    "checkedAt": "2026-09-23T00:08:46.049Z",
+    "ok": true,
+    "gameEntry": 200,
+    "gameDatabase": 200,
+    "anonymousExchange": 200,
+    "roomRouterExpected": 404,
+    "comingSoon": 200
+  },
+  "scope": "Three generated, unfunded Solana identities using normal hosted APIs and actual RoomClient WebSocket transport. Ordinary timed repair jobs, visits, one in-game Compute listing with two concurrent buyers, socket reconnect, signed login, and cleanup. No rendered multi-browser session, physical phone, wallet extension, token transfer, all-day load, or uncoached retention."
+}

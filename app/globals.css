@@ -7390,6 +7390,23 @@ a {
   display: grid;
   place-items: center;
   background: #393b43;
+  font-size: 24px;
+  font-weight: 800;
+  color: white;
+}
+.wallet-icon-solflare {
+  background: linear-gradient(145deg, #ffb241, #f15c45);
+}
+.wallet-icon-backpack {
+  background: linear-gradient(145deg, #fd7777, #d7273a);
+}
+.wallet-install-icon > img,
+.wallet-install-icon > .wallet-generic-icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin: 24px auto 16px;
+  border-radius: 15px;
 }
 .wallet-brand-row > strong {
   font-size: 21px;
@@ -7489,6 +7506,7 @@ a {
   line-height: 1.5;
 }
 .wallet-picker-status {
+  display: block;
   margin-top: 15px;
   font-size: 13px;
   color: #d7eac2;
