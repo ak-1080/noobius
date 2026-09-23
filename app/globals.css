@@ -7422,6 +7422,9 @@ a {
   color: #a6bd93;
   font-size: 10px;
 }
+.wallet-brand-row > small.wallet-needs-install {
+  color: #adaeb5;
+}
 .wallet-spinner {
   animation: wallet-spin 1s linear infinite;
 }

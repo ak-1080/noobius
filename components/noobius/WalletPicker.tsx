@@ -141,7 +141,11 @@ export default function WalletPicker({
                     aria-label="Waiting for wallet"
                   />
                 )}
-                {option && !connecting && <small>Installed</small>}
+                {!connecting && (
+                  <small className={option ? '' : 'wallet-needs-install'}>
+                    {option ? 'Installed' : 'Get wallet'}
+                  </small>
+                )}
               </button>
             ))}
           </div>
