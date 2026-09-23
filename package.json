@@ -38,6 +38,7 @@
     "deploy:cloudflare": "node scripts/deploy-cloudflare.mjs",
     "deploy:staging": "node scripts/deploy-staging.mjs",
     "deploy:staging:devnet-payments": "node scripts/deploy-staging-devnet-payments.mjs",
+    "smoke:staging:token-checkout": "NOOBIUS_TEST_ORIGIN=https://noobius-game-staging.rinkydooonso.workers.dev NOOBIUS_STAGING_TOKEN_CHECKOUT=1 node scripts/smoke-staging-token-checkout.mjs",
     "health:public": "node scripts/check-public-health.mjs",
     "smoke:gameplay": "node scripts/smoke-gameplay.mjs",
     "smoke:solana-local": "npm install --prefix .wrangler/surfpool --no-save @solana/surfpool@1.5.0 && NOOBIUS_LOCAL_SURFNET=1 node scripts/smoke-solana-devnet.mjs",
