@@ -39,6 +39,8 @@ jobs:
           cache: npm
       - name: Install the locked dependency tree
         run: npm ci --no-audit --no-fund
+      - name: Verify production database access
+        run: ./node_modules/.bin/wrangler d1 migrations list DB --remote --config deploy/cloudflare/game.json
       - name: Run checks and deploy the game services
         run: npm run deploy:cloudflare
       - name: Check the public sites and APIs
