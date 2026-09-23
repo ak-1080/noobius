@@ -2,6 +2,10 @@
 
 This records the implemented server protocol and remaining launch checks. Token checkout is not live. Players buy each other's earned Compute with a chosen SPL mint. No guaranteed redemption, new Compute token, deposited wallet balance or custom DEX is required.
 
+## Hosting boundary
+
+Cloudflare Workers, D1 and the room coordinator host the game and its marketplace ledger. They do not operate the Solana network for this project. [Cloudflare's Web3 gateway documentation](https://developers.cloudflare.com/web3/) currently lists IPFS and Ethereum gateways, not a Solana RPC gateway. The game and recovery Worker can call a configured HTTPS Solana RPC endpoint, but [Solana's production guidance](https://solana.com/docs/tools/production-readiness) says its public mainnet endpoint is rate-limited with no SLA and should not be used for production payments. A dedicated private Solana RPC provider, ideally with a separately tested fallback, is therefore a separate live-trading dependency; upgrading Cloudflare Workers does not supply it. Keep any provider credential in a Cloudflare secret rather than a committed config or browser bundle. The existing settlement code uses one configured RPC, so fallback behavior is not yet an accepted feature.
+
 ## The reservation problem
 
 A simple expiring listing plus an unsigned direct-transfer transaction is insufficient: a buyer could broadcast after the app thinks checkout was abandoned. Releasing the seller's Compute on a timer could leave a paid buyer without goods. The backend must know the exact possible transaction before it becomes broadcastable.
