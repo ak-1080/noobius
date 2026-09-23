@@ -26,6 +26,7 @@ if (!destination)
 const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
 const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
 const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'full-speed';
+const diagnoseSocket = process.env.NOOBIUS_DIAGNOSE_SOCKET === '1';
 assert.ok(['small-steps', 'full-speed'].includes(motionMode));
 assert.ok(
   Number.isInteger(roomCount) &&
@@ -209,9 +210,42 @@ async function connect(a) {
       );
       const socket = new WebSocket(url, { origin });
       a.socket = socket;
+      if (diagnoseSocket) {
+        socket.on('open', () =>
+          console.log(
+            'Socket diagnostic',
+            JSON.stringify({ actor: a.index, event: 'open' }),
+          ),
+        );
+        socket.on('unexpected-response', (_request, response) =>
+          console.log(
+            'Socket diagnostic',
+            JSON.stringify({
+              actor: a.index,
+              event: 'handshake-rejected',
+              status: response.statusCode,
+            }),
+          ),
+        );
+        socket.on('error', (error) =>
+          console.log(
+            'Socket diagnostic',
+            JSON.stringify({
+              actor: a.index,
+              event: 'error',
+              code: error.code ?? 'unknown',
+            }),
+          ),
+        );
+      }
       const send = socket.send.bind(socket);
       socket.send = (data, ...rest) => {
         const f = JSON.parse(String(data));
+        if (diagnoseSocket && f.type === 'join')
+          console.log(
+            'Socket diagnostic',
+            JSON.stringify({ actor: a.index, event: 'join-sent' }),
+          );
         if (f.type === 'move') {
           a.pending.set(f.inputSequence, {
             time: performance.now(),
@@ -227,6 +261,11 @@ async function connect(a) {
       socket.on('message', (raw) => {
         if (measuring) counters.inboundBytes += raw.length;
         const f = JSON.parse(String(raw));
+        if (diagnoseSocket && ['joined', 'rebase', 'renew'].includes(f.type))
+          console.log(
+            'Socket diagnostic',
+            JSON.stringify({ actor: a.index, event: f.type }),
+          );
         if (['joined', 'authority', 'rebase'].includes(f.type))
           a.lastAuthority = Date.now();
         if (f.type === 'move-ack') {

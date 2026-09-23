@@ -114,6 +114,7 @@ const updateClock = (actor: Actor, authority: RoomAuthority) => {
 };
 const allowed = (body: Record<string, unknown>, fields: string[]) =>
   Object.keys(body).every((key) => fields.includes(key));
+const ADMISSION_WATCHDOG_MS = 12000;
 
 const roomWorker = {
   async fetch(request: Request, env: Env) {
@@ -152,7 +153,13 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private recovery: Promise<void> | null = null;
   private rates = new Map<WebSocket, { at: number; count: number }>();
   private lastBroadcastAt = 0;
-  private admission = Promise.resolve();
+  private admissionWaiting: Array<{
+    ws: WebSocket;
+    resolve: (turn: { current: () => boolean; finish: () => void }) => void;
+  }> = [];
+  private admissionActive: { ws: WebSocket; finish: () => void } | null = null;
+  private admissionBusy = false;
+  private admissionSequence = 0;
   private backlogWarningAt = -Infinity;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -213,6 +220,53 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       // The alarm that woke a hibernated room is already due. Replacing it
       // here can cancel the upkeep that renews every player's short lease.
       // Initial admission and each alarm schedule the following upkeep.
+    });
+  }
+  // A canceled WebSocket event may never reach its finally block. Give each
+  // admitted turn a bounded lifetime so one lost handler cannot lock the room.
+  private admit(
+    ws: WebSocket,
+  ): Promise<{ current: () => boolean; finish: () => void }> {
+    return new Promise((resolve) => {
+      this.admissionWaiting.push({ ws, resolve });
+      if (!this.admissionBusy) this.nextAdmission();
+    });
+  }
+  private nextAdmission() {
+    const next = this.admissionWaiting.shift();
+    if (!next) {
+      this.admissionBusy = false;
+      this.admissionActive = null;
+      return;
+    }
+    if (this.closed.has(next.ws) || next.ws.readyState !== WebSocket.OPEN) {
+      next.resolve({ current: () => false, finish: () => {} });
+      this.nextAdmission();
+      return;
+    }
+    this.admissionBusy = true;
+    const sequence = ++this.admissionSequence;
+    let live = true;
+    const finish = () => {
+      if (!live) return;
+      live = false;
+      clearTimeout(timer);
+      if (this.admissionSequence === sequence) {
+        this.admissionActive = null;
+        this.nextAdmission();
+      }
+    };
+    const timer = setTimeout(() => {
+      emitOperationalEvent({
+        event: 'room-admission-timeout',
+        durationMs: ADMISSION_WATCHDOG_MS,
+      });
+      finish();
+    }, ADMISSION_WATCHDOG_MS);
+    this.admissionActive = { ws: next.ws, finish };
+    next.resolve({
+      current: () => live && this.admissionSequence === sequence,
+      finish,
     });
   }
   private async service<T = Record<string, unknown>>(
@@ -413,14 +467,14 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         // Ticket replacement and actor installation must share one room-wide
         // queue. Responses from different sockets may otherwise arrive out of
         // order and let an older admission evict its replacement.
-        const previous = this.admission;
-        let finish!: () => void;
-        this.admission = new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-        await previous;
+        const turn = await this.admit(ws);
         try {
-          if (this.closed.has(ws) || ws.readyState !== WebSocket.OPEN) return;
+          if (
+            !turn.current() ||
+            this.closed.has(ws) ||
+            ws.readyState !== WebSocket.OPEN
+          )
+            return;
           // Backpressure reconnect churn without deleting uncertain writes.
           // The existing five actors can still finish their own checkpoints.
           if (
@@ -442,11 +496,16 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             }
             throw new ServiceFailure(503);
           }
+          if (!turn.current()) return;
           const result = await this.service<RoomAuthority & { grant: string }>({
             operation: 'ticket-consume',
             ticket: body.ticket,
           });
-          if (this.closed.has(ws) || ws.readyState !== WebSocket.OPEN) {
+          if (
+            !turn.current() ||
+            this.closed.has(ws) ||
+            ws.readyState !== WebSocket.OPEN
+          ) {
             await this.service({
               operation: 'authority-release',
               grant: result.grant,
@@ -459,6 +518,13 @@ export class NeighborhoodRoom extends DurableObject<Env> {
               grant: result.grant,
             });
             throw new ServiceFailure(403);
+          }
+          if (!turn.current()) {
+            await this.service({
+              operation: 'authority-release',
+              grant: result.grant,
+            });
+            return;
           }
           for (const [other, actor] of this.actors)
             if (actor.authority.player.id === result.player.id) {
@@ -488,7 +554,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           this.broadcast();
           return;
         } finally {
-          finish();
+          turn.finish();
         }
       }
       const a = this.actors.get(ws);
@@ -842,6 +908,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   }
   async webSocketClose(ws: WebSocket) {
     this.closed.add(ws);
+    if (this.admissionActive?.ws === ws) this.admissionActive.finish();
     this.rates.delete(ws);
     const a = this.actors.get(ws);
     this.actors.delete(ws);

@@ -345,17 +345,39 @@ test('planned grant renewal reconnects immediately and preserves the saved scene
   assert.equal(state.status, 'Connected');
 });
 
-test('unexpected disconnect retains backoff before retrying', async (t) => {
+test('unexpected disconnect retries on the next tick without waiting for backoff', async (t) => {
   const f = fixture(t);
   f.render();
   await settle();
   f.rooms[0].disconnect('interrupted');
-  f.focus();
   await f.advance(1500);
-  assert.equal(f.calls.length, 2);
-  assert.deepEqual(f.backoffs, [1]);
-  await f.advance(3000);
+  assert.deepEqual(f.backoffs, []);
+  assert.deepEqual(
+    f.calls.map((c) => c.action),
+    ['neighborhood-join', 'room-ticket', 'neighborhood-state', 'room-ticket'],
+  );
   assert.equal(f.rooms.length, 2);
+  assert.equal(f.render().canMove, true);
+});
+
+test('a failed fast reconnect backs off before another attempt', async (t) => {
+  let tickets = 0;
+  const f = fixture(t, {
+    request: (action) => {
+      if (action === 'room-ticket' && ++tickets === 2)
+        throw new ClientError('Temporarily unavailable', 503);
+    },
+  });
+  f.render();
+  await settle();
+  f.rooms[0].disconnect('interrupted');
+  await f.advance(1500);
+  assert.deepEqual(f.backoffs, [1]);
+  assert.equal(tickets, 2);
+  await f.advance(3000);
+  assert.equal(tickets, 2);
+  await f.advance(1500);
+  assert.equal(tickets, 3);
   assert.equal(f.render().canMove, true);
 });
 

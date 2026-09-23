@@ -122,7 +122,7 @@ const modules = {
   },
   '../../lib/room-motion.ts': { RoomMotion: RoomMotionMock },
 };
-function roomClass(clock, events, fetcher) {
+function roomClass(clock, events, fetcher, timers) {
   class VirtualDate extends Date {
     static now() {
       return clock.now;
@@ -150,6 +150,12 @@ function roomClass(clock, events, fetcher) {
     Error,
     URL,
     AbortSignal,
+    setTimeout: (fn, delay) => {
+      const id = Symbol('timer');
+      timers.set(id, { fn, at: clock.now + delay });
+      return id;
+    },
+    clearTimeout: (id) => timers.delete(id),
     fetch:
       fetcher ??
       (() => {
@@ -243,7 +249,8 @@ async function fixture(options = {}) {
     },
   };
   const events = [];
-  const NeighborhoodRoom = roomClass(clock, events, options.fetch);
+  const timers = new Map();
+  const NeighborhoodRoom = roomClass(clock, events, options.fetch, timers);
   if (options.service) NeighborhoodRoom.prototype.service = options.service;
   const room = new NeighborhoodRoom(ctx, options.env ?? {});
   const rawAlarm = room.alarm.bind(room);
@@ -261,6 +268,13 @@ async function fixture(options = {}) {
     sockets.push(ws);
     return ws;
   };
+  const advance = async (ms) => {
+    clock.now += ms;
+    for (const [id, timer] of [...timers]) {
+      if (timer.at <= clock.now && timers.delete(id)) timer.fn();
+    }
+    await nextTurn();
+  };
   return {
     room,
     ctx,
@@ -273,6 +287,8 @@ async function fixture(options = {}) {
     rawAlarm,
     backgroundJobs,
     events,
+    timers,
+    advance,
   };
 }
 
@@ -397,6 +413,112 @@ test(
     );
   },
 );
+
+test('an abandoned admission unblocks the room and cannot evict a later join', async () => {
+  const f = await fixture();
+  const abandoned = f.socket();
+  const replacement = f.socket();
+  const abandonedResponse = deferred();
+  const calls = [];
+  f.room.service = async (body) => {
+    calls.push(body);
+    if (body.operation === 'ticket-consume') {
+      if (body.ticket === 'abandoned') return abandonedResponse.promise;
+      if (body.ticket === 'replacement')
+        return { grant: 'replacement-grant', ...authority(2, f.clock.now) };
+    }
+    if (body.operation === 'authority-release') return { released: true };
+    throw new Error('Unexpected service request: ' + JSON.stringify(body));
+  };
+  const abandonedJob = f.room.webSocketMessage(
+    abandoned,
+    JSON.stringify({ type: 'join', ticket: 'abandoned' }),
+  );
+  await nextTurn();
+  assert.equal(calls.at(-1)?.ticket, 'abandoned');
+  const replacementJob = f.room.webSocketMessage(
+    replacement,
+    JSON.stringify({ type: 'join', ticket: 'replacement' }),
+  );
+  await nextTurn();
+  assert.equal(
+    calls.some((call) => call.ticket === 'replacement'),
+    false,
+  );
+
+  await f.advance(12000);
+  await replacementJob;
+  assert.deepEqual(
+    [...f.room.actors.values()].map((a) => a.grant),
+    ['replacement-grant'],
+  );
+  assert.equal(
+    f.events.some((e) => e.event === 'room-admission-timeout'),
+    true,
+  );
+
+  abandonedResponse.resolve({
+    grant: 'abandoned-grant',
+    ...authority(1, f.clock.now),
+  });
+  await abandonedJob;
+  assert.deepEqual(
+    [...f.room.actors.values()].map((a) => a.grant),
+    ['replacement-grant'],
+  );
+  assert.equal(replacement.readyState, WebSocketMock.OPEN);
+  assert.equal(
+    calls.some(
+      (call) =>
+        call.operation === 'authority-release' &&
+        call.grant === 'abandoned-grant',
+    ),
+    true,
+  );
+});
+
+test('closing an in-flight admission immediately releases the next join', async () => {
+  const f = await fixture();
+  const abandoned = f.socket();
+  const replacement = f.socket();
+  const abandonedResponse = deferred();
+  f.room.service = async (body) => {
+    if (body.operation === 'ticket-consume') {
+      if (body.ticket === 'abandoned') return abandonedResponse.promise;
+      if (body.ticket === 'replacement')
+        return { grant: 'replacement-grant', ...authority(2, f.clock.now) };
+    }
+    if (body.operation === 'authority-release') return { released: true };
+    throw new Error('Unexpected service request: ' + JSON.stringify(body));
+  };
+  const abandonedJob = f.room.webSocketMessage(
+    abandoned,
+    JSON.stringify({ type: 'join', ticket: 'abandoned' }),
+  );
+  await nextTurn();
+  const replacementJob = f.room.webSocketMessage(
+    replacement,
+    JSON.stringify({ type: 'join', ticket: 'replacement' }),
+  );
+  await nextTurn();
+  abandoned.close(1000, 'Closed by client');
+  await f.room.webSocketClose(abandoned);
+  await replacementJob;
+  assert.deepEqual(
+    [...f.room.actors.values()].map((a) => a.grant),
+    ['replacement-grant'],
+  );
+  assert.equal(f.timers.size, 0);
+  abandonedResponse.resolve({
+    grant: 'abandoned-grant',
+    ...authority(1, f.clock.now),
+  });
+  await abandonedJob;
+  assert.deepEqual(
+    [...f.room.actors.values()].map((a) => a.grant),
+    ['replacement-grant'],
+  );
+});
 
 test(
   'a checkpoint that succeeds after close releases the orphaned writer',

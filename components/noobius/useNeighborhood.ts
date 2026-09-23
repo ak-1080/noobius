@@ -233,7 +233,9 @@ export function useNeighborhood(
               }
             });
           } else {
-            retryAt.current = Date.now() + retryDelay(++failures.current);
+            // Try the first reconnect on the next refresh tick. A failed
+            // attempt enters the ordinary bounded backoff in failure().
+            retryAt.current = Date.now();
           }
         },
       });

@@ -96,6 +96,14 @@ On September 22, the production `wrangler d1 time-travel info DB --config deploy
 
 After the near-capacity and fresh-browser checks on September 23, a new production SQL export was downloaded to an ignored, user-only local path and restored into a separate local SQLite file. The restored copy passed `PRAGMA integrity_check`, had no foreign-key violations, contained all 13 migrations, 27 tables and 514 player rows, and included both Compute-market tables. This verifies that this snapshot can be read and restored locally; it does not prove a live-region failover or reconcile future on-chain payments. The SQL and restored database remain outside Git.
 
+## Admission-queue recovery trial — September 23, 2026
+
+A WebSocket could open and send `join` without receiving `joined`; a five-client room passed, while a reused room failed before its first new player and another failed on its fifth. A canceled admission could leave the room-wide serialized queue unresolved. The coordinator now bounds an admission to 12 seconds and releases its turn when its socket closes. Tests cover both paths and ensure a delayed old grant cannot evict a later join. The browser also retries an unexpected interruption on the next refresh tick before backing off after another failure. The 443-test suite and typecheck passed.
+
+The room-only staging Worker version `4b8e2223-db80-474d-a859-cd672228baf9` passed a [15-client, three-neighborhood run](verification/2026-09-23-staging-15-admission-close.json): 2,577 of 2,577 moves accepted, all 15 positions saved, and no unexpected interruption or cleanup error. A [subsequent 100-client attempt](verification/2026-09-23-staging-100-admission-close-failed.json) failed before measurement: it reached 50 signed-in players, then two entire five-person neighborhoods lost their sockets with code 1006 and one group could not reconnect. The synchronized room loss remains unclassified. This is not a 100-player capacity pass, and the public cap stays at 50. Payments were disabled, all test wallets were generated and unfunded, and the public room Worker was unchanged.
+
+The full staging deploy command stopped before publishing because the local Wrangler OAuth credential received Cloudflare D1 authorization error 7403. The authorized room-only deploy and basic staging smoke succeeded. Diagnose or refresh that D1 authorization before using the full deploy path.
+
 ## Incident actions
 
 - Game/database probe fails: inspect the game Worker errors and D1 availability/migration status. Do not redeploy blindly or restore over live payment records.

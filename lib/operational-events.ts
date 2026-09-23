@@ -5,6 +5,7 @@ const names = [
   'room-outbox-finished',
   'room-outbox-expired',
   'room-admission-blocked',
+  'room-admission-timeout',
   'room-release-deferred',
   'room-recovery-delayed',
   'room-connection-failed',
