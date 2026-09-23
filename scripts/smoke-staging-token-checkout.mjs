@@ -96,6 +96,9 @@ const roles = [buyers.buyer.address, buyers.seller.address].map((address) =>
 assert.deepEqual(d1(
   `SELECT COUNT(*) AS count FROM compute_payments WHERE buyer IN (${roles.join(',')}) OR listing_id IN (SELECT id FROM compute_listings WHERE seller IN (${roles.join(',')}))`,
 ), [{ count: 0 }], 'Test accounts must have no previous hosted payment.');
+assert.deepEqual(d1(
+  `SELECT COUNT(*) AS count FROM compute_listings WHERE seller IN (${roles.join(',')})`,
+), [{ count: 0 }], 'Test accounts must have no previous hosted listing.');
 
 // Qualify two dedicated test identities for trading and give the seller an
 // isolated fixture balance. Ordinary gameplay/earning has separate acceptance.
