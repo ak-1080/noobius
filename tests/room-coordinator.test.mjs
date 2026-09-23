@@ -774,6 +774,7 @@ test(
     const f = await fixture(),
       base = f.clock.now;
     const { ws, actor } = installActor(f, 'healthy-during-recovery');
+    actor.motion.move({ inputSequence: 1, x: 1, z: 17 });
     const initial = actor.authority,
       originalDeadline = initial.authorizedUntil;
     const value = outbox('slow-orphan', base);
@@ -902,6 +903,101 @@ test(
     assert.equal(checkpointCount(f), 0);
   },
 );
+
+test('idle room upkeep renews authority without a position write, then saves movement', async () => {
+  const f = await fixture();
+  const { ws, actor } = installActor(f, 'idle-grant');
+  const calls = [];
+  f.room.service = async (body) => {
+    calls.push(body.operation);
+    if (body.operation === 'authority-refresh')
+      return {
+        ...actor.authority,
+        serverNow: f.clock.now,
+        authorizedUntil: f.clock.now + 10_000,
+        writerUntil: f.clock.now + 10_000,
+      };
+    if (body.operation === 'movement-checkpoint')
+      return savedCheckpoint(body, actor.authority, f.clock.now);
+    throw new Error('Unexpected upkeep operation');
+  };
+  for (let i = 0; i < 2; i++) {
+    f.clock.now += 5000;
+    await f.room.alarm();
+  }
+  assert.deepEqual(calls, ['authority-refresh', 'authority-refresh']);
+  assert.ok(ws.sent.some((body) => body.type === 'authority'));
+  await f.room.webSocketMessage(
+    ws,
+    JSON.stringify({
+      type: 'move',
+      connectionId: actor.connectionId,
+      inputSequence: 1,
+      x: 1,
+      z: 17,
+    }),
+  );
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.deepEqual(calls.slice(-2), [
+    'authority-refresh',
+    'movement-checkpoint',
+  ]);
+  assert.equal(actor.lastPersistedInputSequence, 1);
+  assert.equal(actor.authority.membership.x, 1);
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(calls.at(-1), 'authority-refresh');
+  assert.equal(calls.filter((v) => v === 'movement-checkpoint').length, 1);
+});
+
+test('movement arriving during a position save remains unsaved until the next upkeep', async () => {
+  const f = await fixture();
+  const { ws, actor } = installActor(f, 'moving-grant');
+  const firstSave = deferred();
+  const saves = [];
+  f.room.service = async (body) => {
+    if (body.operation === 'authority-refresh')
+      return {
+        ...actor.authority,
+        serverNow: f.clock.now,
+        authorizedUntil: f.clock.now + 10_000,
+        writerUntil: f.clock.now + 10_000,
+      };
+    if (body.operation === 'movement-checkpoint') {
+      saves.push(body);
+      if (saves.length === 1) return firstSave.promise;
+      return savedCheckpoint(body, actor.authority, f.clock.now);
+    }
+    throw new Error('Unexpected upkeep operation');
+  };
+  const move = (inputSequence, x) =>
+    f.room.webSocketMessage(
+      ws,
+      JSON.stringify({
+        type: 'move',
+        connectionId: actor.connectionId,
+        inputSequence,
+        x,
+        z: 17,
+      }),
+    );
+  await move(1, 1);
+  f.clock.now += 5000;
+  const inFlight = f.room.alarm();
+  await nextTurn();
+  assert.equal(saves.length, 1);
+  await move(2, 2);
+  firstSave.resolve(savedCheckpoint(saves[0], actor.authority, f.clock.now));
+  await inFlight;
+  assert.equal(actor.lastPersistedInputSequence, 1);
+  assert.equal(actor.motion.inputSequence, 2);
+  f.clock.now += 5000;
+  await f.room.alarm();
+  assert.equal(saves.length, 2);
+  assert.equal(saves[1].inputSequence, 2);
+  assert.equal(actor.authority.membership.x, 2);
+});
 
 test(
   'restart restores live sockets concurrently before unrelated orphan work',

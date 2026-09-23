@@ -38,7 +38,8 @@ type Actor = {
   grant: string;
   connectionId: string;
   offset: number;
-  lastCheckpointAt: number;
+  lastUpkeepAt: number;
+  lastPersistedInputSequence: number;
 };
 type Outbox = {
   recoveryId?: string;
@@ -255,7 +256,8 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       authority,
       motion: new RoomMotion(authority, authority.serverNow),
       offset: authority.serverNow - Date.now(),
-      lastCheckpointAt: Date.now(),
+      lastUpkeepAt: Date.now(),
+      lastPersistedInputSequence: 0,
     };
   }
   private joined(ws: WebSocket, type = 'joined') {
@@ -620,7 +622,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     await this.ctx.storage.delete(key);
     a.authority = saved.authority;
     updateClock(a, saved.authority);
-    a.lastCheckpointAt = Date.now();
+    a.lastUpkeepAt = Date.now();
+    // Inputs can arrive while this checkpoint is in flight. Only the captured
+    // input sequence is durable; a later move still needs the next alarm.
+    a.lastPersistedInputSequence = checkpoint.inputSequence;
     if (this.closed.has(ws) || this.actors.get(ws) !== a) {
       await this.service({ operation: 'authority-release', grant: a.grant });
     } else {
@@ -658,7 +663,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             await this.flush(ws);
             return;
           }
-          if (Date.now() - a.lastCheckpointAt < 4500) return;
+          if (Date.now() - a.lastUpkeepAt < 4500) return;
           if (nowFor(a) < a.authority.frozenUntil) return;
           const authority = await this.service<RoomAuthority>({
             operation: 'authority-refresh',
@@ -672,6 +677,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           updateClock(a, authority);
           // The browser's lease must not wait for a second network round trip.
           this.publishAuthority(ws, a);
+          a.lastUpkeepAt = Date.now();
+          // A stationary player needs a renewed authority lease, but no new
+          // position receipt. Work actions still capture their own checkpoint.
+          if (a.motion.inputSequence === a.lastPersistedInputSequence) return;
           a.motion.captureCheckpoint(crypto.randomUUID());
           await this.flush(ws);
         }).finally(() => this.maintaining.delete(ws)),
