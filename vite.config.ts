@@ -4,6 +4,7 @@ import vinext from 'vinext';
 import { defineConfig } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 import ownerConfig from './deploy/cloudflare/game.json';
+import stagingConfig from './deploy/cloudflare/staging-game.json';
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
@@ -37,6 +38,7 @@ const localBindingConfig = {
 
 export default defineConfig(async () => {
   const ownerDeployment = process.env.NOOBIUS_DEPLOY_TARGET === 'cloudflare';
+  const stagingDeployment = process.env.NOOBIUS_DEPLOY_TARGET === 'staging';
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -53,12 +55,14 @@ export default defineConfig(async () => {
       : undefined,
     plugins: [
       vinext(),
-      ...(ownerDeployment ? [] : [sites()]),
+      ...(ownerDeployment || stagingDeployment ? [] : [sites()]),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: ownerDeployment
           ? { ...ownerConfig, main: 'vinext/server/fetch-handler' }
-          : localBindingConfig,
+          : stagingDeployment
+            ? { ...stagingConfig, main: 'vinext/server/fetch-handler' }
+            : localBindingConfig,
       }),
     ],
   };

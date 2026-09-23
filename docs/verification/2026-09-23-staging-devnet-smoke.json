@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-09-23T04:50:33.390Z",
+  "workerVersion": "a890dae1-8e6d-43a7-8f86-c7e956019449",
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "database": "noobius-game-staging",
+  "network": "devnet",
+  "paymentsEnabled": false,
+  "tests": [
+    "landing page and game asset returned 200 with correct MIME",
+    "D1 health returned 200",
+    "generated Solana key signed the devnet-domain login challenge",
+    "profile name persisted across a second signed login",
+    "Compute marketplace reported unavailable and listing creation returned 503",
+    "generated test account matched one staging player and zero production players"
+  ],
+  "limits": "No real token, wallet extension, hosted checkout or staging multiplayer was tested. Staging room auth is intentionally disabled."
+}

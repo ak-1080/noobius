@@ -700,7 +700,15 @@ export async function handleGame(request: Request, action: string) {
       siteOrigin = origin(request);
     const message =
       ecosystem === 'solana'
-        ? solanaSignInMessage(body.address, siteOrigin, token(), now)
+        ? solanaSignInMessage(
+            body.address,
+            siteOrigin,
+            token(),
+            now,
+            realmValues().NOOBIUS_SOLANA_NETWORK === 'devnet'
+              ? 'devnet'
+              : 'mainnet',
+          )
         : createSiweMessage({
             address: getAddress(body.address),
             chainId: Number(body.chainId),

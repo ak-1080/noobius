@@ -1,0 +1,29 @@
+{
+  "name": "noobius-game-staging",
+  "account_id": "818bac5a5a12b327928ded9344c453bb",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "noobius-game-staging",
+      "database_id": "c996298e-b0ee-4edb-9684-33e44c22d5d8",
+      "migrations_dir": "../../drizzle"
+    }
+  ],
+  "vars": {
+    "NOOBIUS_MAX_PLAYERS": "5",
+    "NOOBIUS_ADMISSION_PAUSED": "false",
+    "NOOBIUS_ROOM_AUTH_ENABLED": "false",
+    "NOOBIUS_LOCAL_REALM_TEST": "false",
+    "NOOBIUS_TOKEN_ECOSYSTEM": "solana",
+    "NOOBIUS_SOLANA_NETWORK": "devnet",
+    "NOOBIUS_SITE_ORIGIN": "https://noobius-game-staging.rinkydooonso.workers.dev",
+    "NOOBIUS_PAYMENTS_ENABLED": "false"
+  }
+}

@@ -5,9 +5,10 @@ export function solanaSignInMessage(
   origin: string,
   nonce: string,
   now: number,
+  network: 'mainnet' | 'devnet' = 'mainnet',
 ) {
   solanaPublicKey(address);
-  return `${new URL(origin).host} wants you to sign in with your Solana account:\n${address}\n\nSign in to Noobius to save your game progress. This does not authorize transactions or token spending.\n\nURI: ${origin}\nVersion: 1\nChain ID: mainnet\nNonce: ${nonce}\nIssued At: ${new Date(now).toISOString()}\nExpiration Time: ${new Date(now + 300000).toISOString()}`;
+  return `${new URL(origin).host} wants you to sign in with your Solana account:\n${address}\n\nSign in to Noobius to save your game progress. This does not authorize transactions or token spending.\n\nURI: ${origin}\nVersion: 1\nChain ID: ${network}\nNonce: ${nonce}\nIssued At: ${new Date(now).toISOString()}\nExpiration Time: ${new Date(now + 300000).toISOString()}`;
 }
 
 export async function verifySolanaMessage(

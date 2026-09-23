@@ -65,7 +65,7 @@ async function fixture() {
   };
 }
 
-test('Solana identities retain canonical case and use a separate namespace', async () => {
+void test('Solana identities retain canonical case and use a separate namespace', async () => {
   const { address } = await fixture();
   assert.equal(accountKey(address, 'solana'), 'solana:' + address);
   assert.throws(() => accountKey('0x' + 'a'.repeat(40), 'solana'));
@@ -80,7 +80,7 @@ test('Solana identities retain canonical case and use a separate namespace', asy
   );
 });
 
-test('Wallet Standard signs the exact challenge and server verifies Ed25519 ownership', async () => {
+void test('Wallet Standard signs the exact challenge and server verifies Ed25519 ownership', async () => {
   const f = await fixture(),
     provider = solanaWalletProvider(f.wallet);
   const message = solanaSignInMessage(
@@ -94,6 +94,17 @@ test('Wallet Standard signs the exact challenge and server verifies Ed25519 owne
     /^noobius.example wants you to sign in with your Solana account:/,
   );
   assert.match(message, /Expiration Time: 2023-11-14T22:18:20.000Z/);
+  assert.match(message, /Chain ID: mainnet/);
+  assert.match(
+    solanaSignInMessage(
+      f.address,
+      'https://noobius.example',
+      'nonce',
+      1700000000000,
+      'devnet',
+    ),
+    /Chain ID: devnet/,
+  );
   const result = await signInSolanaWallet(
     provider,
     async () => ({ message }),
@@ -119,7 +130,7 @@ test('Wallet Standard signs the exact challenge and server verifies Ed25519 owne
   assert.equal(await verifySolanaMessage(f.address, message, '0x00'), false);
 });
 
-test('adapter rejects wallet message wrapping and cleans up account listeners', async () => {
+void test('adapter rejects wallet message wrapping and cleans up account listeners', async () => {
   const f = await fixture(),
     provider = solanaWalletProvider(f.wallet);
   const seen = [],
@@ -146,7 +157,7 @@ test('adapter rejects wallet message wrapping and cleans up account listeners', 
   );
 });
 
-test('account changes before and after verification stop Solana login', async () => {
+void test('account changes before and after verification stop Solana login', async () => {
   for (const changeAfterVerify of [false, true]) {
     const f = await fixture();
     let reads = 0,
@@ -173,7 +184,7 @@ test('account changes before and after verification stop Solana login', async ()
   }
 });
 
-test('connection and signature cancellation allow a fresh attempt', async () => {
+void test('connection and signature cancellation allow a fresh attempt', async () => {
   const f = await fixture();
   for (const canceled of ['solana_connect', 'solana_signMessage']) {
     const provider = {

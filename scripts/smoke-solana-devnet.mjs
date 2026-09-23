@@ -40,7 +40,9 @@ import {
 } from '../lib/solana-payment.ts';
 import { getTransactionDecoder } from '@solana/kit';
 import { reconcileComputePayment } from '../lib/compute-payment-recovery.ts';
+import { handleComputeMarketAction } from '../lib/compute-market-api.ts';
 const local = process.env.NOOBIUS_LOCAL_SURFNET === '1';
+const testApi = process.env.NOOBIUS_TEST_MARKET_API === '1';
 const useToken2022 = process.env.NOOBIUS_TEST_TOKEN_2022 === '1';
 const mintRole = useToken2022 ? 'mint2022' : 'mint';
 const token = useToken2022
@@ -62,10 +64,11 @@ const token = useToken2022
     };
 let rpcUrl =
   process.env.NOOBIUS_DEVNET_RPC_URL || 'https://api.devnet.solana.com';
+const directFetch = fetch;
 if (!local && new URL(rpcUrl).protocol !== 'https:')
   throw Error('Use an HTTPS devnet RPC.');
 async function rpc(method, params = []) {
-  const r = await fetch(rpcUrl, {
+  const r = await directFetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
@@ -286,7 +289,7 @@ try {
         delete option.minContextSlot;
       }
     }
-    const response = await fetch(rpcUrl, {
+    const response = await directFetch(rpcUrl, {
       ...init,
       body: JSON.stringify(request),
     });
@@ -375,6 +378,99 @@ try {
       .get('solana:' + keys.seller.address).credits,
     750,
   );
+  let apiCheckout;
+  if (testApi) {
+    const values = {
+      NOOBIUS_TOKEN_ECOSYSTEM: 'solana',
+      NOOBIUS_SOLANA_NETWORK: 'devnet',
+      NOOBIUS_TOKEN_MINT: mint,
+      NOOBIUS_TOKEN_PROGRAM: token.program,
+      NOOBIUS_TOKEN_DECIMALS: '6',
+      NOOBIUS_TOKEN_RPC_URL: policy.rpcUrl,
+      NOOBIUS_PAYMENTS_ENABLED: 'true',
+      NOOBIUS_PAYMENT_SIGNER: keys.authorization.address,
+      NOOBIUS_PAYMENT_KEYS: JSON.stringify({
+        [keys.authorization.address]: saved.authorization.secret,
+      }),
+    };
+    const previousFetch = globalThis.fetch;
+    if (local) globalThis.fetch = localFetch;
+    try {
+      const apiListingId = crypto.randomUUID();
+      const created = await handleComputeMarketAction(
+        db,
+        'solana:' + keys.seller.address,
+        'compute-listing-create',
+        { id: apiListingId, compute: 250, tokenAmount: '1000000' },
+        values,
+        true,
+      );
+      assert.equal(created.listing.status, 'open');
+      const apiQuoteId = crypto.randomUUID();
+      const offered = await handleComputeMarketAction(
+        db,
+        wallet,
+        'compute-payment-quote',
+        { id: apiQuoteId, listingId: apiListingId },
+        values,
+        true,
+      );
+      assert.equal(offered.quote.tokenProgram, token.program);
+      const buyerSigned = encodePaymentTransaction(
+        await partiallySignTransaction(
+          [keys.buyer.keyPair],
+          getTransactionDecoder().decode(
+            Buffer.from(offered.quote.unsignedTransactionBase64, 'base64'),
+          ),
+        ),
+      );
+      const submitted = await handleComputeMarketAction(
+        db,
+        wallet,
+        'compute-payment-submit',
+        { id: apiQuoteId, transaction: buyerSigned },
+        values,
+        true,
+      );
+      const apiSignature = submitted.payment.signature;
+      assert.equal(typeof apiSignature, 'string');
+      await confirmed(apiSignature);
+      const settled = await handleComputeMarketAction(
+        db,
+        wallet,
+        'compute-payment-status',
+        { id: apiQuoteId },
+        values,
+        true,
+      );
+      assert.equal(settled.payment.status, 'settled');
+      assert.equal((await getComputePayment(db, apiQuoteId)).status, 'settled');
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT credits FROM players WHERE wallet=?')
+          .get(wallet).credits,
+        1500,
+      );
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT credits FROM players WHERE wallet=?')
+          .get('solana:' + keys.seller.address).credits,
+        500,
+      );
+      apiCheckout = {
+        signature: apiSignature,
+        computeDelivered: 250,
+        tokenTransferred: '1',
+        status: settled.payment.status,
+      };
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+    assert.equal(
+      (await rpc('getTokenAccountBalance', [sellerAta])).value.amount,
+      '2000000',
+    );
+  }
   const proof = {
     testedAt: new Date().toISOString(),
     network: local ? 'local-surfnet' : 'devnet',
@@ -386,6 +482,7 @@ try {
     buyerTokenBalance: buyerTokens.value.amount,
     sellerTokenBalance: sellerTokens.value.amount,
     duplicateDeliveryPrevented: true,
+    ...(apiCheckout ? { apiCheckout } : {}),
     ledger: 'local SQLite using production modules',
     wallet: 'generated test keys; not a browser extension',
     ...(local
