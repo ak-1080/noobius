@@ -62,6 +62,7 @@ import { env } from 'cloudflare:workers';
 import { getAddress, isAddress, verifyMessage } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
 import { accountKey, walletAddress } from './wallet-identity';
+import { rateCountWithRetry } from './rate-limit-db';
 import { solanaSignInMessage, verifySolanaMessage } from './solana-auth';
 import {
   activateJob,
@@ -169,13 +170,17 @@ async function rate(
     key = await hash(
       `${wallet ? 'wallet:' + wallet : (request.headers.get('cf-connecting-ip') ?? 'local')}:${action}:${Math.floor(now / 60000)}`,
     );
-  const row = await db()
-    .prepare(
-      'INSERT INTO rate_limits (key,count,resets_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count',
-    )
-    .bind(key, now + 120000)
-    .first<{ count: number }>();
-  if ((row?.count ?? 0) > limit)
+  const count = await rateCountWithRetry(async () => {
+    const row = await db()
+      .prepare(
+        'INSERT INTO rate_limits (key,count,resets_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count',
+      )
+      .bind(key, now + 120000)
+      .first<{ count: number }>();
+    return row?.count ?? null;
+  });
+  if (count === null) throw new Error('Rate counter did not return a result.');
+  if (count > limit)
     throw new ApiError(429, 'A little too fast. Please try again in a minute.');
   if (Math.random() < 0.02)
     await db().batch([
