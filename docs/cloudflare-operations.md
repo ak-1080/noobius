@@ -44,6 +44,10 @@ A follow-up [six-minute room measurement](verification/2026-09-23-sustained-mixe
 
 ## Billing and limits
 
+### Hosted room redeploy recovery — September 23, 2026
+
+A [three-player hosted acceptance run](verification/2026-09-23-hosted-room-redeploy-gameplay.json) redeployed `noobius-rooms` while every player had an unfinished repair. All three sockets disconnected, rejoined, and retained credits, active jobs, inventory, and confirmed positions. The players then completed the repairs, visitor-privacy check, contested item trade, socket recovery, and signed relogin; cleanup passed. Wrangler recorded a new deployed room Worker version. The first attempt stopped on a test-script match against an outdated Wrangler success phrase after the deploy; the corrected full rerun passed. This checks one real rollout and three clients, not fault tolerance during regional outages or a guarantee that every future deploy has no interruption.
+
 ### Room-query pressure — September 23, 2026
 
 Wrangler D1 insights showed that the previous private-host lookup read an average of 192 rows per call and accounted for about 8.2 million rows over the rolling day. The currently deployed indexed lookup read an average of 7 rows per call across 9,791 calls in the last-hour window; the old form had no calls in that window. These are sampled Cloudflare query-insight windows, not an isolated capacity-test bill. Keep checking as player counts and interior visits grow.

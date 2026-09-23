@@ -1,7 +1,9 @@
 // Normal API actions and actual RoomClient sockets only: no SQL fixtures,
 // artificial balances, clock changes, existing wallets, or blockchain transfers.
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { promisify } from 'node:util';
 import { base58 } from '@scure/base';
 import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
@@ -19,14 +21,31 @@ const roomsOrigin = hosted
   ? 'https://rooms.noobius.io'
   : 'http://127.0.0.1:3004';
 const restartRoom = process.env.NOOBIUS_TEST_RESTART_ROOM === '1';
+const redeployRoom = process.env.NOOBIUS_TEST_REDEPLOY_ROOM === '1';
 if (restartRoom && hosted)
   throw Error('A room process may only be restarted in isolated local QA');
+if (redeployRoom && !hosted)
+  throw Error('A room Worker may only be redeployed against the hosted origin');
+if (restartRoom && redeployRoom)
+  throw Error('Choose one room interruption mode');
 const rounds = Number(process.env.NOOBIUS_GAMEPLAY_ROUNDS ?? 1);
 if (!Number.isSafeInteger(rounds) || rounds < 1 || rounds > 5)
   throw Error('NOOBIUS_GAMEPLAY_ROUNDS must be an integer from 1 to 5');
 const roomManager = restartRoom
   ? await import('./local-room-restart.mjs').then((m) => m.localRoomRestart())
-  : null;
+  : redeployRoom
+    ? {
+        restart: async () => {
+          const { stdout } = await promisify(execFile)(
+            './node_modules/.bin/wrangler',
+            ['deploy', '--config', 'deploy/cloudflare/rooms.json'],
+            { timeout: 120_000, maxBuffer: 1024 * 1024 },
+          );
+          assert.match(stdout, /Current Version ID: [a-f0-9-]{36}/);
+        },
+        close: async () => {},
+      }
+    : null;
 const { Client } = await import('../tests/api-client.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ok = (r) => {
@@ -43,6 +62,11 @@ const report = {
   checks: [],
   actors: 3,
   repairRoundsPerActor: rounds,
+  roomInterruption: redeployRoom
+    ? 'hosted-room-worker-redeploy'
+    : restartRoom
+      ? 'isolated-local-room-restart'
+      : 'none',
 };
 const pass = (name) => {
   report.checks.push(name);
@@ -320,11 +344,14 @@ try {
               const member = actors[i];
               for (
                 let attempt = 0;
-                attempt < 20 && !member.reconnect;
+                attempt < (redeployRoom ? 150 : 20) && !member.reconnect;
                 attempt++
               )
                 await sleep(100);
-              assert.ok(member.reconnect, 'Crash disconnected room player');
+              assert.ok(
+                member.reconnect,
+                'Room interruption disconnected every player',
+              );
               await member.connect();
               await member.refresh();
               assert.equal(member.profile.credits, before[i].credits);
@@ -345,7 +372,9 @@ try {
               );
             }
             pass(
-              'All three unfinished repairs survived a room-server crash and restart',
+              redeployRoom
+                ? 'All three unfinished repairs survived a hosted room Worker redeploy'
+                : 'All three unfinished repairs survived a room-server crash and restart',
             );
           } catch (error) {
             interruptedError = error;
