@@ -74,6 +74,8 @@ Before increasing the player cap, record actual D1 rows read/written, Worker CPU
 
 On September 22, the production `wrangler d1 time-travel info DB --config deploy/cloudflare/game.json --json` request returned a recovery bookmark. This verifies that the recovery interface is available, not that a production restore has been performed or that a particular retention window is confirmed. The earlier full SQL export was restored into the separate staging database; see the launch record for its schema revision. The current 13-migration export was also restored independently into local SQLite with a successful integrity check, zero foreign-key violations, 26 tables and 308 profiles; Compute-market tables were present and empty. The export is ignored by Git and restricted to the local user. Never restore the live database as a monitoring test.
 
+After the near-capacity and fresh-browser checks on September 23, a new production SQL export was downloaded to an ignored, user-only local path and restored into a separate local SQLite file. The restored copy passed `PRAGMA integrity_check`, had no foreign-key violations, contained all 13 migrations, 27 tables and 514 player rows, and included both Compute-market tables. This verifies that this snapshot can be read and restored locally; it does not prove a live-region failover or reconcile future on-chain payments. The SQL and restored database remain outside Git.
+
 ## Incident actions
 
 - Game/database probe fails: inspect the game Worker errors and D1 availability/migration status. Do not redeploy blindly or restore over live payment records.
