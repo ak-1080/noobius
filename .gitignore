@@ -35,6 +35,8 @@ yarn-error.log*
 next-env.d.ts
 /dist/
 /.wrangler/
+/deploy/cloudflare/.staging-payments-enabled.json
+/deploy/cloudflare/.wrangler/
 /outputs/
 /work/
 

@@ -4,6 +4,7 @@ import { base58 } from '@scure/base';
 import { Client } from '../tests/api-client.mjs';
 
 const origin = 'https://noobius-game-staging.rinkydooonso.workers.dev';
+const expectTrading = process.env.NOOBIUS_EXPECT_STAGING_TRADING === '1';
 if (process.env.NOOBIUS_TEST_ORIGIN !== origin)
   throw Error('Set NOOBIUS_TEST_ORIGIN to the isolated staging origin.');
 
@@ -70,15 +71,15 @@ assert.equal(again.profile.id, first.profile.id);
 assert.equal(again.profile.name, 'Devnet Tester');
 
 const market = await request('compute-market');
-assert.equal(market.available, false);
+assert.equal(market.available, expectTrading);
 assert.equal(market.viewer, 'solana:' + address);
 assert.equal(market.pending.length, 0);
 const listing = await client.request(
   'compute-listing-create',
   client.body({ id: crypto.randomUUID(), compute: 1, tokenAmount: '1' }),
 );
-assert.equal(listing.status, 503, JSON.stringify(listing.data));
-assert.match(listing.data.error, /not available/);
+assert.equal(listing.status, expectTrading ? 403 : 503, JSON.stringify(listing.data));
+assert.match(listing.data.error, expectTrading ? /first repair|client job/ : /not available/);
 
 await request('logout', client.body({}));
 console.log(
@@ -92,7 +93,7 @@ console.log(
       'database-health',
       'devnet-wallet-login',
       'persistent-profile',
-      'paused-market',
+      expectTrading ? 'configured-test-token-market-and-unqualified-wallet-denial' : 'paused-market',
     ],
   }),
 );
