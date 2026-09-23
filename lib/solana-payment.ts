@@ -25,14 +25,26 @@ import {
   getCreateAssociatedTokenIdempotentInstruction,
   getTransferCheckedInstruction,
 } from '@solana-program/token';
+import {
+  TOKEN_2022_PROGRAM_ADDRESS,
+  findAssociatedTokenPda as findToken2022AssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction as getCreateToken2022AssociatedTokenIdempotentInstruction,
+  getTransferCheckedInstruction as getToken2022TransferCheckedInstruction,
+} from '@solana-program/token-2022';
 import { getAddMemoInstruction } from '@solana-program/memo';
-import { SOLANA_GENESIS } from './solana-holdings.ts';
+import {
+  SOLANA_GENESIS,
+  SPL_TOKEN_PROGRAM,
+  TOKEN_2022_PROGRAM,
+  type SupportedTokenProgram,
+} from './solana-holdings.ts';
 export type ComputePaymentTerms = {
   quoteId: string;
   network: keyof typeof SOLANA_GENESIS;
   buyer: string;
   seller: string;
   mint: string;
+  tokenProgram?: SupportedTokenProgram;
   decimals: number;
   amount: string;
   authorizationSigner: string;
@@ -85,7 +97,10 @@ export async function createComputePaymentQuote(
     terms.decimals < 0 ||
     terms.decimals > 18 ||
     !/^[1-9]\d{0,19}$/.test(terms.amount) ||
-    BigInt(terms.amount) > BigInt('18446744073709551615')
+    BigInt(terms.amount) > BigInt('18446744073709551615') ||
+    ![SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM].includes(
+      terms.tokenProgram ?? SPL_TOKEN_PROGRAM,
+    )
   )
     throw Error('Invalid payment terms.');
   const buyer = address(terms.buyer),
@@ -94,33 +109,66 @@ export async function createComputePaymentQuote(
     signer = address(terms.authorizationSigner);
   if (buyer === seller || buyer === signer || seller === signer)
     throw Error('Payment participants must be distinct.');
-  const [source] = await findAssociatedTokenPda({
-    mint,
-    owner: buyer,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
-  });
-  const [destination] = await findAssociatedTokenPda({
-    mint,
-    owner: seller,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
-  });
+  const tokenProgram = terms.tokenProgram ?? SPL_TOKEN_PROGRAM;
+  const token2022 = tokenProgram === TOKEN_2022_PROGRAM;
+  const [source] = token2022
+    ? await findToken2022AssociatedTokenPda({
+        mint,
+        owner: buyer,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      })
+    : await findAssociatedTokenPda({
+        mint,
+        owner: buyer,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      });
+  const [destination] = token2022
+    ? await findToken2022AssociatedTokenPda({
+        mint,
+        owner: seller,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      })
+    : await findAssociatedTokenPda({
+        mint,
+        owner: seller,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      });
   const buyerSigner = createNoopSigner(buyer);
-  const message = appendTransactionMessageInstructions(
-    [
-      getCreateAssociatedTokenIdempotentInstruction({
+  const createDestination = token2022
+    ? getCreateToken2022AssociatedTokenIdempotentInstruction({
         payer: buyerSigner,
         ata: destination,
         owner: seller,
         mint,
-      }),
-      getTransferCheckedInstruction({
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      })
+    : getCreateAssociatedTokenIdempotentInstruction({
+        payer: buyerSigner,
+        ata: destination,
+        owner: seller,
+        mint,
+      });
+  const transfer = token2022
+    ? getToken2022TransferCheckedInstruction({
         source,
         mint,
         destination,
         authority: buyerSigner,
         amount: BigInt(terms.amount),
         decimals: terms.decimals,
-      }),
+      })
+    : getTransferCheckedInstruction({
+        source,
+        mint,
+        destination,
+        authority: buyerSigner,
+        amount: BigInt(terms.amount),
+        decimals: terms.decimals,
+      });
+  const message = appendTransactionMessageInstructions(
+    [
+      createDestination,
+      transfer,
       getAddMemoInstruction({
         memo: 'noobius:compute:v1:' + terms.network + ':' + terms.quoteId,
         signers: [buyerSigner, createNoopSigner(signer)],

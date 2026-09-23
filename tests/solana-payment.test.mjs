@@ -13,6 +13,7 @@ import {
   coSignRecordedPayment,
   verifyFinalizedPayment,
 } from '../lib/solana-payment.ts';
+import { TOKEN_2022_PROGRAM } from '../lib/solana-holdings.ts';
 const decode = (wire) =>
   getTransactionDecoder().decode(Buffer.from(wire, 'base64'));
 async function fixture() {
@@ -90,6 +91,30 @@ void test('altered recipient, amount, memo, blockhash or network cannot replace 
       quote.unsignedTransactionBase64,
     ),
     /inconsistent/,
+  );
+});
+void test('Token-2022 is bound to the signed transaction and cannot be switched after approval', async () => {
+  const { quote, buyer } = await fixture();
+  const token2022Quote = await createComputePaymentQuote({
+    ...quote,
+    tokenProgram: TOKEN_2022_PROGRAM,
+  });
+  assert.notEqual(token2022Quote.messageBase64, quote.messageBase64);
+  const signed = await partiallySignTransaction(
+    [buyer.keyPair],
+    decode(token2022Quote.unsignedTransactionBase64),
+  );
+  await assert.rejects(
+    validateBuyerPayment(quote, encodePaymentTransaction(signed)),
+    /differs/,
+  );
+  assert.ok(
+    (
+      await validateBuyerPayment(
+        token2022Quote,
+        encodePaymentTransaction(signed),
+      )
+    ).signature,
   );
 });
 void test('missing, corrupt, unexpected authorization or wrong-key signatures are rejected', async () => {

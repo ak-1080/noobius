@@ -40,6 +40,7 @@ async function fixture() {
     ecosystem: 'solana',
     network: 'devnet',
     contract: mint.address,
+    tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
     decimals: 6,
     threshold: '888',
     rpcUrl: 'https://rpc.example',

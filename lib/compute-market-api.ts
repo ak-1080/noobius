@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { createKeyPairFromBytes, getAddressFromPublicKey } from '@solana/kit';
-import { solanaHoldingPolicy, tokenSetting } from './solana-holdings.ts';
+import {
+  solanaHoldingPolicy,
+  tokenSetting,
+  SPL_TOKEN_PROGRAM,
+} from './solana-holdings.ts';
 import {
   createComputePaymentQuote,
   type ComputePaymentQuote,
@@ -32,7 +36,8 @@ export async function paymentConfiguration(
     quote &&
     (quote.network !== policy.network ||
       quote.mint !== policy.contract ||
-      quote.decimals !== policy.decimals)
+      quote.decimals !== policy.decimals ||
+      (quote.tokenProgram ?? SPL_TOKEN_PROGRAM) !== policy.tokenProgram)
   )
     throw new ComputeMarketError(
       503,
@@ -80,6 +85,7 @@ async function receipt(db: D1Database, p: ComputePayment) {
     amount: q.amount,
     mint: q.mint,
     decimals: q.decimals,
+    tokenProgram: q.tokenProgram ?? SPL_TOKEN_PROGRAM,
     expiresAt: p.expires_at,
   };
 }
@@ -246,6 +252,8 @@ export async function handleComputeMarketAction(
   if (action === 'compute-listing-create') {
     if (typeof body.compute !== 'number')
       throw new ComputeMarketError(400, 'Choose a whole Compute amount.');
+    // Do not reserve a seller's Compute against a mint that checkout will reject.
+    await config.rpc.quoteLifetime();
     return {
       listing: await createComputeListing(
         db,
@@ -288,6 +296,7 @@ export async function handleComputeMarketAction(
       buyer: wallet.slice(7),
       seller: listing.seller.slice(7),
       mint: config.policy.contract,
+      tokenProgram: config.policy.tokenProgram,
       decimals: config.policy.decimals,
       amount: listing.token_amount,
       authorizationSigner: config.address,

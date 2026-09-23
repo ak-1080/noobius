@@ -3,6 +3,7 @@
 import {
   SOLANA_GENESIS,
   SPL_TOKEN_PROGRAM,
+  TOKEN_2022_PROGRAM,
   type SolanaHoldingPolicy,
 } from './solana-holdings.ts';
 import {
@@ -11,6 +12,7 @@ import {
 } from './solana-payment.ts';
 const safeInteger = (v: unknown): v is number =>
   Number.isSafeInteger(v) && Number(v) >= 0;
+const inertMintExtensions = new Set(['metadataPointer', 'tokenMetadata']);
 function object(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v))
     throw Error('Malformed payment RPC response.');
@@ -88,13 +90,28 @@ export class ComputePaymentRpc {
       parsed = object(object(account.data).parsed),
       info = object(parsed.info);
     if (
-      account.owner !== SPL_TOKEN_PROGRAM ||
+      account.owner !== this.policy.tokenProgram ||
       account.executable !== false ||
       parsed.type !== 'mint' ||
       info.isInitialized !== true ||
       info.decimals !== this.policy.decimals
     )
       throw Error('Unsupported payment mint or token precision.');
+    if (this.policy.tokenProgram === TOKEN_2022_PROGRAM) {
+      // A transfer-fee mint credits the seller less than the quoted amount.
+      // Other behavior-changing extensions need a separately reviewed checkout.
+      if (
+        (info.extensions !== undefined && !Array.isArray(info.extensions)) ||
+        !(info.extensions ?? []).every((extension: unknown) => {
+          if (!extension || typeof extension !== 'object') return false;
+          const name = (extension as Record<string, unknown>).extension;
+          return typeof name === 'string' && inertMintExtensions.has(name);
+        })
+      )
+        throw Error('This token has unsupported payment extensions.');
+    } else if (this.policy.tokenProgram !== SPL_TOKEN_PROGRAM) {
+      throw Error('Unsupported payment token program.');
+    }
     const latest = contextual(
         await this.call('getLatestBlockhash', [
           { commitment: 'finalized', minContextSlot: mint.slot },
@@ -140,7 +157,8 @@ export class ComputePaymentRpc {
     if (
       quote.network !== this.policy.network ||
       quote.mint !== this.policy.contract ||
-      quote.decimals !== this.policy.decimals
+      quote.decimals !== this.policy.decimals ||
+      (quote.tokenProgram ?? SPL_TOKEN_PROGRAM) !== this.policy.tokenProgram
     )
       throw Error(
         'Payment configuration changed; retain the original network configuration for recovery.',

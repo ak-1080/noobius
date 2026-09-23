@@ -1,5 +1,6 @@
 import {
   validSolanaAddress,
+  SPL_TOKEN_PROGRAM,
   type SolanaHoldingPolicy,
 } from './solana-holdings.ts';
 import {
@@ -153,6 +154,7 @@ export async function reserveComputePayment(
     quote.seller !== listing.seller.slice(7) ||
     quote.amount !== listing.token_amount ||
     quote.mint !== policy.contract ||
+    (quote.tokenProgram ?? SPL_TOKEN_PROGRAM) !== policy.tokenProgram ||
     quote.decimals !== policy.decimals ||
     quote.network !== policy.network
   )

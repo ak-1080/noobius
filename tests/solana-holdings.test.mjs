@@ -8,7 +8,11 @@ import {
   realmAccess,
 } from '../lib/realm-access.ts';
 import { walletHoldingGuard } from '../lib/realm-authority.ts';
-import { SOLANA_GENESIS, SPL_TOKEN_PROGRAM } from '../lib/solana-holdings.ts';
+import {
+  SOLANA_GENESIS,
+  SPL_TOKEN_PROGRAM,
+  TOKEN_2022_PROGRAM,
+} from '../lib/solana-holdings.ts';
 const addr = (n) => base58.encode(new Uint8Array(32).fill(n));
 const owner = addr(1),
   mint = addr(2),
@@ -36,7 +40,7 @@ function rpc(options = {}) {
       result = {
         context: { slot: 100 },
         value: {
-          owner: SPL_TOKEN_PROGRAM,
+          owner: options.program ?? SPL_TOKEN_PROGRAM,
           executable: false,
           data: {
             parsed: {
@@ -56,7 +60,7 @@ function rpc(options = {}) {
         value: amounts.map((amount, i) => ({
           pubkey: addr(options.duplicate ? 3 : i + 3),
           account: {
-            owner: SPL_TOKEN_PROGRAM,
+            owner: options.program ?? SPL_TOKEN_PROGRAM,
             executable: false,
             data: {
               parsed: {
@@ -77,9 +81,14 @@ function rpc(options = {}) {
   };
   return { fetcher, requests };
 }
-test('Solana policy preserves case and separates network/mint/precision in cache identity', () => {
+void test('Solana policy preserves case and separates network/mint/precision in cache identity', () => {
   assert.equal(policy.contract, mint);
   assert.match(policy.key, /^solana:/);
+  assert.equal(policy.tokenProgram, SPL_TOKEN_PROGRAM);
+  assert.notEqual(
+    tokenPolicy({ ...values, NOOBIUS_TOKEN_PROGRAM: TOKEN_2022_PROGRAM }).key,
+    policy.key,
+  );
   assert.notEqual(
     tokenPolicy({ ...values, NOOBIUS_SOLANA_NETWORK: 'mainnet-beta' }).key,
     policy.key,
@@ -90,10 +99,11 @@ test('Solana policy preserves case and separates network/mint/precision in cache
     { NOOBIUS_SOLANA_NETWORK: 'unknown' },
     { NOOBIUS_TOKEN_RPC_URL: 'http://rpc.test.invalid' },
     { NOOBIUS_TOKEN_THRESHOLD: '0' },
+    { NOOBIUS_TOKEN_PROGRAM: 'unknown' },
   ])
     assert.equal(tokenPolicy({ ...values, ...change }), null);
 });
-test('finalized Solana holdings aggregate multiple owned token accounts exactly', async () => {
+void test('finalized Solana holdings aggregate multiple owned token accounts exactly', async () => {
   const r = rpc();
   assert.deepEqual(await readTokenHolding(policy, wallet, r.fetcher), {
     block: '0x65',
@@ -116,7 +126,27 @@ test('finalized Solana holdings aggregate multiple owned token accounts exactly'
     false,
   );
 });
-test('wrong network, mint, owner, precision, duplicate accounts, stale slot and corrupt balances fail closed', async () => {
+void test('Token-2022 holding policy accepts only accounts owned by its configured program', async () => {
+  const token2022Policy = tokenPolicy({
+    ...values,
+    NOOBIUS_TOKEN_PROGRAM: TOKEN_2022_PROGRAM,
+  });
+  assert.equal(
+    (
+      await readTokenHolding(
+        token2022Policy,
+        wallet,
+        rpc({ program: TOKEN_2022_PROGRAM }).fetcher,
+      )
+    ).eligible,
+    true,
+  );
+  await assert.rejects(
+    readTokenHolding(token2022Policy, wallet, rpc().fetcher),
+    /mint mismatch/,
+  );
+});
+void test('wrong network, mint, owner, precision, duplicate accounts, stale slot and corrupt balances fail closed', async () => {
   for (const options of [
     { genesis: SOLANA_GENESIS['mainnet-beta'] },
     { decimals: 9 },
@@ -135,7 +165,7 @@ test('wrong network, mint, owner, precision, duplicate accounts, stale slot and 
     /Solana account/,
   );
 });
-test('Solana eligibility reaches write-time guards; EVM cache cannot grant Solana access', async () => {
+void test('Solana eligibility reaches write-time guards; EVM cache cannot grant Solana access', async () => {
   const db = database();
   const now = Date.now();
   db.sqlite

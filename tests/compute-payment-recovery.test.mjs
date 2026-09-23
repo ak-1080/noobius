@@ -11,7 +11,11 @@ import {
   partiallySignTransaction,
 } from '@solana/kit';
 import { database } from './sqlite-d1.mjs';
-import { SOLANA_GENESIS, SPL_TOKEN_PROGRAM } from '../lib/solana-holdings.ts';
+import {
+  SOLANA_GENESIS,
+  SPL_TOKEN_PROGRAM,
+  TOKEN_2022_PROGRAM,
+} from '../lib/solana-holdings.ts';
 import { ComputePaymentRpc } from '../lib/compute-payment-rpc.ts';
 import {
   createComputePaymentQuote,
@@ -44,6 +48,7 @@ async function fixture() {
       ecosystem: 'solana',
       network: 'devnet',
       contract: mint.address,
+      tokenProgram: SPL_TOKEN_PROGRAM,
       decimals: 6,
       threshold: '888',
       key: 'devnet-token',
@@ -110,7 +115,7 @@ async function fixture() {
       sent: [],
       wrongNetwork: false,
     };
-  const rpc = new ComputePaymentRpc(policy, async (_url, init) => {
+  const fetcher = async (_url, init) => {
     const { method, id: requestId, params } = JSON.parse(init.body);
     calls.push({ method, params });
     let result;
@@ -150,7 +155,13 @@ async function fixture() {
             data: {
               parsed: {
                 type: 'mint',
-                info: { isInitialized: true, decimals: 6 },
+                info: {
+                  isInitialized: true,
+                  decimals: 6,
+                  ...(state.extensions === undefined
+                    ? {}
+                    : { extensions: state.extensions }),
+                },
               },
             },
           },
@@ -179,7 +190,8 @@ async function fixture() {
       JSON.stringify({ jsonrpc: '2.0', id: requestId, result }),
       { headers: { 'Content-Type': 'application/json' } },
     );
-  });
+  };
+  const rpc = new ComputePaymentRpc(policy, fetcher);
   return {
     db,
     buyer,
@@ -190,6 +202,7 @@ async function fixture() {
     policy,
     record,
     rpc,
+    fetcher,
     state,
     calls,
   };
@@ -202,6 +215,29 @@ void test('RPC checks network and SPL mint before issuing a lifetime; wrong netw
   f.state.wrongNetwork = false;
   f.state.program = 'other';
   await assert.rejects(f.rpc.quoteLifetime(), /Unsupported/);
+});
+void test('Token-2022 quotes allow metadata but reject fees and other behavior-changing extensions', async () => {
+  const f = await fixture();
+  f.policy.tokenProgram = TOKEN_2022_PROGRAM;
+  f.state.program = TOKEN_2022_PROGRAM;
+  f.state.extensions = [
+    { extension: 'metadataPointer', state: {} },
+    { extension: 'tokenMetadata', state: {} },
+  ];
+  assert.equal((await f.rpc.quoteLifetime()).contextSlot, 50);
+  for (const extension of [
+    'transferFeeConfig',
+    'transferHook',
+    'nonTransferable',
+  ]) {
+    f.state.extensions = [{ extension, state: {} }];
+    await assert.rejects(
+      f.rpc.quoteLifetime(),
+      /unsupported payment extensions/,
+    );
+  }
+  f.state.extensions = [];
+  assert.equal((await f.rpc.quoteLifetime()).contextSlot, 50);
 });
 void test('crash after recording and ambiguous broadcast recover by sending exactly the same durable transaction', async () => {
   const f = await fixture();
@@ -429,14 +465,21 @@ void test('API gates new sales but permits cancellation during a pause and keeps
     ),
     /Complete your first/,
   );
-  const created = await handleComputeMarketAction(
-    f.db,
-    wallet,
-    'compute-listing-create',
-    body,
-    values,
-    true,
-  );
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = f.fetcher;
+  let created;
+  try {
+    created = await handleComputeMarketAction(
+      f.db,
+      wallet,
+      'compute-listing-create',
+      body,
+      values,
+      true,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
   assert.equal(created.listing.compute, 25);
   const snapshot = await computeMarketSnapshot(f.db, wallet, values);
   assert.equal(snapshot.available, true);

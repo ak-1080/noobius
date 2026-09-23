@@ -4,11 +4,15 @@ export const SOLANA_GENESIS = {
   devnet: 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG',
 } as const;
 export const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+export const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+export type SupportedTokenProgram =
+  | typeof SPL_TOKEN_PROGRAM
+  | typeof TOKEN_2022_PROGRAM;
 export type SolanaHoldingPolicy = {
   ecosystem: 'solana';
   network: keyof typeof SOLANA_GENESIS;
   contract: string;
+  tokenProgram: SupportedTokenProgram;
   decimals: number;
   threshold: string;
   rpcUrl: string;
@@ -32,6 +36,10 @@ export function solanaHoldingPolicy(
 ): SolanaHoldingPolicy | null {
   const network = tokenSetting(values.NOOBIUS_SOLANA_NETWORK, 'mainnet-beta');
   const contract = tokenSetting(values.NOOBIUS_TOKEN_MINT);
+  const tokenProgram = tokenSetting(
+    values.NOOBIUS_TOKEN_PROGRAM,
+    SPL_TOKEN_PROGRAM,
+  );
   const rawDecimals = tokenSetting(values.NOOBIUS_TOKEN_DECIMALS);
   const decimals = Number(rawDecimals);
   const threshold = tokenSetting(values.NOOBIUS_TOKEN_THRESHOLD, '888');
@@ -39,6 +47,7 @@ export function solanaHoldingPolicy(
   if (
     !(network === 'mainnet-beta' || network === 'devnet') ||
     !validSolanaAddress(contract) ||
+    ![SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM].includes(tokenProgram) ||
     !/^(0|[1-9]\d*)$/.test(rawDecimals) ||
     decimals > 18 ||
     !/^[1-9]\d{0,17}$/.test(threshold)
@@ -54,6 +63,7 @@ export function solanaHoldingPolicy(
     ecosystem: 'solana',
     network,
     contract,
+    tokenProgram: tokenProgram as SupportedTokenProgram,
     decimals,
     threshold,
     rpcUrl,
@@ -61,6 +71,7 @@ export function solanaHoldingPolicy(
       'solana',
       SOLANA_GENESIS[network],
       contract,
+      tokenProgram,
       decimals,
       threshold,
       'finalized',
@@ -118,7 +129,7 @@ export async function readSolanaHolding(
   if (
     !Number.isSafeInteger(slot) ||
     Number(slot) < 0 ||
-    ![SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM].includes(program ?? '') ||
+    program !== policy.tokenProgram ||
     mint.value?.executable !== false ||
     mintInfo?.type !== 'mint' ||
     mintInfo.info?.decimals !== policy.decimals ||

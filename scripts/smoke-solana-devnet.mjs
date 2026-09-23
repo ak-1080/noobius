@@ -24,6 +24,7 @@ import {
   getMintSize,
   getMintToInstruction,
 } from '@solana-program/token';
+import * as token2022 from '@solana-program/token-2022';
 import { database } from '../tests/sqlite-d1.mjs';
 import { SOLANA_GENESIS, solanaHoldingPolicy } from '../lib/solana-holdings.ts';
 import { ComputePaymentRpc } from '../lib/compute-payment-rpc.ts';
@@ -40,6 +41,25 @@ import {
 import { getTransactionDecoder } from '@solana/kit';
 import { reconcileComputePayment } from '../lib/compute-payment-recovery.ts';
 const local = process.env.NOOBIUS_LOCAL_SURFNET === '1';
+const useToken2022 = process.env.NOOBIUS_TEST_TOKEN_2022 === '1';
+const mintRole = useToken2022 ? 'mint2022' : 'mint';
+const token = useToken2022
+  ? {
+      program: token2022.TOKEN_2022_PROGRAM_ADDRESS,
+      findAta: token2022.findAssociatedTokenPda,
+      createAta: token2022.getCreateAssociatedTokenIdempotentInstruction,
+      initializeMint: token2022.getInitializeMint2Instruction,
+      mintSize: token2022.getMintSize,
+      mintTo: token2022.getMintToInstruction,
+    }
+  : {
+      program: TOKEN_PROGRAM_ADDRESS,
+      findAta: findAssociatedTokenPda,
+      createAta: getCreateAssociatedTokenIdempotentInstruction,
+      initializeMint: getInitializeMint2Instruction,
+      mintSize: getMintSize,
+      mintTo: getMintToInstruction,
+    };
 let rpcUrl =
   process.env.NOOBIUS_DEVNET_RPC_URL || 'https://api.devnet.solana.com';
 if (!local && new URL(rpcUrl).protocol !== 'https:')
@@ -54,7 +74,12 @@ async function rpc(method, params = []) {
   const json = await r.json();
   if (!r.ok || json.error)
     throw Error(
-      'Devnet RPC failed for ' + method + ' (HTTP ' + r.status + ').',
+      'Devnet RPC failed for ' +
+        method +
+        ' (HTTP ' +
+        r.status +
+        '): ' +
+        (json.error?.message ?? 'unavailable'),
     );
   return json.result;
 }
@@ -64,7 +89,14 @@ if (fs.existsSync(secretPath))
   saved = JSON.parse(fs.readFileSync(secretPath, 'utf8'));
 else {
   saved = { network: 'devnet' };
-  for (const role of ['payer', 'buyer', 'seller', 'authorization', 'mint']) {
+  for (const role of [
+    'payer',
+    'buyer',
+    'seller',
+    'authorization',
+    'mint',
+    'mint2022',
+  ]) {
     const key = await generateKeyPairSigner(true),
       jwk = await crypto.subtle.exportKey('jwk', key.keyPair.privateKey);
     saved[role] = {
@@ -81,8 +113,20 @@ else {
   fs.writeFileSync(secretPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
 }
 assert.equal(saved.network, 'devnet');
+if (!saved[mintRole]) {
+  const key = await generateKeyPairSigner(true);
+  const jwk = await crypto.subtle.exportKey('jwk', key.keyPair.privateKey);
+  saved[mintRole] = {
+    address: key.address,
+    secret: Buffer.concat([
+      Buffer.from(jwk.d, 'base64url'),
+      Buffer.from(await crypto.subtle.exportKey('raw', key.keyPair.publicKey)),
+    ]).toString('base64'),
+  };
+  fs.writeFileSync(secretPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
+}
 const keys = {};
-for (const role of ['payer', 'buyer', 'seller', 'authorization', 'mint']) {
+for (const role of ['payer', 'buyer', 'seller', 'authorization', mintRole]) {
   keys[role] = await createKeyPairSignerFromBytes(
     Buffer.from(saved[role].secret, 'base64'),
   );
@@ -174,35 +218,35 @@ try {
     await confirmed(signature);
     return signature;
   }
-  const mint = keys.mint.address;
+  const mint = keys[mintRole].address;
   if (
     !(await rpc('getAccountInfo', [mint, { commitment: 'finalized' }])).value
   ) {
     const rent = await rpc('getMinimumBalanceForRentExemption', [
-      getMintSize(),
+      token.mintSize(),
     ]);
     await send(
       [
         getCreateAccountInstruction({
           payer: keys.payer,
-          newAccount: keys.mint,
+          newAccount: keys[mintRole],
           lamports: BigInt(rent),
-          space: BigInt(getMintSize()),
-          programAddress: TOKEN_PROGRAM_ADDRESS,
+          space: BigInt(token.mintSize()),
+          programAddress: token.program,
         }),
-        getInitializeMint2Instruction({
+        token.initializeMint({
           mint,
           decimals: 6,
           mintAuthority: keys.payer.address,
         }),
       ],
-      [keys.payer, keys.mint],
+      [keys.payer, keys[mintRole]],
     );
   }
-  const [buyerAta] = await findAssociatedTokenPda({
+  const [buyerAta] = await token.findAta({
     mint,
     owner: keys.buyer.address,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram: token.program,
   });
   await send([
     getTransferSolInstruction({
@@ -210,13 +254,14 @@ try {
       destination: keys.buyer.address,
       amount: BigInt(10000000),
     }),
-    getCreateAssociatedTokenIdempotentInstruction({
+    token.createAta({
       payer: keys.payer,
       ata: buyerAta,
       owner: keys.buyer.address,
       mint,
+      ...(useToken2022 ? { tokenProgram: token.program } : {}),
     }),
-    getMintToInstruction({
+    token.mintTo({
       mint,
       token: buyerAta,
       mintAuthority: keys.payer,
@@ -226,6 +271,7 @@ try {
   const policy = solanaHoldingPolicy({
     NOOBIUS_SOLANA_NETWORK: 'devnet',
     NOOBIUS_TOKEN_MINT: mint,
+    NOOBIUS_TOKEN_PROGRAM: token.program,
     NOOBIUS_TOKEN_DECIMALS: '6',
     NOOBIUS_TOKEN_RPC_URL: local ? 'https://local-surfnet.invalid' : rpcUrl,
   });
@@ -284,6 +330,7 @@ try {
     buyer: keys.buyer.address,
     seller: keys.seller.address,
     mint,
+    tokenProgram: policy.tokenProgram,
     decimals: 6,
     amount: '1000000',
     authorizationSigner: keys.authorization.address,
@@ -307,10 +354,10 @@ try {
   await confirmed(recorded.buyer_signature);
   await reconcileComputePayment(db, quoteId, chain);
   await reconcileComputePayment(db, quoteId, chain);
-  const [sellerAta] = await findAssociatedTokenPda({
+  const [sellerAta] = await token.findAta({
     mint,
     owner: keys.seller.address,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram: token.program,
   });
   const buyerTokens = await rpc('getTokenAccountBalance', [buyerAta]);
   const sellerTokens = await rpc('getTokenAccountBalance', [sellerAta]);
@@ -332,6 +379,7 @@ try {
     testedAt: new Date().toISOString(),
     network: local ? 'local-surfnet' : 'devnet',
     mint,
+    tokenProgram: token.program,
     signature: recorded.buyer_signature,
     computeDelivered: 250,
     tokenTransferred: '1',
