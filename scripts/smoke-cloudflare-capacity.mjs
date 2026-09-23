@@ -15,7 +15,7 @@ assert.ok(Number.isInteger(roomCount) && roomCount >= 1 && roomCount <= 10);
 assert.ok(
   Number.isInteger(durationSeconds) &&
     durationSeconds >= 30 &&
-    durationSeconds <= 120,
+    durationSeconds <= 360,
 );
 const correctionReasons = {};
 if (origin !== 'https://play.noobius.io')
@@ -501,6 +501,8 @@ try {
     runId,
     status: 'passed',
     motionMode,
+    beganAt: new Date(began).toISOString(),
+    measuredAt: new Date(measuredAt).toISOString(),
     completedAt: new Date().toISOString(),
     scope: `Hosted Cloudflare Workers and Durable Objects; ${actors.length} synthetic RoomClients, ${roomCount} neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers`,
     rampMs: measuredAt - began,
