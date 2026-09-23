@@ -145,6 +145,27 @@ test('ticket stays out of URL; live movement uses its own sequence and server co
   assert.deepEqual(f.events.correction.at(-1), { x: 0, z: 16.8 });
 });
 
+test('a transient room cadence rejection retries without snapping a valid move back', async (t) => {
+  const f = await fixture(t);
+  const corrections = f.events.correction.length;
+  let attempts = 0;
+  f.socket.handle = (body) => {
+    if (body.type !== 'move') return;
+    attempts++;
+    f.frame('move-ack', {
+      inputSequence: body.inputSequence,
+      position: attempts === 1 ? { x: 0, z: 17 } : { x: body.x, z: body.z },
+      accepted: attempts !== 1,
+      corrected: attempts === 1,
+      ...(attempts === 1 ? { reason: 'rate-limited' } : {}),
+    });
+  };
+  f.move({ x: 0, z: 16.8 });
+  assert.equal(await f.client.syncPosition(), true);
+  assert.equal(attempts, 2);
+  assert.equal(f.events.correction.length, corrections);
+});
+
 test('exact final payload gets a frozen checkpoint before HTTP work, then explicit release', async (t) => {
   const f = await fixture(t),
     payload = {

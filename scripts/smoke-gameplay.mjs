@@ -21,6 +21,9 @@ const roomsOrigin = hosted
 const restartRoom = process.env.NOOBIUS_TEST_RESTART_ROOM === '1';
 if (restartRoom && hosted)
   throw Error('A room process may only be restarted in isolated local QA');
+const rounds = Number(process.env.NOOBIUS_GAMEPLAY_ROUNDS ?? 1);
+if (!Number.isSafeInteger(rounds) || rounds < 1 || rounds > 5)
+  throw Error('NOOBIUS_GAMEPLAY_ROUNDS must be an integer from 1 to 5');
 const roomManager = restartRoom
   ? await import('./local-room-restart.mjs').then((m) => m.localRoomRestart())
   : null;
@@ -39,6 +42,7 @@ const report = {
   beganAt: new Date(began).toISOString(),
   checks: [],
   actors: 3,
+  repairRoundsPerActor: rounds,
 };
 const pass = (name) => {
   report.checks.push(name);
@@ -124,7 +128,22 @@ async function actor(i, target) {
         p.reconnect = true;
         p.disconnects.push(reason);
       },
-      createSocket: (url) => (p.socket = new WebSocket(url, { origin })),
+      createSocket: (url) => {
+        const socket = new WebSocket(url, { origin });
+        socket.on('message', (raw) => {
+          try {
+            const frame = JSON.parse(String(raw));
+            if (frame.type === 'move-ack' && !frame.accepted)
+              p.lastMoveRejection = {
+                reason: frame.reason,
+                position: frame.position,
+              };
+          } catch {
+            // RoomClient owns protocol validation; this is test diagnostics.
+          }
+        });
+        return (p.socket = socket);
+      },
     });
     await p.transport.connect();
     p.reconnect = false;
@@ -168,14 +187,17 @@ async function actor(i, target) {
       for (let step = 1; step <= steps; step++) {
         await p.ensure();
         await sleep(180);
+        const before = { ...p.point };
         p.point = {
           x: start.x + ((x - start.x) * step) / steps,
           z: start.z + ((z - start.z) * step) / steps,
         };
+        const attempted = { ...p.point };
+        p.lastMoveRejection = null;
         assert.equal(
           await p.transport.syncPosition(),
           true,
-          `Walk to ${id} accepted at ${p.point.x}, ${p.point.z}`,
+          `Walk to ${id} round ${p.round ?? 0}: ${JSON.stringify({ before, attempted, corrected: p.point, rejection: p.lastMoveRejection, pathNode: { x, z }, facility: p.profile.facility.unlocked })}`,
         );
       }
     }
@@ -206,55 +228,64 @@ async function actor(i, target) {
 
 async function work(p) {
   ok(await p.field('build', { id: 'rack-a' }));
-  const offer = p.profile.facility.career.offers.find(
-    (o) => contractFor(o).family === 'service',
-  );
-  assert.ok(offer);
-  const terms = contractFor(offer);
-  ok(await p.field('contract-accept', { id: offer.id }));
-  // Gather through proximity-checked interactions. No material is injected.
-  for (const item of new Set(['scrap', ...Object.keys(terms.cost)])) {
-    const node = OBJECTS.find(
-      (o) =>
-        o.kind === 'node' &&
-        o.item === item &&
-        p.profile.facility.unlocked.includes(o.zone),
+  for (let round = 0; round < rounds; round++) {
+    p.round = round + 1;
+    const completedBefore = p.profile.facility.career.completed.service;
+    const offer = p.profile.facility.career.offers.find(
+      (o) => contractFor(o).family === 'service',
     );
-    assert.ok(node, 'Starter materials must be accessible');
-    await p.walk(node.id);
-    ok(await p.field('gather', { id: node.id }));
-  }
-  await p.walk(terms.target);
-  ok(await p.field('contract-start', { id: offer.id }));
-  for (let step = 0; step < 3; step++) {
+    assert.ok(offer);
+    const terms = contractFor(offer);
+    ok(await p.field('contract-accept', { id: offer.id }));
+    // Gather through proximity-checked interactions. No material is injected.
+    for (const item of new Set(['scrap', ...Object.keys(terms.cost)])) {
+      const node = OBJECTS.find(
+        (o) =>
+          o.kind === 'node' &&
+          o.item === item &&
+          p.profile.facility.unlocked.includes(o.zone),
+      );
+      assert.ok(node, 'Starter materials must be accessible');
+      await p.walk(node.id);
+      ok(await p.field('gather', { id: node.id }));
+    }
+    await p.walk(terms.target);
+    ok(await p.field('contract-start', { id: offer.id }));
+    for (let step = 0; step < 3; step++) {
+      const run = p.profile.facility.career.active.find(
+        (r) => r.id === offer.id,
+      );
+      await sleep(Math.max(0, run.nextStepAt - Date.now()) + 150);
+      const direction =
+        step === 0
+          ? 'Inspect'
+          : step === 1
+            ? serviceChallenge(run).answer
+            : 'Test';
+      ok(await p.field('contract-service', { id: offer.id, direction }));
+      if (step === 0) await p.midRepair?.();
+    }
     const run = p.profile.facility.career.active.find((r) => r.id === offer.id);
-    await sleep(Math.max(0, run.nextStepAt - Date.now()) + 150);
-    const direction =
-      step === 0
-        ? 'Inspect'
-        : step === 1
-          ? serviceChallenge(run).answer
-          : 'Test';
-    ok(await p.field('contract-service', { id: offer.id, direction }));
-    if (step === 0) await p.midRepair?.();
+    const before = p.profile.credits;
+    const requestId = crypto.randomUUID();
+    ok(await p.field('contract-claim', { id: offer.id }, requestId));
+    ok(await p.field('contract-claim', { id: offer.id }, requestId));
+    await p.refresh();
+    assert.equal(
+      p.profile.credits,
+      before + run.reward,
+      'Retried claim awards once',
+    );
+    assert.equal(
+      p.profile.facility.career.completed.service,
+      completedBefore + 1,
+    );
+    assert.ok(
+      p.profile.facility.career.offers.some(
+        (o) => contractFor(o).family === 'service' && o.id !== offer.id,
+      ),
+    );
   }
-  const run = p.profile.facility.career.active.find((r) => r.id === offer.id);
-  const before = p.profile.credits;
-  const requestId = crypto.randomUUID();
-  ok(await p.field('contract-claim', { id: offer.id }, requestId));
-  ok(await p.field('contract-claim', { id: offer.id }, requestId));
-  await p.refresh();
-  assert.equal(
-    p.profile.credits,
-    before + run.reward,
-    'Retried claim awards once',
-  );
-  assert.equal(p.profile.facility.career.completed.service, 1);
-  assert.ok(
-    p.profile.facility.career.offers.some(
-      (o) => contractFor(o).family === 'service' && o.id !== offer.id,
-    ),
-  );
 }
 
 try {
@@ -335,7 +366,7 @@ try {
     failedWork.map((r) => r.reason?.message ?? String(r.reason)).join('; '),
   );
   pass(
-    'Three independent players earned repair rewards; replayed claims paid once and new jobs appeared',
+    `Three independent players completed ${rounds} repair round(s) each; replayed claims paid once and new jobs appeared`,
   );
   const [seller, buyer, rival] = actors;
   await buyer.scene('home-' + seller.profile.id);

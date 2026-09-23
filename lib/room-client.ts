@@ -14,6 +14,7 @@ type Frame = Record<string, unknown> & {
   position: Point;
   accepted: boolean;
   corrected: boolean;
+  reason?: string;
   requestId: string;
   checkpoint: { id: string; inputSequence: number };
   id: string;
@@ -255,7 +256,12 @@ export class RoomClient {
           return;
         this.lastMoveAckAt = this.now();
         this.point = { ...body.position };
-        if (!body.accepted || body.corrected)
+        // A cadence rejection leaves the player at a valid target. Keep the
+        // requested position while syncPosition waits and tries once more.
+        if (
+          (!body.accepted || body.corrected) &&
+          body.reason !== 'rate-limited'
+        )
           this.options.onCorrection(this.point);
         this.settle('move:' + body.inputSequence, body);
         return;
@@ -289,23 +295,30 @@ export class RoomClient {
     if (!this.connected || this.ended || this.now() >= this.deadline)
       throw interrupted();
     const task = async () => {
-      if (samePoint(this.options.readPosition(), this.point)) return true;
-      // Send cadence alone cannot prevent network jitter from bunching arrivals.
-      // Leave the server's 100ms minimum after receipt of the previous ack, too,
-      // with a small margin for timer precision across the two runtimes.
-      const delay =
-        Math.max(this.lastMoveAt + 160, this.lastMoveAckAt + 110) - this.now();
-      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-      if (this.ended || !this.connected) throw interrupted();
-      const target = { ...this.options.readPosition() };
-      if (samePoint(target, this.point)) return true;
-      this.lastMoveAt = this.now();
-      const seq = ++this.sequence;
-      const ack = await this.request('move', 'move:' + seq, {
-        inputSequence: seq,
-        ...target,
-      });
-      return ack.accepted === true && !ack.corrected;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (samePoint(this.options.readPosition(), this.point)) return true;
+        // Send cadence alone cannot prevent network jitter from bunching arrivals.
+        // Leave the server's 100ms minimum after receipt of the previous ack, too,
+        // with a small margin for timer precision across the two runtimes.
+        const delay =
+          Math.max(this.lastMoveAt + 160, this.lastMoveAckAt + 110) -
+          this.now();
+        if (delay > 0)
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        if (this.ended || !this.connected) throw interrupted();
+        const target = { ...this.options.readPosition() };
+        if (samePoint(target, this.point)) return true;
+        this.lastMoveAt = this.now();
+        const seq = ++this.sequence;
+        const ack = await this.request('move', 'move:' + seq, {
+          inputSequence: seq,
+          ...target,
+        });
+        if (ack.accepted === true && !ack.corrected) return true;
+        if (ack.reason !== 'rate-limited') return false;
+      }
+      this.options.onCorrection(this.point);
+      return false;
     };
     this.moveTask = task();
     try {
