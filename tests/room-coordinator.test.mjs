@@ -835,18 +835,20 @@ test(
     await nextTurn();
     await tick(4000);
     await tick(5000);
+    await tick(6000);
+    await tick(7000);
+    await tick(8000);
     assert.equal(
       refreshStarted,
-      base + 5000,
+      base + 8000,
       'Live renewal must start while the orphan release is still waiting',
     );
 
-    f.clock.now = base + 5800;
+    f.clock.now = base + 8200;
     orphanRelease.resolve({ released: true });
     await nextTurn();
-    await tick(6000);
-    await tick(7000);
-    f.clock.now = base + 7400;
+    await tick(9000);
+    f.clock.now = base + 9400;
     liveRefresh.resolve({
       ...initial,
       serverNow: refreshStarted,
@@ -855,16 +857,16 @@ test(
     });
     await nextTurn();
     assert.ok(
-      firstAuthorityAt !== undefined && firstAuthorityAt <= base + 7500,
+      firstAuthorityAt !== undefined && firstAuthorityAt <= base + 9500,
       'Publish refreshed authority before waiting for the movement checkpoint',
     );
-    await tick(8000);
-    await tick(9000);
-    f.clock.now = base + 9800;
+    await tick(10000);
+    await tick(11000);
+    f.clock.now = base + 11800;
     liveSave.resolve(savedCheckpoint(captured, actor.authority, saveStarted));
     await Promise.all(f.backgroundJobs);
 
-    assert.ok(firstAuthorityAt <= base + 7500);
+    assert.ok(firstAuthorityAt <= base + 9500);
     assert.ok(
       firstAuthorityAt < originalDeadline,
       'Renew the browser deadline before its existing authority expires',
@@ -922,7 +924,7 @@ test('idle room upkeep renews authority without a position write, then saves mov
     throw new Error('Unexpected upkeep operation');
   };
   for (let i = 0; i < 2; i++) {
-    f.clock.now += 5000;
+    f.clock.now += 8000;
     await f.room.alarm();
   }
   assert.deepEqual(calls, ['authority-refresh', 'authority-refresh']);
@@ -937,7 +939,7 @@ test('idle room upkeep renews authority without a position write, then saves mov
       z: 17,
     }),
   );
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.deepEqual(calls.slice(-2), [
     'authority-refresh',
@@ -945,7 +947,7 @@ test('idle room upkeep renews authority without a position write, then saves mov
   ]);
   assert.equal(actor.lastPersistedInputSequence, 1);
   assert.equal(actor.authority.membership.x, 1);
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.equal(calls.at(-1), 'authority-refresh');
   assert.equal(calls.filter((v) => v === 'movement-checkpoint').length, 1);
@@ -970,7 +972,7 @@ test('a transient authority timeout retries within the existing lease without cl
     },
   });
   const { ws, actor } = installActor(f, 'retry-grant');
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.equal(calls, 1);
   assert.equal(ws.readyState, WebSocketMock.OPEN);
@@ -1000,10 +1002,10 @@ test('authority timeouts cannot keep a room connected beyond its lease', async (
     },
   });
   const { ws } = installActor(f, 'expired-retry-grant');
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.equal(ws.readyState, WebSocketMock.OPEN);
-  f.clock.now += 5000;
+  f.clock.now += 2000;
   await f.room.alarm();
   assert.equal(ws.readyState, WebSocketMock.CLOSING);
   assert.ok(
@@ -1018,7 +1020,7 @@ test('revoked authority closes immediately instead of being retried', async () =
     fetch: async () => Response.json({ error: 'Revoked' }, { status: 409 }),
   });
   const { ws } = installActor(f, 'revoked-grant');
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.equal(ws.readyState, WebSocketMock.CLOSING);
   assert.equal(
@@ -1064,7 +1066,7 @@ test('movement arriving during a position save remains unsaved until the next up
       }),
     );
   await move(1, 1);
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   const inFlight = f.room.alarm();
   await nextTurn();
   assert.equal(saves.length, 1);
@@ -1073,7 +1075,7 @@ test('movement arriving during a position save remains unsaved until the next up
   await inFlight;
   assert.equal(actor.lastPersistedInputSequence, 1);
   assert.equal(actor.motion.inputSequence, 2);
-  f.clock.now += 5000;
+  f.clock.now += 8000;
   await f.room.alarm();
   assert.equal(saves.length, 2);
   assert.equal(saves[1].inputSequence, 2);
@@ -1134,7 +1136,13 @@ test(
       'Startup defers unrelated recovery until its initialization gate opens',
     );
     assert.equal(checkpointCount(f), 20);
-    assert.ok(f.alarms.length > 0, 'Continue orphan recovery in later alarms');
+    assert.equal(
+      f.alarms.length,
+      0,
+      'A constructor awakened by an existing alarm must not replace it',
+    );
+    await f.room.alarm();
+    assert.ok(f.alarms.length > 0, 'The alarm keeps orphan recovery scheduled');
   },
 );
 

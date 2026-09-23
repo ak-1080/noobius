@@ -210,13 +210,9 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           }
         }),
       );
-      // The same bounded recovery handles restart and ordinary disconnects.
-      // Run it in the alarm, after initialization has released the input gate.
-      if (
-        ctx.getWebSockets().length ||
-        (await ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })).size
-      )
-        await ctx.storage.setAlarm(Date.now() + 1);
+      // The alarm that woke a hibernated room is already due. Replacing it
+      // here can cancel the upkeep that renews every player's short lease.
+      // Initial admission and each alarm schedule the following upkeep.
     });
   }
   private async service<T = Record<string, unknown>>(
@@ -233,7 +229,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         method: 'POST',
         body: raw,
         redirect: 'manual',
-        signal: AbortSignal.timeout(2500),
+        signal: AbortSignal.timeout(4000),
         headers,
       });
     } catch (error) {
@@ -667,7 +663,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             await this.flush(ws);
             return;
           }
-          if (Date.now() - a.lastUpkeepAt < 4500) return;
+          if (Date.now() - a.lastUpkeepAt < 8000) return;
           if (nowFor(a) < a.authority.frozenUntil) return;
           let authority: RoomAuthority;
           try {

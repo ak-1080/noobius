@@ -3,7 +3,9 @@
 export const ROOM_SERVICE_PATH = '/api/noobius-room';
 export const ROOM_TICKET_MS = 30_000;
 export const ROOM_GRANT_MS = 300_000;
-export const ROOM_AUTH_LEASE_MS = 10_000;
+// Leave room for bounded service retries when several players renew together.
+// The server still checks every work action and rejects an expired writer.
+export const ROOM_AUTH_LEASE_MS = 20_000;
 export const ROOM_NONCE_MS = 120_000;
 export const ROOM_BODY_LIMIT = 4096;
 const ROOM_BODY_READ_MS = 5000;

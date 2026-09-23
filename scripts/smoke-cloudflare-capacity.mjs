@@ -504,7 +504,9 @@ try {
     for (const a of actors)
       assert.ok(
         !a.incompleteSince || Date.now() - a.incompleteSince < 5000,
-        'Scene peers must recover within five seconds',
+        `Scene peers must recover within five seconds: actor ${a.index}, ` +
+          `missing for ${a.incompleteSince ? Date.now() - a.incompleteSince : 0} ms, ` +
+          `expected ${JSON.stringify(a.expected)}, received ${JSON.stringify(a.peers)}`,
       );
     if (second % 10 === 0)
       await Promise.all(
