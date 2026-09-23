@@ -310,6 +310,31 @@ test('concurrent ticket consumers create at most one usable grant; nonces execut
   );
 });
 
+test('room replay claims stay strict while expired rows are pruned less often', async (t) => {
+  const f = await fixture(t);
+  const { grant } = await f.connect();
+  f.db.sqlite
+    .prepare('INSERT INTO room_service_nonces(key_id,nonce,expires_at) VALUES(?,?,?)')
+    .run(config.activeKey, 'aa'.repeat(16), now - 1);
+  const body = { operation: 'authority-refresh', grant };
+  const ordinary = await request(body, config, now, { nonce: 'ff'.repeat(16) });
+  await handleRoomService(f.db, ordinary.clone(), config, undefined, () => now);
+  await assert.rejects(
+    handleRoomService(f.db, ordinary.clone(), config, undefined, () => now),
+    status(409),
+  );
+  assert.equal(
+    f.db.sqlite.prepare('SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?').get(now).n,
+    1,
+  );
+  const pruning = await request(body, config, now, { nonce: '00'.repeat(16) });
+  await handleRoomService(f.db, pruning, config, undefined, () => now);
+  assert.equal(
+    f.db.sqlite.prepare('SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?').get(now).n,
+    0,
+  );
+});
+
 test('reissuing replaces only usable tickets; a stale issuer cannot delete a takeover ticket', async (t) => {
   const f = await fixture(t),
     p = f.crew[0];

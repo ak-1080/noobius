@@ -613,17 +613,25 @@ export async function handleRoomService(
 ) {
   const signed = await verifyRoomServiceRequest(request, config, clock);
   const now = clock();
-  const claimed = await db.batch([
-    db.prepare('DELETE FROM room_service_nonces WHERE expires_at<=?').bind(now),
-    db
-      .prepare(
-        'INSERT INTO room_service_nonces(key_id,nonce,expires_at) VALUES(?,?,?) ON CONFLICT(key_id,nonce) DO NOTHING RETURNING nonce',
-      )
-      .bind(signed.keyId, signed.nonce, now + ROOM_NONCE_MS),
-    db.prepare('DELETE FROM room_grants WHERE expires_at<=?').bind(now),
-    db.prepare('DELETE FROM room_checkpoints WHERE expires_at<=?').bind(now),
-  ]);
-  if (!claimed[1].results?.length)
+  // Every request still claims its nonce. Sample cleanup using the signed random
+  // nonce so busy rooms do not issue three expiry scans per action. Expired
+  // grants and checkpoints remain unusable even between cleanup passes.
+  const prune = Number.parseInt(signed.nonce.slice(0, 2), 16) < 4;
+  const claim = db
+    .prepare(
+      'INSERT INTO room_service_nonces(key_id,nonce,expires_at) VALUES(?,?,?) ON CONFLICT(key_id,nonce) DO NOTHING RETURNING nonce',
+    )
+    .bind(signed.keyId, signed.nonce, now + ROOM_NONCE_MS);
+  const statements = prune
+    ? [
+        db.prepare('DELETE FROM room_service_nonces WHERE expires_at<=?').bind(now),
+        claim,
+        db.prepare('DELETE FROM room_grants WHERE expires_at<=?').bind(now),
+        db.prepare('DELETE FROM room_checkpoints WHERE expires_at<=?').bind(now),
+      ]
+    : [claim];
+  const claimed = await db.batch(statements);
+  if (!claimed[prune ? 1 : 0].results?.length)
     throw new RoomAuthError(
       409,
       'Service request already used. Retry with a new request nonce.',
