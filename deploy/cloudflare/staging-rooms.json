@@ -1,0 +1,34 @@
+{
+  "name": "noobius-rooms-staging",
+  "account_id": "818bac5a5a12b327928ded9344c453bb",
+  "main": "../../services/room-coordinator/worker.ts",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOMS",
+        "class_name": "NeighborhoodRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "rooms-v1",
+      "new_sqlite_classes": ["NeighborhoodRoom"]
+    }
+  ],
+  "services": [
+    {
+      "binding": "GAME",
+      "service": "noobius-game-staging"
+    }
+  ],
+  "vars": {
+    "NOOBIUS_ROOM_AUTH_ENABLED": "true"
+  }
+}

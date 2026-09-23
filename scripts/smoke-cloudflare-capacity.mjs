@@ -1,25 +1,43 @@
-// Bounded production capacity probe: up to fifty generated, unfunded Solana accounts.
-// Uses public admission and real RoomClient transport; no fixture SQL, tokens or
-// user profiles. Respects normal authentication throttles, then leaves/logs out.
+// Bounded hosted capacity probe using generated, unfunded Solana accounts.
+// Production is capped at fifty clients; isolated staging can test above that.
+// Uses public admission and real RoomClient transport; no fixture SQL or tokens.
+// Respects normal authentication throttles, then leaves/logs out.
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { base58 } from '@scure/base';
 import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
+const destinations = {
+  'https://play.noobius.io': {
+    rooms: 'https://rooms.noobius.io',
+    maxRooms: 10,
+    report: '/tmp/noobius-hosted-capacity-results.json',
+  },
+  'https://noobius-game-staging.rinkydooonso.workers.dev': {
+    rooms: 'https://noobius-rooms-staging.rinkydooonso.workers.dev',
+    maxRooms: 20,
+    report: '/tmp/noobius-hosted-capacity-staging-results.json',
+  },
+};
+const destination = destinations[origin];
+if (!destination)
+  throw Error('Explicit, recognized hosted test origin required');
 const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
 const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
 const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'full-speed';
 assert.ok(['small-steps', 'full-speed'].includes(motionMode));
-assert.ok(Number.isInteger(roomCount) && roomCount >= 1 && roomCount <= 10);
+assert.ok(
+  Number.isInteger(roomCount) &&
+    roomCount >= 1 &&
+    roomCount <= destination.maxRooms,
+);
 assert.ok(
   Number.isInteger(durationSeconds) &&
     durationSeconds >= 30 &&
     durationSeconds <= 360,
 );
 const correctionReasons = {};
-if (origin !== 'https://play.noobius.io')
-  throw Error('Explicit production test origin required');
 const { Client } = await import('../tests/api-client.mjs');
 const actors = [],
   tasks = new Set(),
@@ -111,7 +129,7 @@ async function connect(a) {
   a.membership = state.membership;
   a.point = { x: a.membership.x, z: a.membership.z };
   const ticket = ok(await request(a, 'room-ticket', a.c.body(a.controller)));
-  assert.equal(ticket.coordinatorOrigin, 'https://rooms.noobius.io');
+  assert.equal(ticket.coordinatorOrigin, destination.rooms);
   const transport = new RoomClient({
     ...ticket,
     membership: a.membership,
@@ -182,7 +200,10 @@ async function connect(a) {
         );
     },
     createSocket: (url) => {
-      assert.equal(new URL(url).origin, 'wss://rooms.noobius.io');
+      assert.equal(
+        new URL(url).origin,
+        destination.rooms.replace(/^https:/, 'wss:'),
+      );
       const socket = new WebSocket(url, { origin });
       a.socket = socket;
       const send = socket.send.bind(socket);
@@ -566,10 +587,7 @@ try {
   if (report) {
     report.cleanupErrors = cleanup;
     if (cleanup.length) report.status = 'failed';
-    writeFileSync(
-      '/tmp/noobius-hosted-capacity-results.json',
-      JSON.stringify(report, null, 2),
-    );
+    writeFileSync(destination.report, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
   }
   assert.equal(

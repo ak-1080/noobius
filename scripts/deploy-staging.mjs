@@ -9,14 +9,26 @@ const target = JSON.parse(
 const recovery = JSON.parse(
   readFileSync('deploy/cloudflare/staging-payments.json', 'utf8'),
 );
+const rooms = JSON.parse(
+  readFileSync('deploy/cloudflare/staging-rooms.json', 'utf8'),
+);
 if (
   target.name !== 'noobius-game-staging' ||
   target.d1_databases?.[0]?.database_id !==
     'c996298e-b0ee-4edb-9684-33e44c22d5d8' ||
   target.vars?.NOOBIUS_SOLANA_NETWORK !== 'devnet' ||
-  target.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false'
+  target.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false' ||
+  target.vars?.NOOBIUS_ROOM_AUTH_ENABLED !== 'true' ||
+  Number(target.vars?.NOOBIUS_MAX_PLAYERS) > 100
 )
   throw Error('Unexpected staging deployment destination or token settings.');
+if (
+  rooms.name !== 'noobius-rooms-staging' ||
+  rooms.services?.[0]?.service !== target.name ||
+  rooms.workers_dev !== true ||
+  rooms.vars?.NOOBIUS_ROOM_AUTH_ENABLED !== 'true'
+)
+  throw Error('Unexpected staging room destination or game binding.');
 if (
   recovery.name !== 'noobius-payment-recovery-staging' ||
   recovery.d1_databases?.[0]?.database_id !==
@@ -55,6 +67,11 @@ run('./node_modules/.bin/wrangler', [
   'deploy',
   '--config',
   'dist/server/wrangler.json',
+]);
+run('./node_modules/.bin/wrangler', [
+  'deploy',
+  '--config',
+  'deploy/cloudflare/staging-rooms.json',
 ]);
 run('./node_modules/.bin/wrangler', [
   'deploy',

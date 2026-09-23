@@ -17,9 +17,9 @@
     }
   ],
   "vars": {
-    "NOOBIUS_MAX_PLAYERS": "5",
+    "NOOBIUS_MAX_PLAYERS": "100",
     "NOOBIUS_ADMISSION_PAUSED": "false",
-    "NOOBIUS_ROOM_AUTH_ENABLED": "false",
+    "NOOBIUS_ROOM_AUTH_ENABLED": "true",
     "NOOBIUS_LOCAL_REALM_TEST": "false",
     "NOOBIUS_TOKEN_ECOSYSTEM": "solana",
     "NOOBIUS_SOLANA_NETWORK": "devnet",
