@@ -36,23 +36,70 @@ export type PaymentObservation =
 export class ComputePaymentRpc {
   readonly policy: SolanaHoldingPolicy;
   private readonly fetcher: typeof fetch;
-  constructor(policy: SolanaHoldingPolicy, fetcher: typeof fetch = fetch) {
-    const url = new URL(policy.rpcUrl);
+  private readonly fallbackUrl?: string;
+  constructor(
+    policy: SolanaHoldingPolicy,
+    fetcher: typeof fetch = fetch,
+    fallbackUrl?: string,
+  ) {
+    let url: URL;
+    try {
+      url = new URL(policy.rpcUrl);
+    } catch {
+      throw Error('Payment RPC must use HTTPS.');
+    }
     if (url.protocol !== 'https:' || url.username || url.password)
       throw Error('Payment RPC must use HTTPS.');
+    if (fallbackUrl) {
+      let fallback: URL;
+      try {
+        fallback = new URL(fallbackUrl);
+      } catch {
+        throw Error('Fallback payment RPC must be a separate HTTPS endpoint.');
+      }
+      if (
+        fallback.protocol !== 'https:' ||
+        fallback.username ||
+        fallback.password ||
+        fallback.href === url.href
+      )
+        throw Error('Fallback payment RPC must be a separate HTTPS endpoint.');
+      this.fallbackUrl = fallback.href;
+    }
     this.policy = policy;
     this.fetcher = fetcher;
   }
   private async call(method: string, params: unknown[] = []): Promise<unknown> {
     try {
-      return await this.request(method, params);
+      return await this.request(this.policy.rpcUrl, method, params);
+    } catch {
+      if (!this.fallbackUrl)
+        throw Error('Payment network is temporarily unavailable.');
+      return this.fallbackCall(method, params);
+    }
+  }
+  private async fallbackCall(method: string, params: unknown[]): Promise<unknown> {
+    try {
+      // A second URL is not evidence that it points to the same chain. Check
+      // its genesis before trusting it for a quote, broadcast or recovery.
+      if (
+        method !== 'getGenesisHash' &&
+        (await this.request(this.fallbackUrl!, 'getGenesisHash', [])) !==
+          SOLANA_GENESIS[this.policy.network]
+      )
+        throw Error('Fallback payment RPC network mismatch.');
+      return await this.request(this.fallbackUrl!, method, params);
     } catch {
       throw Error('Payment network is temporarily unavailable.');
     }
   }
-  private async request(method: string, params: unknown[]): Promise<unknown> {
+  private async request(
+    endpoint: string,
+    method: string,
+    params: unknown[],
+  ): Promise<unknown> {
     const id = crypto.randomUUID();
-    const response = await this.fetcher(this.policy.rpcUrl, {
+    const response = await this.fetcher(endpoint, {
       method: 'POST',
       redirect: 'error',
       headers: { 'Content-Type': 'application/json' },
@@ -165,14 +212,33 @@ export class ComputePaymentRpc {
         'Payment configuration changed; retain the original network configuration for recovery.',
       );
     await this.verifyNetwork();
-    const transaction = await this.call('getTransaction', [
+    const transactionParams = [
       signature,
       {
         encoding: 'base64',
         commitment: 'finalized',
         maxSupportedTransactionVersion: 0,
       },
-    ]);
+    ];
+    let transaction: unknown;
+    let primaryHistoryAvailable = true;
+    try {
+      transaction = await this.request(
+        this.policy.rpcUrl,
+        'getTransaction',
+        transactionParams,
+      );
+    } catch {
+      primaryHistoryAvailable = false;
+      if (!this.fallbackUrl)
+        throw Error('Payment network is temporarily unavailable.');
+      transaction = await this.fallbackCall('getTransaction', transactionParams);
+    }
+    // A healthy primary may still have incomplete or pruned transaction
+    // history. Ask the separate history provider before leaving a paid trade
+    // reserved. A second null still cannot prove non-execution.
+    if (primaryHistoryAvailable && transaction === null && this.fallbackUrl)
+      transaction = await this.fallbackCall('getTransaction', transactionParams);
     if (transaction !== null) {
       const verified = await verifyPaymentIdentity(
         quote,

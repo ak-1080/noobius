@@ -1,11 +1,13 @@
 // Read-only launch check for the exact Solana mint intended for Compute trades.
 // Set NOOBIUS_TOKEN_MINT, NOOBIUS_SOLANA_NETWORK, and NOOBIUS_TOKEN_RPC_URL.
+// An optional NOOBIUS_TOKEN_RPC_FALLBACK_URL is checked against the same mint.
 import { SOLANA_GENESIS, solanaHoldingPolicy, validSolanaAddress } from '../lib/solana-holdings.ts';
 import { ComputePaymentRpc } from '../lib/compute-payment-rpc.ts';
 
 const mint = process.env.NOOBIUS_TOKEN_MINT;
 const network = process.env.NOOBIUS_SOLANA_NETWORK;
 const rpcUrl = process.env.NOOBIUS_TOKEN_RPC_URL;
+const fallbackUrl = process.env.NOOBIUS_TOKEN_RPC_FALLBACK_URL;
 if (!validSolanaAddress(mint ?? '') || !Object.hasOwn(SOLANA_GENESIS, network ?? ''))
   throw Error('Set a valid NOOBIUS_TOKEN_MINT and NOOBIUS_SOLANA_NETWORK (devnet or mainnet-beta).');
 let parsedUrl;
@@ -63,6 +65,12 @@ if (!policy)
   throw Error('Mint program or precision is not supported by Noobius.');
 // Reuse the checkout's real extension and finalized-blockhash validation.
 await new ComputePaymentRpc(policy).quoteLifetime();
+if (fallbackUrl) {
+  // Force the secondary endpoint through the full genesis/mint/blockhash check
+  // even when the primary is healthy. No signed transaction is sent.
+  await new ComputePaymentRpc({ ...policy, rpcUrl: fallbackUrl }).quoteLifetime();
+  new ComputePaymentRpc(policy, fetch, fallbackUrl);
+}
 console.log(JSON.stringify({
   ok: true,
   network,
@@ -71,5 +79,6 @@ console.log(JSON.stringify({
   decimals,
   extensions: info.extensions ?? [],
   finalizedSlot: result.context.slot,
+  fallbackChecked: Boolean(fallbackUrl),
   result: 'Mint accepted by the current Noobius checkout rules; no trade has been made.',
 }, null, 2));

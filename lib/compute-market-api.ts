@@ -64,7 +64,16 @@ export async function paymentConfiguration(
       'Payment authorization is unavailable. Your reservation is saved.',
     );
   }
-  return { policy, rpc: new ComputePaymentRpc(policy), keyPair, address };
+  return {
+    policy,
+    rpc: new ComputePaymentRpc(
+      policy,
+      fetch,
+      tokenSetting(values.NOOBIUS_TOKEN_RPC_FALLBACK_URL) || undefined,
+    ),
+    keyPair,
+    address,
+  };
 }
 async function receipt(db: D1Database, p: ComputePayment) {
   const listing = await getComputeListing(db, p.listing_id);

@@ -216,6 +216,142 @@ void test('RPC checks network and SPL mint before issuing a lifetime; wrong netw
   f.state.program = 'other';
   await assert.rejects(f.rpc.quoteLifetime(), /Unsupported/);
 });
+void test('a separately verified RPC can quote and broadcast the same durable payment after a primary outage', async () => {
+  const f = await fixture();
+  const requests = [];
+  const rpc = new ComputePaymentRpc(
+    f.policy,
+    async (url, init) => {
+      requests.push({ url, method: JSON.parse(init.body).method });
+      if (url === f.policy.rpcUrl) throw Error('Primary offline');
+      return f.fetcher(url, init);
+    },
+    'https://history.example/private?key=backup-secret',
+  );
+  assert.equal((await rpc.quoteLifetime()).contextSlot, 50);
+  await f.record();
+  await reconcileComputePayment(
+    f.db,
+    f.quote.quoteId,
+    rpc,
+    f.signer.keyPair,
+  );
+  const saved = await getComputePayment(f.db, f.quote.quoteId);
+  assert.equal(saved.status, 'submitted');
+  assert.deepEqual(f.state.sent, [saved.authorized_transaction]);
+  assert.ok(
+    requests.some(
+      ({ url, method }) =>
+        url.startsWith('https://history.example/') &&
+        method === 'getGenesisHash',
+    ),
+  );
+  assert.ok(
+    requests.some(
+      ({ url, method }) =>
+        url.startsWith('https://history.example/') &&
+        method === 'sendTransaction',
+    ),
+  );
+});
+void test('separate transaction history resolves a finalized payment that the primary cannot see', async () => {
+  const f = await fixture();
+  await f.record();
+  await reconcileComputePayment(
+    f.db,
+    f.quote.quoteId,
+    f.rpc,
+    f.signer.keyPair,
+  );
+  const saved = await getComputePayment(f.db, f.quote.quoteId);
+  f.state.tx = {
+    slot: 110,
+    meta: { err: null },
+    transaction: [saved.authorized_transaction, 'base64'],
+  };
+  const rpc = new ComputePaymentRpc(
+    f.policy,
+    async (url, init) => {
+      const { id, method } = JSON.parse(init.body);
+      if (url === f.policy.rpcUrl && method === 'getTransaction')
+        return Response.json({ jsonrpc: '2.0', id, result: null });
+      return f.fetcher(url, init);
+    },
+    'https://history.example',
+  );
+  await reconcileComputePayment(f.db, f.quote.quoteId, rpc);
+  assert.equal(
+    (await getComputePayment(f.db, f.quote.quoteId)).status,
+    'settled',
+  );
+  assert.equal(
+    f.db.sqlite
+      .prepare('SELECT credits FROM players WHERE wallet=?')
+      .get('solana:' + f.buyer.address).credits,
+    1250,
+  );
+});
+void test('wrong-chain or unavailable fallback never releases a broadcastable reservation', async () => {
+  const f = await fixture();
+  await f.record();
+  await reconcileComputePayment(
+    f.db,
+    f.quote.quoteId,
+    f.rpc,
+    f.signer.keyPair,
+  );
+  const rpc = new ComputePaymentRpc(
+    f.policy,
+    async (url, init) => {
+      const { id, method } = JSON.parse(init.body);
+      if (url !== f.policy.rpcUrl && method === 'getGenesisHash')
+        return Response.json({ jsonrpc: '2.0', id, result: 'wrong-chain' });
+      return f.fetcher(url, init);
+    },
+    'https://history.example/private?key=backup-secret',
+  );
+  await assert.rejects(
+    reconcileComputePayment(f.db, f.quote.quoteId, rpc),
+    (error) =>
+      error.message === 'Payment network is temporarily unavailable.',
+  );
+  assert.equal(
+    (await getComputePayment(f.db, f.quote.quoteId)).status,
+    'submitted',
+  );
+  assert.equal((await getComputeListing(f.db, f.id)).status, 'reserved');
+});
+void test('two missing history results remain ambiguous and RPC fallback configuration stays private', async () => {
+  const f = await fixture();
+  await f.record();
+  await reconcileComputePayment(
+    f.db,
+    f.quote.quoteId,
+    f.rpc,
+    f.signer.keyPair,
+  );
+  const rpc = new ComputePaymentRpc(
+    f.policy,
+    f.fetcher,
+    'https://history.example/private?key=backup-secret',
+  );
+  await reconcileComputePayment(f.db, f.quote.quoteId, rpc);
+  assert.equal(
+    (await getComputePayment(f.db, f.quote.quoteId)).status,
+    'submitted',
+  );
+  assert.equal((await getComputeListing(f.db, f.id)).status, 'reserved');
+  for (const fallback of [
+    'http://history.example',
+    'https://user:secret@history.example',
+    f.policy.rpcUrl,
+    'not a URL with secret',
+  ])
+    assert.throws(
+      () => new ComputePaymentRpc(f.policy, f.fetcher, fallback),
+      (error) => !error.message.includes('secret'),
+    );
+});
 void test('Token-2022 quotes allow metadata but reject fees and other behavior-changing extensions', async () => {
   const f = await fixture();
   f.policy.tokenProgram = TOKEN_2022_PROGRAM;
