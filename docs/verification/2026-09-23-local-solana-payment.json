@@ -1,0 +1,14 @@
+{
+  "testedAt": "2026-09-23T02:58:05.859Z",
+  "network": "local-surfnet",
+  "mint": "8uhnWPWTadPn8ZPbrwqVYirjyUEnFd39UCs4gVRwfPBn",
+  "signature": "5qZHA8XPMEW2Ku9QUXJBdjptcGgqEoComgT3xFEF94RSx6nKbxnDs4fBCp63FeW7BogCXmJsHee1hKe7ypzkRvyG",
+  "computeDelivered": 250,
+  "tokenTransferred": "1",
+  "buyerTokenBalance": "99000000",
+  "sellerTokenBalance": "1000000",
+  "duplicateDeliveryPrevented": true,
+  "ledger": "local SQLite using production modules",
+  "wallet": "generated test keys; not a browser extension",
+  "networkCheck": "local devnet fork with test adapter for RPC URL and minContextSlot"
+}
