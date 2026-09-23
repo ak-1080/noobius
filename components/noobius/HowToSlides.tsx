@@ -7,7 +7,7 @@ const slides = [
     image: '/assets/noobius.jpeg',
     alt: 'Noobius ready for his first shift',
     title: 'Find your way around.',
-    text: 'Click the floor to move. Scroll to zoom. “Your next move” shows a glowing path; click the object when you arrive to do the work.',
+    text: 'Tap or click the floor to move. Use the + and − buttons to zoom, or your mouse wheel on desktop. “Your next move” shows a glowing path; tap the object when you arrive to do the work.',
   },
   {
     image: '/assets/tutorial/tutorial-server.png',

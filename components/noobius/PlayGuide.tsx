@@ -102,7 +102,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'controls',
     title: 'Getting around',
-    text: 'Tap the floor to walk. Tap a machine to open it. “Your next move” leads you to your next goal. Scroll to zoom in or out.',
+    text: 'Tap the floor to walk and tap a machine to open it. “Your next move” leads you to your next goal. Use the + and − buttons to zoom; on desktop, you can also scroll.',
     image: '/assets/tutorial/tutorial-toolbox.png',
     alt: 'Tools for your next game action',
     tip: 'Keyboard: WASD or arrows to move · E to use · R to turn the view · M for rooms · Esc for the menu.',
@@ -165,7 +165,7 @@ export function QuickGuide({
       >
         Open the picture guide <ArrowRight size={17} />
       </a>
-      <p className="muted-small">Tap to move · Scroll to zoom · E to use</p>
+      <p className="muted-small">Tap to move · + / − to zoom · E on desktop</p>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export function arrivalGuidance(
     detail:
       seconds > 0
         ? `${name} refills in ${seconds}s. Wait here or choose another job.`
-        : `Click ${name} or press E to interact.`,
+        : `Tap or click ${name} to interact. On desktop, press E.`,
     cta: 'Back to my goal',
   };
 }

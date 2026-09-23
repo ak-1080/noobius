@@ -135,7 +135,7 @@ export default function Campus(props: Props) {
     canvas.tabIndex = 0;
     canvas.setAttribute(
       'aria-label',
-      'Noobius compute campus. Click to walk, click a character or station to interact. WASD to move, E to interact, mouse wheel to zoom, R to rotate. Click work labels to open their jobs.',
+      'Noobius compute campus. Tap or click to walk and interact with a character, station, or work label. Use the zoom buttons or a mouse wheel to zoom. On desktop, WASD moves, E interacts, and R rotates the view.',
     );
     const scene = new T.Scene();
     const realmBackdrop = live.current.sharedCampus

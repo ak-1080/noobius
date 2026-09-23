@@ -385,7 +385,7 @@ test('storage and waiting directions carry presentation context without executab
   const refilling = arrivalGuidance(waiting, 'Spare parts', 12000, 5000);
   assert.match(refilling.detail, /refills in 7s/);
   const ready = arrivalGuidance(waiting, 'Spare parts', 12000, 12000);
-  assert.match(ready.detail, /Click Spare parts or press E/);
+  assert.match(ready.detail, /Tap or click Spare parts to interact/);
   assert.equal(ready.action, undefined);
   assert.equal(ready.cta, 'Back to my goal');
 });
