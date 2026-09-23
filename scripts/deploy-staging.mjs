@@ -1,6 +1,7 @@
 // Isolated devnet staging: never point this script at production D1.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { assertPaymentDrain } from './check-payment-drain.mjs';
 
 const target = JSON.parse(
   readFileSync('deploy/cloudflare/staging-game.json', 'utf8'),
@@ -49,6 +50,7 @@ run('./node_modules/.bin/wrangler', [
   '--config',
   'deploy/cloudflare/staging-game.json',
 ]);
+assertPaymentDrain('deploy/cloudflare/staging-game.json', 'Staging');
 run('./node_modules/.bin/wrangler', [
   'deploy',
   '--config',

@@ -1,6 +1,7 @@
 // Deploy only the owner-account game. The coming-soon Worker is a separate project.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { assertPaymentDrain } from './check-payment-drain.mjs';
 const run = (command, args, env = {}) => {
   const result = spawnSync(command, args, {
     stdio: 'inherit',
@@ -32,6 +33,8 @@ run('./node_modules/.bin/wrangler', [
   '--config',
   'deploy/cloudflare/game.json',
 ]);
+if (built.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'true')
+  assertPaymentDrain('deploy/cloudflare/game.json', 'Production');
 run('./node_modules/.bin/wrangler', [
   'deploy',
   '--config',
