@@ -6,7 +6,42 @@ export async function checkPublicHealth(fetcher = fetch) {
       name: 'game-entry',
       url: 'https://play.noobius.io/',
       status: 200,
-      validate: async (r) => /<title[^>]*>Noobius/i.test(await r.text()),
+      validate: async (r) => {
+        const html = await r.text();
+        if (!/<title[^>]*>Noobius/i.test(html)) return false;
+        const assets = [
+          {
+            path: html.match(
+              /href="(\/_next\/static\/chunks\/Game-[A-Za-z0-9_-]+\.js)"/,
+            )?.[1],
+            contentType: /javascript/i,
+          },
+          {
+            path: html.match(
+              /href="(\/_next\/static\/css\/[A-Za-z0-9_.-]+\.css)"/,
+            )?.[1],
+            contentType: /^text\/css/i,
+          },
+        ];
+        if (assets.some((asset) => !asset.path)) return false;
+        const responses = await Promise.all(
+          assets.map((asset) =>
+            fetcher('https://play.noobius.io' + asset.path, {
+              method: 'HEAD',
+              signal: AbortSignal.timeout(12000),
+              redirect: 'error',
+              headers: { 'User-Agent': 'Noobius public health check' },
+            }),
+          ),
+        );
+        return responses.every(
+          (response, index) =>
+            response.status === 200 &&
+            assets[index].contentType.test(
+              response.headers.get('content-type') ?? '',
+            ),
+        );
+      },
     },
     {
       name: 'coming-soon',
