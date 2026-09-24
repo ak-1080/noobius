@@ -330,11 +330,15 @@ async function connect(a, fastRenew = false) {
           }
         }
       });
-      socket.on('close', (code) => {
+      socket.on('close', (code, reason) => {
         if (!stopped && !a.transitioning)
           console.log(
             'Socket closed',
-            JSON.stringify({ actor: a.index, code }),
+            JSON.stringify({
+              actor: a.index,
+              code,
+              reason: reason?.toString('utf8').slice(0, 96) ?? '',
+            }),
           );
       });
       return socket;

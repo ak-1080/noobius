@@ -1,0 +1,16 @@
+{
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "beganAt": "2026-09-24T16:23:18.690Z",
+  "checks": [],
+  "actors": 3,
+  "repairRoundsPerActor": 5,
+  "roomInterruption": "none",
+  "ok": false,
+  "failure": "Your room connection is recovering. Please retry when you are back.; Your room connection is recovering. Please retry when you are back.; Your room connection is recovering. Please retry when you are back.\n\n3 !== 0\n",
+  "cleanupFailures": [
+    "neighborhood-leave",
+    "logout"
+  ],
+  "elapsedMs": 203585,
+  "completedAt": "2026-09-24T16:26:42.275Z"
+}
