@@ -163,7 +163,7 @@ export class ComputePaymentRpc {
     let latest: ReturnType<typeof contextual> | undefined;
     for (let attempt = 0; attempt < 5; attempt++) {
       const candidate = contextual(await this.call('getLatestBlockhash', [
-        { commitment: 'finalized' },
+        { commitment: 'confirmed' },
       ]));
       if (candidate.slot >= mint.slot) {
         latest = candidate;
@@ -197,7 +197,7 @@ export class ComputePaymentRpc {
       {
         encoding: 'base64',
         skipPreflight: false,
-        preflightCommitment: 'finalized',
+        preflightCommitment: 'confirmed',
         maxRetries: 2,
         minContextSlot: contextSlot,
       },
@@ -263,24 +263,25 @@ export class ComputePaymentRpc {
     // signature has never been persisted or exposed. Only that state can be
     // released after the finalized blockhash lifetime has ended.
     if (!neverAuthorized) return { status: 'pending' };
-    const slot = await this.call('getSlot', [
-      { commitment: 'finalized', minContextSlot: quote.contextSlot },
-    ]);
-    if (!safeInteger(slot) || slot < quote.contextSlot)
-      throw Error('Stale finalized payment slot.');
+    const slot = await this.call('getSlot', [{ commitment: 'finalized' }]);
+    // A provider pool can route consecutive requests to nodes a slot apart.
+    // A lagging node cannot prove expiry; continue the immutable checkout.
+    if (!safeInteger(slot)) throw Error('Invalid finalized payment slot.');
+    if (slot < quote.contextSlot) return { status: 'pending' };
     const height = await this.call('getBlockHeight', [
-      { commitment: 'finalized', minContextSlot: slot },
+      { commitment: 'finalized' },
     ]);
     if (!safeInteger(height)) throw Error('Invalid finalized payment height.');
     if (height <= quote.lastValidBlockHeight) return { status: 'pending' };
     const valid = contextual(
       await this.call('isBlockhashValid', [
         quote.recentBlockhash,
-        { commitment: 'finalized', minContextSlot: slot },
+        { commitment: 'finalized' },
       ]),
-      slot,
+      0,
     );
-    if (valid.value !== false) return { status: 'pending' };
+    if (valid.slot < slot || valid.value !== false)
+      return { status: 'pending' };
     return { status: 'expired', signature, slot: valid.slot };
   }
 }

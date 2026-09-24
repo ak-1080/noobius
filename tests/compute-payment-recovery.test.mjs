@@ -211,11 +211,23 @@ async function fixture() {
 void test('RPC checks network and SPL mint before issuing a lifetime; wrong network or program fails closed', async () => {
   const f = await fixture();
   assert.equal((await f.rpc.quoteLifetime()).contextSlot, 50);
+  assert.ok(f.calls.some(({ method, params }) =>
+    method === 'getLatestBlockhash' && params[0].commitment === 'confirmed'));
   f.state.wrongNetwork = true;
   await assert.rejects(f.rpc.quoteLifetime(), /network mismatch/);
   f.state.wrongNetwork = false;
   f.state.program = 'other';
   await assert.rejects(f.rpc.quoteLifetime(), /Unsupported/);
+});
+void test('a lagging finalized RPC node does not prevent co-signing a live buyer approval', async () => {
+  const f = await fixture();
+  await f.record();
+  f.state.slot = 49;
+  await reconcileComputePayment(f.db, f.quote.quoteId, f.rpc, f.signer.keyPair);
+  assert.equal((await getComputePayment(f.db, f.quote.quoteId)).status, 'submitted');
+  assert.equal(f.state.sent.length, 1);
+  assert.ok(f.calls.some(({ method, params }) =>
+    method === 'sendTransaction' && params[1].preflightCommitment === 'confirmed'));
 });
 void test('a separately verified RPC can quote and broadcast the same durable payment after a primary outage', async () => {
   const f = await fixture();

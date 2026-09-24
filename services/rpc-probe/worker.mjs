@@ -48,7 +48,7 @@ const probeWorker = {
     if (!checks.mint.ok)
       return Response.json({ ok: false, checks });
     for (const [name, method, params, validate] of [
-      ['blockhash', 'getLatestBlockhash', [{ commitment: 'finalized' }],
+      ['blockhash', 'getLatestBlockhash', [{ commitment: 'confirmed' }],
         (v) => typeof v?.value?.blockhash === 'string' &&
           Number.isSafeInteger(v?.context?.slot) &&
           v.context.slot >= mint.result.context.slot],
