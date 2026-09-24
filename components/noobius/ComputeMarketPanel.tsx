@@ -463,7 +463,7 @@ export default function ComputeMarketPanel({
                     />
                   </label>
                 </div>
-                <Button disabled={busy || !qualified || !price}>
+                <Button type="submit" disabled={busy || !qualified || !price}>
                   Create offer <ArrowRight size={16} />
                 </Button>
                 <p className="muted-small">
