@@ -160,13 +160,20 @@ export class ComputePaymentRpc {
     } else if (this.policy.tokenProgram !== SPL_TOKEN_PROGRAM) {
       throw Error('Unsupported payment token program.');
     }
-    const latest = contextual(
-        await this.call('getLatestBlockhash', [
-          { commitment: 'finalized', minContextSlot: mint.slot },
-        ]),
-        mint.slot,
-      ),
-      value = object(latest.value);
+    let latest: ReturnType<typeof contextual> | undefined;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = contextual(await this.call('getLatestBlockhash', [
+        { commitment: 'finalized' },
+      ]));
+      if (candidate.slot >= mint.slot) {
+        latest = candidate;
+        break;
+      }
+      if (attempt < 4)
+        await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    if (!latest) throw Error('Stale payment RPC response.');
+    const value = object(latest.value);
     if (
       typeof value.blockhash !== 'string' ||
       !safeInteger(value.lastValidBlockHeight) ||

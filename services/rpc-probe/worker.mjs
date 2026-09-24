@@ -37,17 +37,37 @@ const probeWorker = {
       : genesis;
     if (!checks.genesis.ok)
       return Response.json({ ok: false, checks });
+    const mint = await rpc(env.NOOBIUS_RPC_URL, 'getAccountInfo', [
+      env.NOOBIUS_MINT, { encoding: 'jsonParsed', commitment: 'finalized' },
+    ]);
+    checks.mint = mint.ok ? {
+      ok: mint.result?.value?.data?.parsed?.type === 'mint' &&
+        mint.result?.value?.data?.parsed?.info?.isInitialized === true &&
+        Number.isSafeInteger(mint.result?.context?.slot),
+    } : mint;
+    if (!checks.mint.ok)
+      return Response.json({ ok: false, checks });
     for (const [name, method, params, validate] of [
-      ['mint', 'getAccountInfo', [env.NOOBIUS_MINT, { encoding: 'jsonParsed', commitment: 'finalized' }],
-        (v) => v?.value?.data?.parsed?.type === 'mint' && v?.value?.data?.parsed?.info?.isInitialized === true],
       ['blockhash', 'getLatestBlockhash', [{ commitment: 'finalized' }],
-        (v) => typeof v?.value?.blockhash === 'string'],
+        (v) => typeof v?.value?.blockhash === 'string' &&
+          Number.isSafeInteger(v?.context?.slot) &&
+          v.context.slot >= mint.result.context.slot],
       ['history', 'getTransaction', [env.NOOBIUS_SIGNATURE, {
         encoding: 'base64', commitment: 'finalized', maxSupportedTransactionVersion: 0,
       }], (v) => v?.meta?.err === null],
     ]) {
-      const answer = await rpc(env.NOOBIUS_RPC_URL, method, params);
-      checks[name] = answer.ok ? { ok: validate(answer.result) } : answer;
+      let answer;
+      for (let attempt = 0; attempt < (name === 'blockhash' ? 5 : 1); attempt++) {
+        answer = await rpc(env.NOOBIUS_RPC_URL, method, params);
+        if (!answer.ok || validate(answer.result)) break;
+        if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      checks[name] = answer.ok ? {
+        ok: validate(answer.result),
+        ...(name === 'blockhash' ? {
+          slotDelta: answer.result?.context?.slot - mint.result.context.slot,
+        } : {}),
+      } : answer;
     }
     return Response.json({
       ok: Object.values(checks).every((check) => check.ok),
