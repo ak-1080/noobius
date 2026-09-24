@@ -1,0 +1,7 @@
+{
+  "name": "noobius-devnet-rpc-readonly-probe",
+  "main": "./worker.mjs",
+  "account_id": "818bac5a5a12b327928ded9344c453bb",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": false
+}

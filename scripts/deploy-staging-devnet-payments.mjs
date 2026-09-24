@@ -7,24 +7,16 @@ import {
 } from 'node:fs';
 import { createKeyPairFromBytes, getAddressFromPublicKey } from '@solana/kit';
 import { assertPaymentDrain } from './check-payment-drain.mjs';
+import { configuredDevnetRpcUrl, validatePrivateDevnetRpcUrl } from './devnet-rpc-config.mjs';
 import {
   SOLANA_GENESIS, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM,
 } from '../lib/solana-holdings.ts';
 
-const rpcUrl = process.env.NOOBIUS_DEVNET_RPC_URL;
+const rpcUrl = configuredDevnetRpcUrl();
 const fallbackRpcUrl = process.env.NOOBIUS_DEVNET_RPC_FALLBACK_URL;
-function validRpcUrl(value) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:' && !parsed.username && !parsed.password &&
-      parsed.hostname !== 'api.devnet.solana.com';
-  } catch {
-    return false;
-  }
-}
-if (!validRpcUrl(rpcUrl) ||
-    (fallbackRpcUrl && (!validRpcUrl(fallbackRpcUrl) || fallbackRpcUrl === rpcUrl)))
-  throw Error('Set a separate HTTPS NOOBIUS_DEVNET_RPC_URL for hosted staging checkout.');
+if (fallbackRpcUrl &&
+    validatePrivateDevnetRpcUrl(fallbackRpcUrl) === rpcUrl)
+  throw Error('Fallback devnet RPC must be a separate endpoint.');
 const source = JSON.parse(readFileSync('deploy/cloudflare/staging-game.json', 'utf8'));
 const recovery = JSON.parse(readFileSync('deploy/cloudflare/staging-payments.json', 'utf8'));
 if (
@@ -83,6 +75,15 @@ for (const signature of [proof.signature, proof.apiCheckout.signature]) {
   if (!transaction || transaction.meta?.err !== null)
     throw Error('The devnet test payment is not finalized successfully.');
 }
+
+// A provider that works locally can still fail from Cloudflare's egress IP.
+// Verify the actual hosted runtime before enabling trading on either Worker.
+const hostedProbe = spawnSync('npm', ['run', 'probe:hosted:solana-rpc'], {
+  stdio: 'inherit',
+  env: { ...process.env, NOOBIUS_DEVNET_RPC_URL: rpcUrl },
+});
+if (hostedProbe.status !== 0)
+  throw Error('The configured devnet RPC did not pass the read-only hosted Cloudflare probe. Staging trading remains disabled.');
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {

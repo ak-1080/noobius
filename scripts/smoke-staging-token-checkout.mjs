@@ -11,6 +11,7 @@ import {
   SOLANA_GENESIS, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM, validSolanaAddress,
 } from '../lib/solana-holdings.ts';
 import { encodePaymentTransaction } from '../lib/solana-payment.ts';
+import { configuredDevnetRpcUrl } from './devnet-rpc-config.mjs';
 
 const origin = 'https://noobius-game-staging.rinkydooonso.workers.dev';
 if (process.env.NOOBIUS_TEST_ORIGIN !== origin ||
@@ -35,10 +36,12 @@ for (const role of ['buyer', 'seller']) {
   assert.equal(buyers[role].address, saved[role].address);
 }
 
+const rpcUrl = configuredDevnetRpcUrl();
 async function rpc(method, params = []) {
   const id = crypto.randomUUID();
-  const response = await fetch('https://api.devnet.solana.com', {
+  const response = await fetch(rpcUrl, {
     method: 'POST',
+    redirect: 'manual',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
     signal: AbortSignal.timeout(15000),
