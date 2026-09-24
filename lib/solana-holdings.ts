@@ -95,7 +95,8 @@ export async function readSolanaHolding(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: requestId, method, params }),
       signal: AbortSignal.timeout(7000),
-      redirect: 'error',
+      // Workers supports manual redirects; non-2xx responses fail below.
+      redirect: 'manual',
     });
     if (!response.ok) throw Error('Solana verification unavailable.');
     const data = (await response.json()) as {

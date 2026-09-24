@@ -116,6 +116,7 @@ async function fixture() {
       wrongNetwork: false,
     };
   const fetcher = async (_url, init) => {
+    assert.equal(init.redirect, 'manual');
     const { method, id: requestId, params } = JSON.parse(init.body);
     calls.push({ method, params });
     let result;

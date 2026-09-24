@@ -101,7 +101,8 @@ export class ComputePaymentRpc {
     const id = crypto.randomUUID();
     const response = await this.fetcher(endpoint, {
       method: 'POST',
-      redirect: 'error',
+      // Workers does not support redirect: 'error'; manual preserves fail-closed behavior.
+      redirect: 'manual',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
       signal: AbortSignal.timeout(10000),

@@ -32,7 +32,7 @@ function rpc(options = {}) {
   const fetcher = async (_url, init) => {
     const body = JSON.parse(init.body);
     requests.push(body);
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual');
     let result;
     if (body.method === 'getGenesisHash')
       result = options.genesis ?? SOLANA_GENESIS.devnet;

@@ -11,7 +11,20 @@ import {
   SOLANA_GENESIS, SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM,
 } from '../lib/solana-holdings.ts';
 
-const rpcUrl = 'https://api.devnet.solana.com';
+const rpcUrl = process.env.NOOBIUS_DEVNET_RPC_URL;
+const fallbackRpcUrl = process.env.NOOBIUS_DEVNET_RPC_FALLBACK_URL;
+function validRpcUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password &&
+      parsed.hostname !== 'api.devnet.solana.com';
+  } catch {
+    return false;
+  }
+}
+if (!validRpcUrl(rpcUrl) ||
+    (fallbackRpcUrl && (!validRpcUrl(fallbackRpcUrl) || fallbackRpcUrl === rpcUrl)))
+  throw Error('Set a separate HTTPS NOOBIUS_DEVNET_RPC_URL for hosted staging checkout.');
 const source = JSON.parse(readFileSync('deploy/cloudflare/staging-game.json', 'utf8'));
 const recovery = JSON.parse(readFileSync('deploy/cloudflare/staging-payments.json', 'utf8'));
 if (
@@ -84,12 +97,16 @@ const tokenVars = {
   NOOBIUS_TOKEN_MINT: proof.mint,
   NOOBIUS_TOKEN_PROGRAM: proof.tokenProgram,
   NOOBIUS_TOKEN_DECIMALS: '6',
-  NOOBIUS_TOKEN_RPC_URL: rpcUrl,
   NOOBIUS_PAYMENT_SIGNER: saved.authorization.address,
   NOOBIUS_PAYMENTS_ENABLED: 'true',
 };
+const rpcSecrets = {
+  NOOBIUS_TOKEN_RPC_URL: rpcUrl,
+  ...(fallbackRpcUrl ? { NOOBIUS_TOKEN_RPC_FALLBACK_URL: fallbackRpcUrl } : {}),
+};
 run('npm', ['run', 'preflight:solana-mint'], {
   ...tokenVars,
+  ...rpcSecrets,
 });
 run('npm', ['run', 'typecheck']);
 run('npm', ['run', 'build:staging']);
@@ -109,6 +126,7 @@ const secretsPath = '.wrangler/staging-payment-secrets.json';
 const recoveryPath = 'deploy/cloudflare/.staging-payments-enabled.json';
 try {
   writeFileSync(secretsPath, JSON.stringify({
+    ...rpcSecrets,
     NOOBIUS_PAYMENT_KEYS: JSON.stringify({
       [saved.authorization.address]: saved.authorization.secret,
     }),

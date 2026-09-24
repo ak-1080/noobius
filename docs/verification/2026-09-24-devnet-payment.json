@@ -1,0 +1,19 @@
+{
+  "testedAt": "2026-09-24T19:40:18.827Z",
+  "network": "devnet",
+  "mint": "8uhnWPWTadPn8ZPbrwqVYirjyUEnFd39UCs4gVRwfPBn",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "transaction": "35xZmBRYsZhgTDKNFBpHCBywXvGrPbyoGXf4q1rUpPgLnn23Dz8TtoVL91gBiq1Px5cQUqDuybvAHSWM28epQ4SD",
+  "apiTransaction": "fErbsnDi1CH6ofxPEnorXvhNCv26Mdb75DREh2KR7HUJE7RjtDVgkVJGJ1U39aFDVfZT25mkkZZmD1mcByXSJ4q",
+  "tokenTransferred": "1",
+  "computeDelivered": 250,
+  "duplicateDeliveryPrevented": true,
+  "apiCheckout": "settled",
+  "hostedStaging": {
+    "status": "blocked",
+    "step": "listing creation before reservation",
+    "publicRpcStatusFromCloudflare": 403,
+    "stagingTradingPausedAfterTest": true
+  },
+  "productionChanged": false
+}
