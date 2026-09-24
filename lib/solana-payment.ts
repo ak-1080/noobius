@@ -8,6 +8,8 @@ import {
   createNoopSigner,
   createTransactionMessage,
   setTransactionMessageFeePayer,
+  setTransactionMessageComputeUnitLimit,
+  setTransactionMessageComputeUnitPrice,
   setTransactionMessageLifetimeUsingBlockhash,
   appendTransactionMessageInstructions,
   compileTransaction,
@@ -179,9 +181,15 @@ export async function createComputePaymentQuote(
         blockhash: blockhash(terms.recentBlockhash),
         lastValidBlockHeight: BigInt(terms.lastValidBlockHeight),
       },
-      setTransactionMessageFeePayer(
-        buyer,
-        createTransactionMessage({ version: 'legacy' }),
+      setTransactionMessageComputeUnitPrice(
+        BigInt(1_000),
+        setTransactionMessageComputeUnitLimit(
+          300_000,
+          setTransactionMessageFeePayer(
+            buyer,
+            createTransactionMessage({ version: 'legacy' }),
+          ),
+        ),
       ),
     ),
   );
