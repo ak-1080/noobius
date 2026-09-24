@@ -245,6 +245,19 @@ async function actor(i, target) {
         ...payload,
         ...(lease ? { roomCheckpoint: lease.checkpoint } : {}),
       });
+      if (response.status !== 200)
+        console.error(
+          'Facility action failed',
+          JSON.stringify({
+            player: i,
+            round: p.round ?? 0,
+            type,
+            status: response.status,
+            error: response.data?.error,
+            reconnect: p.reconnect,
+            roomReady: p.transport?.ready,
+          }),
+        );
       if (response.data.profile) p.profile = response.data.profile;
       return response;
     } finally {

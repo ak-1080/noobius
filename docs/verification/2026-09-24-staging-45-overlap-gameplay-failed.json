@@ -1,0 +1,13 @@
+{
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "beganAt": "2026-09-24T15:51:03.489Z",
+  "checks": [],
+  "actors": 3,
+  "repairRoundsPerActor": 5,
+  "roomInterruption": "none",
+  "ok": false,
+  "failure": "{\"error\":\"Your center or connection changed. Reconnect and try again.\"}\n\n409 !== 200\n\n\n1 !== 0\n",
+  "cleanupFailures": [],
+  "elapsedMs": 229252,
+  "completedAt": "2026-09-24T15:54:52.741Z"
+}
