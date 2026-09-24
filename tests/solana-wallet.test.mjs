@@ -204,3 +204,23 @@ void test('connection and signature cancellation allow a fresh attempt', async (
     );
   }
 });
+
+void test('wallet chain mismatch explains how to connect to staging Devnet', async () => {
+  const f = await fixture();
+  const provider = {
+    request: async ({ method }) => {
+      if (method === 'solana_connect') return [f.address];
+      if (method === 'solana_signMessage')
+        throw Error('Chain ID does not match the provided chain ID for verification.');
+      throw Error('Unexpected wallet request');
+    },
+  };
+  await assert.rejects(
+    signInSolanaWallet(
+      provider,
+      async () => ({ message: 'Chain ID: devnet' }),
+      async () => assert.fail('must not verify'),
+    ),
+    /Switch your wallet to Solana Devnet/,
+  );
+});

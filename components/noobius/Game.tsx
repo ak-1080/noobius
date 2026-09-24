@@ -2383,7 +2383,7 @@ export default function NoobiusGame() {
                   </button>
                 </div>
               )}
-              {error && (
+              {error && panel !== 'wallet' && (
                 <p className="modal-error" role="alert">
                   {error}
                 </p>

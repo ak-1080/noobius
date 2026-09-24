@@ -103,6 +103,14 @@ export async function signInSolanaWallet<T>(
       throw new Error(
         'Login signature cancelled. You can reconnect whenever you’re ready.',
       );
+    if (/chain id.*(does not match|mismatch)/i.test(
+      error instanceof Error ? error.message : '',
+    ))
+      throw new Error(
+        message.includes('Chain ID: devnet')
+          ? 'This test game uses Solana Devnet. Switch your wallet to Solana Devnet, then try connecting again.'
+          : 'Switch your wallet to the requested Solana network, then try connecting again.',
+      );
     throw error;
   }
   if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]{128}$/.test(signature))
