@@ -295,6 +295,31 @@ export function useNoobius() {
       refreshSolana();
     });
     refreshSolana();
+    // Register MetaMask's Solana wallet with Wallet Standard. Its signatures
+    // then follow the same Solana sign-in path as the other wallets.
+    void Promise.all([
+      import('@metamask/multichain-api-client'),
+      import('@metamask/solana-wallet-standard'),
+    ])
+      .then(
+        async ([
+          { getMultichainClient, getDefaultTransport, isMetamaskInstalled },
+          { registerSolanaWalletStandard },
+        ]) => {
+          const installed = await isMetamaskInstalled();
+          if (!alive || !installed) return;
+          const client = getMultichainClient({
+            transport: getDefaultTransport(),
+          });
+          await registerSolanaWalletStandard({ client });
+        },
+      )
+      .then(() => {
+        if (alive) refreshSolana();
+      })
+      .catch((error) => {
+        console.warn('MetaMask Solana wallet unavailable:', error);
+      });
     return () => {
       alive = false;
       offRegister();
