@@ -218,19 +218,16 @@ export function useNeighborhood(
           setStatus('Reconnecting…');
           if (reason === 'renew') {
             // The coordinator saved and released this grant. Replace it while
-            // the membership is live, without ordinary failure backoff.
+            // the membership is live, without an extra state request or
+            // ordinary failure backoff. The new joined frame rebases position.
+            // A stale membership is rejected by room-ticket and recovered by
+            // the regular join path on the next refresh.
             retryAt.current = 0;
             void enqueue(async () => {
               if (!current.current || stopped.current) return false;
               if (socket.current) return socket.current.ready;
-              try {
-                if (!(await readState(true)) || version !== epoch.current)
-                  return false;
-                return connectRoom();
-              } catch (e) {
-                if (version === epoch.current) failure(e);
-                return false;
-              }
+              if (version !== epoch.current) return false;
+              return connectRoom();
             });
           } else {
             retryAt.current = Date.now() + retryDelay(++failures.current);
