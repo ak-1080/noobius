@@ -15,6 +15,12 @@ export async function signSolanaTransaction(
   owner: string,
   network: string,
 ) {
+  // MetaMask currently presents devnet checkout requests as Solana Mainnet.
+  // Do not show a misleading approval prompt for a test-token payment.
+  if (network === 'devnet' && /metamask/i.test(wallet.name))
+    throw Error(
+      'MetaMask is showing this devnet test payment as Solana Mainnet. Cancel this checkout and use a Solana wallet set to devnet for testing.',
+    );
   const chain =
     network === 'mainnet-beta'
       ? 'solana:mainnet'
