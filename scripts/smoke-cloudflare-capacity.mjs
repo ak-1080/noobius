@@ -63,6 +63,7 @@ const counters = {
   admissionRecoveries: 0,
   expiredRejoins: 0,
   maxRecoveryMs: 0,
+  maxRenewRecoveryMs: 0,
   releaseRetries: 0,
   cleanupRetries: 0,
   httpRequests: 0,
@@ -126,27 +127,48 @@ async function authenticate(a) {
     ).toString('hex');
   a.profile = (await auth('verify', { signature })).profile;
 }
-async function connect(a) {
+async function connect(a, fastRenew = false) {
   if (stopped) return;
   a.transport?.dispose();
   const previousRoom = a.membership?.neighborhoodId;
-  let response = await request(a, 'neighborhood-state', a.c.body(a.controller));
-  if (response.status === 409 && /expired/i.test(response.data?.error ?? '')) {
-    response = await request(
+  const refreshMembership = async () => {
+    let response = await request(
       a,
-      'neighborhood-join',
-      a.c.body({ clientId: a.controller.clientId, realm: a.membership.realm }),
+      'neighborhood-state',
+      a.c.body(a.controller),
     );
-    const rejoined = ok(response);
-    a.controller.generation = rejoined.membership.generation;
-    counters.expiredRejoins++;
-    if (rejoined.membership.neighborhoodId !== previousRoom)
-      issues.push('Recovered in a different neighborhood: actor ' + a.index);
+    if (
+      response.status === 409 &&
+      /expired/i.test(response.data?.error ?? '')
+    ) {
+      response = await request(
+        a,
+        'neighborhood-join',
+        a.c.body({
+          clientId: a.controller.clientId,
+          realm: a.membership.realm,
+        }),
+      );
+      const rejoined = ok(response);
+      a.controller.generation = rejoined.membership.generation;
+      counters.expiredRejoins++;
+      if (rejoined.membership.neighborhoodId !== previousRoom)
+        issues.push('Recovered in a different neighborhood: actor ' + a.index);
+    }
+    a.membership = ok(response).membership;
+    a.point = { x: a.membership.x, z: a.membership.z };
+  };
+  if (!fastRenew) await refreshMembership();
+  let ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
+  if (
+    fastRenew &&
+    ticketResponse.status === 409 &&
+    /expired|changed|resync/i.test(ticketResponse.data?.error ?? '')
+  ) {
+    await refreshMembership();
+    ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
   }
-  const state = ok(response);
-  a.membership = state.membership;
-  a.point = { x: a.membership.x, z: a.membership.z };
-  const ticket = ok(await request(a, 'room-ticket', a.c.body(a.controller)));
+  const ticket = ok(ticketResponse);
   assert.equal(ticket.coordinatorOrigin, destination.rooms);
   const transport = new RoomClient({
     ...ticket,
@@ -187,8 +209,10 @@ async function connect(a) {
       for (const p of a.pending.values())
         if (p.measured) counters.unacknowledged++;
       a.pending.clear();
-      if (reason === 'renew') counters.renewals++;
-      else {
+      if (reason === 'renew') {
+        counters.renewals++;
+        a.renewalStartedAt ||= Date.now();
+      } else {
         counters.interruptions++;
         a.recoveryStartedAt ||= Date.now();
       }
@@ -204,11 +228,11 @@ async function connect(a) {
       if (!a.initializing && !a.reconnecting)
         a.reconnecting = track(
           (async () => {
-            await sleep(500);
+            if (reason !== 'renew') await sleep(500);
             const until = Date.now() + 60000;
             for (let attempt = 0; Date.now() < until && !stopped; attempt++) {
               try {
-                await connect(a);
+                await connect(a, reason === 'renew' && attempt === 0);
                 return;
               } catch (e) {
                 if (!recoverableConnection(e)) {
@@ -328,6 +352,13 @@ async function connect(a) {
       Date.now() - a.recoveryStartedAt,
     );
     a.recoveryStartedAt = 0;
+  }
+  if (a.renewalStartedAt) {
+    counters.maxRenewRecoveryMs = Math.max(
+      counters.maxRenewRecoveryMs,
+      Date.now() - a.renewalStartedAt,
+    );
+    a.renewalStartedAt = 0;
   }
 }
 const recoverableConnection = (error) =>

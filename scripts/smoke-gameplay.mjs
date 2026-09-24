@@ -14,18 +14,25 @@ import { planPath } from '../lib/navigation.ts';
 import { floorClear } from '../lib/world-navigation.ts';
 
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
-const hosted = origin === 'https://play.noobius.io';
+const production = origin === 'https://play.noobius.io';
+const staging =
+  origin === 'https://noobius-game-staging.rinkydooonso.workers.dev';
+const hosted = production || staging;
 if (!hosted && origin !== 'http://127.0.0.1:3003')
-  throw Error('Explicit hosted origin or isolated local port 3003 required');
-const roomsOrigin = hosted
+  throw Error(
+    'Explicit production, staging, or isolated local port 3003 required',
+  );
+const roomsOrigin = production
   ? 'https://rooms.noobius.io'
-  : 'http://127.0.0.1:3004';
+  : staging
+    ? 'https://noobius-rooms-staging.rinkydooonso.workers.dev'
+    : 'http://127.0.0.1:3004';
 const restartRoom = process.env.NOOBIUS_TEST_RESTART_ROOM === '1';
 const redeployRoom = process.env.NOOBIUS_TEST_REDEPLOY_ROOM === '1';
 if (restartRoom && hosted)
   throw Error('A room process may only be restarted in isolated local QA');
-if (redeployRoom && !hosted)
-  throw Error('A room Worker may only be redeployed against the hosted origin');
+if (redeployRoom && !production)
+  throw Error('The redeploy acceptance targets production rooms only');
 if (restartRoom && redeployRoom)
   throw Error('Choose one room interruption mode');
 const rounds = Number(process.env.NOOBIUS_GAMEPLAY_ROUNDS ?? 1);
@@ -505,7 +512,9 @@ try {
   report.completedAt = new Date().toISOString();
   await roomManager?.close();
   writeFileSync(
-    '/tmp/noobius-gameplay-acceptance.json',
+    staging
+      ? '/tmp/noobius-staging-gameplay-acceptance.json'
+      : '/tmp/noobius-gameplay-acceptance.json',
     JSON.stringify(report, null, 2),
   );
   console.log(JSON.stringify(report, null, 2));

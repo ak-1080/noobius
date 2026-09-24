@@ -1,0 +1,40 @@
+{
+  "runId": "b6cc0f81-aa78-4de0-b187-de1b5d9376db",
+  "status": "failed",
+  "motionMode": "full-speed",
+  "at": "2026-09-24T05:37:24.940Z",
+  "error": "Scene peers must recover within five seconds: actor 2, missing for 5460 ms, expected [\"220eb611be2c4c7a825c782634768d5c\",\"24c0bedd00784852a91ce713b3add3af\",\"709c95a4788e46229b99f71570b449cf\"], received [\"220eb611be2c4c7a825c782634768d5c\",\"709c95a4788e46229b99f71570b449cf\"]",
+  "unacknowledged": 5,
+  "sent": 7455,
+  "accepted": 7446,
+  "corrected": 4,
+  "peerFrames": 8368,
+  "inboundBytes": 5355526,
+  "renewals": 5,
+  "interruptions": 0,
+  "admissionRetries": 0,
+  "admissionRecoveries": 0,
+  "expiredRejoins": 0,
+  "maxRecoveryMs": 0,
+  "maxRenewRecoveryMs": 900,
+  "releaseRetries": 0,
+  "cleanupRetries": 0,
+  "httpRequests": 68,
+  "correctionReasons": {
+    "illegal-movement": 4
+  },
+  "moveRtt": {
+    "p50": 49.9,
+    "p95": 146.9,
+    "p99": 237.4
+  },
+  "perActorAccepted": [
+    1494,
+    1494,
+    1498,
+    1469,
+    1491
+  ],
+  "issues": [],
+  "cleanupErrors": []
+}

@@ -1,0 +1,42 @@
+{
+  "runId": "4057e422-57b5-42af-8c23-d641b27bc641",
+  "status": "passed",
+  "motionMode": "full-speed",
+  "beganAt": "2026-09-24T05:53:25.552Z",
+  "measuredAt": "2026-09-24T05:53:37.344Z",
+  "completedAt": "2026-09-24T05:59:18.804Z",
+  "scope": "Hosted Cloudflare Workers and Durable Objects; 5 synthetic RoomClients, 1 neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers",
+  "rampMs": 11792,
+  "measurementMs": 338566,
+  "unacknowledged": 5,
+  "sent": 9361,
+  "accepted": 9354,
+  "corrected": 2,
+  "peerFrames": 10310,
+  "inboundBytes": 6638781,
+  "renewals": 5,
+  "interruptions": 0,
+  "admissionRetries": 0,
+  "admissionRecoveries": 0,
+  "expiredRejoins": 0,
+  "maxRecoveryMs": 0,
+  "maxRenewRecoveryMs": 613,
+  "releaseRetries": 0,
+  "cleanupRetries": 0,
+  "httpRequests": 79,
+  "correctionReasons": {
+    "rate-limited": 2
+  },
+  "durablePositions": 5,
+  "moveRtt": {
+    "p50": 32.1,
+    "p95": 102.5,
+    "p99": 164.1
+  },
+  "httpRtt": {
+    "p50": 195.7,
+    "p95": 335.9
+  },
+  "issues": [],
+  "cleanupErrors": []
+}

@@ -335,7 +335,7 @@ test('planned grant renewal reconnects immediately and preserves the saved scene
   await settle();
   assert.deepEqual(
     f.calls.map((c) => c.action),
-    ['neighborhood-join', 'room-ticket', 'neighborhood-state', 'room-ticket'],
+    ['neighborhood-join', 'room-ticket', 'room-ticket'],
   );
   assert.deepEqual(f.backoffs, []);
   assert.equal(f.rooms.length, 2);
