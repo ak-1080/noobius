@@ -420,10 +420,10 @@ test('HTTP movement that read before grant acquisition loses the commit-time wri
   assert.equal(f.allowed(httpMovementGuard('c', NOW + 1000)), false);
 });
 
-test('ten-second writer expiry resumes HTTP movement and cannot be renewed or checkpointed', async (t) => {
+test('twenty-second writer expiry resumes HTTP movement and cannot be renewed or checkpointed', async (t) => {
   const f = await fixture(t),
     { grant } = await f.connect();
-  assert.equal(f.grantRow().writer_until, NOW + 10_000);
+  assert.equal(f.grantRow().writer_until, NOW + 20_000);
   await assert.rejects(
     syncNeighborhood(
       f.db,
@@ -431,36 +431,36 @@ test('ten-second writer expiry resumes HTTP movement and cannot be renewed or ch
       f.controller,
       f.base(grant) + 1,
       { x: 1, z: 17 },
-      NOW + 9999,
+      NOW + 19_999,
     ),
     status(409),
   );
   await assert.rejects(
-    f.service({ operation: 'authority-refresh', grant }, NOW + 10_000),
+    f.service({ operation: 'authority-refresh', grant }, NOW + 20_000),
     status(409),
   );
   await assert.rejects(
-    f.service(f.checkpoint(grant), NOW + 10_000),
+    f.service(f.checkpoint(grant), NOW + 20_000),
     status(409),
   );
-  assert.equal(f.allowed(httpMovementGuard('c', NOW + 10_000)), true);
+  assert.equal(f.allowed(httpMovementGuard('c', NOW + 20_000)), true);
   const moved = await syncNeighborhood(
     f.db,
     f.wallet,
     f.controller,
     f.base(grant) + 1,
     { x: 1, z: 17 },
-    NOW + 10_000,
+    NOW + 20_000,
   );
   assert.equal(moved.corrected, false);
   assert.equal(moved.membership.x, 1);
   const current = f.presence();
   await assert.rejects(
-    f.service({ operation: 'authority-refresh', grant }, NOW + 11_000),
+    f.service({ operation: 'authority-refresh', grant }, NOW + 21_000),
     status(409),
   );
   assert.deepEqual(f.presence(), current);
-  assert.equal(f.grantRow().writer_until, NOW + 10_000);
+  assert.equal(f.grantRow().writer_until, NOW + 20_000);
 });
 
 test('a delayed refresh cannot revive its expired writer after HTTP reclaims movement', async (t) => {
@@ -478,31 +478,31 @@ test('a delayed refresh cannot revive its expired writer after HTTP reclaims mov
         )
       ) {
         fired = true;
-        // The signed refresh passed its reads at +9s, but D1 executes the
+        // The signed refresh passed its reads at +19s, but D1 executes the
         // queued transaction after HTTP legitimately reclaimed the writer.
-        f.setDbTime(NOW + 11_000);
+        f.setDbTime(NOW + 21_000);
         moved = await syncNeighborhood(
           f.db,
           f.wallet,
           f.controller,
           f.base(grant) + 1,
           { x: 1, z: 17 },
-          NOW + 11_000,
+          NOW + 21_000,
         );
       }
       return f.db.batch(statements);
     },
   };
   await assert.rejects(
-    f.service({ operation: 'authority-refresh', grant }, NOW + 9000, raced),
+    f.service({ operation: 'authority-refresh', grant }, NOW + 19_000, raced),
     status(409),
   );
   assert.equal(fired, true);
   assert.equal(moved.corrected, false);
   assert.equal(f.presence().x, 1);
   assert.equal(f.presence().sequence, moved.membership.sequence);
-  assert.equal(f.grantRow().writer_until, NOW + 10_000);
-  assert.equal(f.allowed(httpMovementGuard('c', NOW + 9000)), true);
+  assert.equal(f.grantRow().writer_until, NOW + 20_000);
+  assert.equal(f.allowed(httpMovementGuard('c', NOW + 19_000)), true);
 });
 
 test('checkpoint commit uses database time even when no competing movement changes its base', async (t) => {
@@ -511,10 +511,10 @@ test('checkpoint commit uses database time even when no competing movement chang
   const before = f.presence(),
     writer = f.grantRow();
   const raced = beforeCheckpointBatch(f, async () => {
-    f.setDbTime(NOW + 10_000);
+    f.setDbTime(NOW + 20_000);
   });
   await assert.rejects(
-    f.service(f.checkpoint(grant), NOW + 9000, raced),
+    f.service(f.checkpoint(grant), NOW + 19_000, raced),
     status(409),
   );
   assert.deepEqual(f.presence(), before);

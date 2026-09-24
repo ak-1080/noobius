@@ -191,7 +191,7 @@ export class RoomClient {
     this.serverFrozen = body.workFrozen === true;
     this.deadline =
       this.now() +
-      Math.max(0, Math.min(10000, body.authorizedUntil - body.serverNow));
+      Math.max(0, Math.min(20000, body.authorizedUntil - body.serverNow));
     this.options.onMembership(this.membership, reset);
   }
   private message(raw: unknown) {

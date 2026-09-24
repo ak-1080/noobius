@@ -254,13 +254,13 @@ test('authority renewals keep the client live; expired authority stops it', asyn
     'authority',
     f.authority({
       serverNow: 10500,
-      authorizedUntil: 20500,
+      authorizedUntil: 30500,
       membership: { ...member, sequence: 2 },
     }),
   );
-  f.time(15000);
+  f.time(25000);
   assert.equal(f.client.ready, true);
-  f.time(20501);
+  f.time(30501);
   assert.equal(f.client.ready, false);
   await assert.rejects(f.client.prepare('facility', {}), /recovering/);
 });

@@ -281,7 +281,7 @@ test('tickets are hashed, single-use and return only limited room authority', as
     'session_hash',
   ])
     assert.ok(!serialized.includes(secret), secret);
-  assert.equal(a.authorizedUntil, now + 10_000);
+  assert.equal(a.authorizedUntil, now + 20_000);
   assert.equal(a.expiresAt, now + 300_000);
   await assert.rejects(
     f.service({ operation: 'ticket-consume', ticket: issued.ticket }),
@@ -314,7 +314,9 @@ test('room replay claims stay strict while expired rows are pruned less often', 
   const f = await fixture(t);
   const { grant } = await f.connect();
   f.db.sqlite
-    .prepare('INSERT INTO room_service_nonces(key_id,nonce,expires_at) VALUES(?,?,?)')
+    .prepare(
+      'INSERT INTO room_service_nonces(key_id,nonce,expires_at) VALUES(?,?,?)',
+    )
     .run(config.activeKey, 'aa'.repeat(16), now - 1);
   const body = { operation: 'authority-refresh', grant };
   const ordinary = await request(body, config, now, { nonce: 'ff'.repeat(16) });
@@ -324,13 +326,21 @@ test('room replay claims stay strict while expired rows are pruned less often', 
     status(409),
   );
   assert.equal(
-    f.db.sqlite.prepare('SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?').get(now).n,
+    f.db.sqlite
+      .prepare(
+        'SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?',
+      )
+      .get(now).n,
     1,
   );
   const pruning = await request(body, config, now, { nonce: '00'.repeat(16) });
   await handleRoomService(f.db, pruning, config, undefined, () => now);
   assert.equal(
-    f.db.sqlite.prepare('SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?').get(now).n,
+    f.db.sqlite
+      .prepare(
+        'SELECT count(*) AS n FROM room_service_nonces WHERE expires_at<?',
+      )
+      .get(now).n,
     0,
   );
 });
