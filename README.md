@@ -1,10 +1,10 @@
 # Noobius — The Night Shift
 
-A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. The playable alpha is hosted at https://play.noobius.io; https://noobius.io remains the separate coming-soon site. Player-to-player Compute checkout is implemented, but real-token trading is disabled pending token configuration and acceptance testing.
+A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. The playable alpha is hosted at https://play.noobius.io; https://noobius.io remains the separate coming-soon site. Player-to-player Compute checkout is implemented, but real-token trading is disabled pending token configuration and acceptance testing. **Opening this repository on another device? Read [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) first.**
 
 ## Handoff for a new device or Codex session (September 25, 2026)
 
-The production source of truth is [`ak-1080/noobius` on `main`](https://github.com/ak-1080/noobius/tree/main). The active-play and presentation pass is on `codex/noobius-neighborhoods` and deployed to isolated staging for review; production has not changed. The game code, committed art and videos, coming-soon site, migrations, tests, and deployment configuration are on GitHub. Clone the desired revision, use Node 24 (`.nvmrc`), and run `npm ci`. To start a **new local** game database, follow [Run locally](#run-locally); do not initialize over an existing save. Pushing to GitHub does **not** automatically deploy either hosted site; the GitHub deployment workflows are manual.
+The production source of truth is [`ak-1080/noobius` on `main`](https://github.com/ak-1080/noobius/tree/main). `main` includes the September 25 active-play and presentation pass. Most of that pass is deployed to isolated staging for review, though the final two guide illustrations may need redeployment; production has not changed. The game code, committed art and videos, coming-soon site, migrations, tests, and deployment configuration are on GitHub. Clone `main`, use Node 24 (`.nvmrc`), and run `npm ci`. To start a **new local** game database, follow [Run locally](#run-locally); do not initialize over an existing save. Pushing to GitHub does **not** automatically deploy either hosted site; the GitHub deployment workflows are manual.
 
 The existing hosted services keep running independently of the development computer:
 

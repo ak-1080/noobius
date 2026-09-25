@@ -7,7 +7,7 @@ export const GUIDE_TOPICS = [
   {
     id: 'first-machine',
     title: 'Your first machine',
-    text: 'Meet Margo, then build your free starter in Center. Green lights mean it is working.',
+    text: 'Meet Margo, then build your free starter in Center. It is ready for a machine batch or client job.',
     image: '/assets/guide/build.svg',
     alt: 'Illustration: a server rack is placed on an empty building pad',
     tip: 'You don’t need parts, a wallet, or tokens to try the game.',
@@ -16,8 +16,8 @@ export const GUIDE_TOPICS = [
     id: 'compute',
     title: 'Load a machine batch',
     text: 'Recover parts, then load a short machine batch. Collect its Compute when it finishes.',
-    image: '/assets/compute-currency.png',
-    alt: 'The lime microchip coin that represents Compute',
+    image: '/assets/guide/batch.svg',
+    alt: 'Illustration: recovered parts enter a server, a batch completes, and one Compute chip comes out',
     tip: 'A completed batch stops. Pick the next batch or a client job when you are ready.',
   },
   {
@@ -88,8 +88,8 @@ export const GUIDE_TOPICS = [
     id: 'realms',
     title: 'Earn levels. Explore new worlds.',
     text: 'Tap your level beside Compute. Explore Cooling Works at level 3, GPU District at 5 and Archive Depths at 8.',
-    image: '/assets/facility.png',
-    alt: 'A larger computing facility',
+    image: '/assets/guide/realms.svg',
+    alt: 'Illustration: salvage, cooling, GPU and archive destinations have different industrial shapes',
     tip: 'Crew Commons starts at level 1. Each world has three workstations: sort salvage, route coolant, schedule GPUs or recover archives. Live holder realms also need verified holdings and an Operator license: two jobs of each kind, a built module and a completed cluster. Solo practice keeps level gates. Paid recoveries can be finished from anywhere.',
   },
   {
