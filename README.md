@@ -2,6 +2,20 @@
 
 A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. The playable alpha is hosted at https://play.noobius.io; https://noobius.io remains the separate coming-soon site. Player-to-player Compute checkout is implemented, but real-token trading is disabled pending token configuration and acceptance testing.
 
+## Handoff for a new device or Codex session (September 25, 2026)
+
+The current source of truth is [`ak-1080/noobius` on `main`](https://github.com/ak-1080/noobius/tree/main). The game code, committed art and videos, coming-soon site, migrations, tests, and deployment configuration are there. Clone `main`, use Node 24 (`.nvmrc`), and run `npm ci`. To start a **new local** game database, follow [Run locally](#run-locally); do not initialize over an existing save. Pushing to GitHub does **not** automatically deploy either hosted site; the GitHub deployment workflows are manual.
+
+The existing hosted services keep running independently of the development computer:
+
+- **Production:** `https://play.noobius.io` hosts the free multiplayer game. `https://noobius.io` hosts the separate coming-soon page. Real-token Compute trading is **off** in production.
+- **Staging:** `https://noobius-game-staging.rinkydooonso.workers.dev` has an isolated Cloudflare D1 database and Solana **devnet** checkout for valueless test tokens. On September 24, two human players completed a browser-wallet sale: the buyer paid one devnet test token, received 100 Compute, and the seller's offer was marked sold. This proves that one real two-player staging path worked; it is not a mainnet or broad wallet/device acceptance test. MetaMask's devnet payment prompt was misleadingly labeled Mainnet, so staging blocks MetaMask checkout; Phantom in Devnet mode completed the sale.
+- **Data and credentials:** live player saves, sessions, and offers are in Cloudflare D1; live rooms use Cloudflare Durable Objects. The private RPC endpoint and payment-signing secret are configured in the hosted staging Workers. None of those live records or secrets belong in GitHub. A fresh clone can edit and test code, and the existing sites and trading setup continue to work. Changing a deployment requires authorized Cloudflare access; recreating the special devnet checkout deployment on a new machine also requires its private Helius RPC configuration and generated devnet test-key/proof files, which are intentionally ignored under `.wrangler/`. Never commit or paste those secrets into chat.
+
+Do not use the ordinary `npm run deploy:staging` workflow to update the **payment-enabled** staging game: that workflow intentionally deploys with test-token trading disabled. The guarded `deploy:staging:devnet-payments` script is the path for that isolated configuration, subject to its private prerequisites and checks. Production deployment is separate and must not enable devnet or real-token trading by accident.
+
+Next product/engineering work: show sellers an in-game completed-sale receipt (the Exchange currently shows only buyer purchase history), continue real-browser/mobile and uncoached endgame playtests, establish sustained multiplayer capacity and operating costs, and complete a separate reviewed mainnet-token launch plan. The successful devnet trade does not establish funded real-value rewards or safe production token trading.
+
 ## Current game
 
 Margo introduces one free machine. Machines produce Compute every 15 seconds; the starter earns 24 per minute. Collect it, buy a first speed upgrade for 20, build more machines, then open new rooms. All core building purchases use Compute alone. Each machine has three levels, later rooms add equipment with more workload capacity, and five speed upgrades improve the whole facility. Storage holds one hour of current production.
@@ -60,7 +74,7 @@ Wallet login supports Ethereum/EVM accounts through EIP-6963/injected providers 
 
 D1 stores accounts, sessions, facility state, shifts, listings, messages and presence. The server validates prices, rewards, recipes, cooldowns and gates. Version checks and conditional D1 updates protect purchases and marketplace settlement from duplicate requests and concurrent updates. Compute is the authoritative spendable balance; a separate migration flag settles legacy production at the old rate before the new clock starts. Existing money, cosmetics, inventory and unfinished work are preserved.
 
-The Solana marketplace includes Compute reservations, buyer-reviewed token payments, durable settlement recovery and a scheduled reconciliation Worker. New real-token sales are disabled: no production mint is configured, and real devnet transfers plus wallet/device acceptance remain outstanding. Compute is a game balance, not a guaranteed payout claim. The original technical puzzles and other earning actions are still automatable; these checks do not make the game a secure financial rewards system.
+The Solana marketplace includes Compute reservations, buyer-reviewed token payments, durable settlement recovery and a scheduled reconciliation Worker. New real-token sales are disabled: no production mint is configured. Generated-account and one human two-player devnet checkout have settled successfully on staging; broader wallet/device acceptance remains outstanding. Compute is a game balance, not a guaranteed payout claim. The original technical puzzles and other earning actions are still automatable; these checks do not make the game a secure financial rewards system.
 
 ## Release limits
 
