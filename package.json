@@ -50,6 +50,8 @@
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
+    "@metamask/multichain-api-client": "0.12.0",
+    "@metamask/solana-wallet-standard": "1.0.0",
     "@scure/base": "1.2.6",
     "@shadcn/react": "0.3.0",
     "@solana-program/memo": "0.15.0",

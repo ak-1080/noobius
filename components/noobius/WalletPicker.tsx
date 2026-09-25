@@ -6,6 +6,12 @@ import type { WalletOption } from '@/lib/wallet-options';
 
 const POPULAR_SOLANA_WALLETS = [
   {
+    id: 'metamask',
+    name: 'MetaMask',
+    url: 'https://metamask.io/download/',
+    matches: (name: string) => /metamask/i.test(name),
+  },
+  {
     id: 'phantom',
     name: 'Phantom',
     url: 'https://phantom.com/download',
@@ -33,6 +39,16 @@ function WalletIcon({
   wallet?: PopularWallet;
   option?: WalletOption;
 }) {
+  if (wallet?.id === 'metamask')
+    return (
+      <Image
+        src="/assets/wallets/metamask.svg"
+        alt=""
+        width={42}
+        height={42}
+        unoptimized
+      />
+    );
   if (wallet?.id === 'phantom')
     return (
       <Image
@@ -141,11 +157,6 @@ export default function WalletPicker({
                     aria-label="Waiting for wallet"
                   />
                 )}
-                {!connecting && (
-                  <small className={option ? '' : 'wallet-needs-install'}>
-                    {option ? 'Installed' : 'Get wallet'}
-                  </small>
-                )}
               </button>
             ))}
           </div>
@@ -164,14 +175,12 @@ export default function WalletPicker({
                   >
                     <WalletIcon option={option} />
                     <strong>{option.name}</strong>
-                    {connecting === option.id ? (
+                    {connecting === option.id && (
                       <LoaderCircle
                         size={18}
                         className="wallet-spinner"
                         aria-label="Waiting for wallet"
                       />
-                    ) : (
-                      <small>Installed</small>
                     )}
                   </button>
                 ))}
@@ -191,11 +200,7 @@ export default function WalletPicker({
         </output>
       )}
       <div className="wallet-picker-footer">
-        <p>
-          {isPractice
-            ? 'Your wallet loads its own data center. Practice stays on this device.'
-            : 'Sign in with a message. No purchase or transaction.'}
-        </p>
+        <p>Sign in with a message. No purchase or transaction.</p>
         <button disabled={busy || !!connecting} onClick={onBackToGame}>
           {isPractice ? 'Back to game' : 'Play without a wallet'}
         </button>
