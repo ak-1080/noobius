@@ -1,6 +1,6 @@
 # Noobius — clearer play, stronger identity
 
-**Owner review · September 25, 2026.** This folder contains the local presentation pass and the active-production prototype. The global font has not been selected or changed. This pass has not been deployed. Existing earnings, balances, accepted jobs, listings and payment obligations are preserved by the migration; new production rules apply only after migration.
+**Owner review · September 25, 2026.** This folder contains the presentation pass and active-production prototype now running on isolated staging. The global font has not been selected or changed. Production has not changed. Existing earnings, balances, accepted jobs, listings and payment obligations are preserved by the migration; new production rules apply only after migration.
 
 Open the [visual review](review.html) for the realm studies, updated interface captures and font choices together.
 
@@ -47,7 +47,7 @@ Fortnite is a useful reference for bold hierarchy and character-first presentati
 
 No package has been applied globally. After selection, review the homepage, Locker, guide, job cards, wallet picker, prices and small-screen text together before adopting it.
 
-## Active-production prototype (implemented locally, not deployed)
+## Active-production prototype (on staging, not production)
 
 The central problem is not that machines take time. It is that continuously collecting automatically generated currency can become a substitute for playing.
 
@@ -98,8 +98,9 @@ The finish line remains: **a fully upgraded player has worthwhile decisions, use
 ## Verification record for this local pass
 
 - The combined local pass passed all 460 game-rule tests, including active-production migration, seller-sale visibility, pickup guarding and movement locking.
+- A private export of staging D1 was saved outside Git. The guarded staging deployment preserved devnet test-token configuration and passed its own page, database, login and market smoke. A separate three-player hosted run passed real API actions for repairs, one finite batch with no unattended restart, visitor isolation, item trading and reconnect/save persistence. The first extended smoke attempt spent the test seller's scrap before its item-trade check; the harness was corrected to recover replacement scrap, and the full rerun passed.
 - TypeScript and the production build passed. Scoped lint was compared against the same files at HEAD: both report the same 45 pre-existing findings; this pass adds none. New components/helpers are clean.
 - Isolated browser guest fixtures verified Margo marking without purchasing/building or opening a panel, collapsible help, four distinct quick-guide images, and guide/client layouts at desktop and 390px widths. See [browser checks](screens/checks.json).
 - All four realm challenge families were rendered and inspected at desktop and 390px, including scroll-to-controls checks; no browser errors or horizontal overflow were observed. See [challenge checks](screens/challenge-checks.json).
 - Each realm environment was rendered separately to inspect its silhouette and placement. These are artwork checks, not a live multiplayer or phone frame-rate test.
-- Hosting, production/staging databases, wallets and token-payment configuration were not changed by this pass.
+- Staging hosting was updated; its D1 schema and token-payment configuration were unchanged. Generated QA accounts were used for the hosted smoke. Production, real wallets and real funds were not touched. Human browser-wallet checkout on this build remains open.

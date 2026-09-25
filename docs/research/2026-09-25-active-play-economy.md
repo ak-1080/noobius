@@ -2,7 +2,7 @@
 
 **Status: research and proposed design, September 25, 2026.** This document does not change production, player balances, job terms or marketplace behavior. Source was inspected from repository checkpoint `582ed1d`; the accompanying presentation work may change UI references later. No authenticated Kintara session, wallet action, hosted mutation or load test was performed for this audit.
 
-**Implementation update, September 25:** A local, undeployed prototype now starts finite supplied machine batches, migrates old passive output once, and leaves accepted work intact. The observations and quantities below document the audited baseline. Spatial timed gathering, economy tuning, human playtests and hosted acceptance remain open.
+**Implementation update, September 25:** The prototype now starts finite supplied machine batches, migrates old passive output once, and leaves accepted work intact. It is deployed to isolated staging, where a generated-account multiplayer gameplay smoke passed. The observations and quantities below document the audited baseline. Spatial timed gathering, economy tuning, human wallet checkout and uncoached playtests remain open; production is unchanged.
 
 ## Recommendation
 

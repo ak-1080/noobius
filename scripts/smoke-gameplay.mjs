@@ -418,6 +418,49 @@ try {
     `Three independent players completed ${rounds} repair round(s) each; replayed claims paid once and new jobs appeared`,
   );
   const [seller, buyer, rival] = actors;
+  const stockSellerScrap = async (needed) => {
+    while ((seller.profile.facility.inventory.scrap ?? 0) < needed) {
+      const nodes = OBJECTS.filter(
+        (o) =>
+          o.kind === 'node' &&
+          o.item === 'scrap' &&
+          seller.profile.facility.unlocked.includes(o.zone),
+      );
+      assert.ok(nodes.length, 'An accessible scrap node is required');
+      const next = nodes.reduce((best, node) =>
+        (seller.profile.facility.cooldowns[node.id] ?? 0) <
+        (seller.profile.facility.cooldowns[best.id] ?? 0)
+          ? node
+          : best,
+      );
+      await seller.walk(next.id);
+      await sleep(Math.max(0, (seller.profile.facility.cooldowns[next.id] ?? 0) - Date.now()) + 100);
+      ok(await seller.field('gather', { id: next.id }));
+    }
+  };
+  if (seller.profile.facility.productionVersion === 3) {
+    await stockSellerScrap(2);
+    const beforeBatch = seller.profile.credits;
+    const beforeScrap = seller.profile.facility.inventory.scrap;
+    ok(await seller.field('compute-start', { id: 'quick' }));
+    const pending = seller.profile.facility.workload;
+    assert.equal(pending.reward, 8);
+    assert.equal(seller.profile.facility.inventory.scrap, beforeScrap - 2);
+    assert.equal(seller.profile.credits, beforeBatch);
+    await sleep(Math.max(0, pending.readyAt - Date.now()) + 150);
+    const requestId = crypto.randomUUID();
+    ok(await seller.field('compute-collect', {}, requestId));
+    ok(await seller.field('compute-collect', {}, requestId));
+    assert.equal(seller.profile.credits, beforeBatch + 8);
+    assert.equal(seller.profile.facility.workload, null);
+    const stored = seller.profile.facility.storedCompute;
+    await sleep(16000);
+    await seller.refresh();
+    assert.equal(seller.profile.credits, beforeBatch + 8);
+    assert.equal(seller.profile.facility.storedCompute, stored);
+    pass('A supplied machine batch pays once and unattended time starts no new batch');
+    await stockSellerScrap(1);
+  }
   await buyer.scene('home-' + seller.profile.id);
   const visit = ok(await buyer.c.request('visit?owner=' + seller.profile.id));
   assert.equal(visit.facility.visiting, true);
