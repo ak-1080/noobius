@@ -118,7 +118,8 @@ export function tycoonObjective(
   if (!count)
     return wrap({
       title: 'Build your free machine',
-      detail: 'Tap here. Follow the glowing path. No parts needed.',
+      detail:
+        'Build the free starter machine in Center. Or walk to its building pad and press E.',
       cta: 'Build my machine',
       target: 'rack-a',
       action: { type: 'build', id: 'rack-a' },

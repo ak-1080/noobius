@@ -149,7 +149,7 @@ function facility(v: unknown): v is Facility {
     v.economyVersion !== 2 ||
     v.tycoonVersion !== 1 ||
     v.visiting ||
-    (v.productionVersion !== undefined && ![1, 2].includes(v.productionVersion))
+    (v.productionVersion !== undefined && ![1, 2, 3].includes(v.productionVersion))
   )
     return false;
   if (
@@ -282,7 +282,7 @@ function decode(raw: string | null, now: number): Envelope | null {
     !profile(value.profile)
   )
     return null;
-  const f = normalizeFacility(value.profile.facility!, now);
+  const f = normalizeFacility(value.profile.facility!, now, 3);
   // Device saves never become account data. Credits are the balance; compute
   // is only the facility mirror, just as in an authenticated profile.
   f.compute = value.profile.credits;
@@ -318,7 +318,7 @@ export class GuestSaveStore {
             record(envelope) &&
             number(envelope.schemaVersion) &&
             (envelope.schemaVersion > 1 ||
-              (envelope.profile?.facility?.productionVersion ?? 0) > 2)
+              (envelope.profile?.facility?.productionVersion ?? 0) > 3)
           ) {
             this.readOnly = true;
             return { snapshot: null, issue: 'newer' };
@@ -369,7 +369,7 @@ export class GuestSaveStore {
           if (
             record(candidate) &&
             (candidate.schemaVersion > 1 ||
-              (candidate.profile?.facility?.productionVersion ?? 0) > 2)
+              (candidate.profile?.facility?.productionVersion ?? 0) > 3)
           )
             return { kind: 'unavailable' };
           current = decode(raw, this.now());

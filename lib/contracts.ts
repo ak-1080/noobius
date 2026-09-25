@@ -499,12 +499,12 @@ export function contractQuote(
     Math.floor((now + duration * 1000 - firstTick) / 15000),
   );
   const lostIdle =
-    template.family === 'workload' && rack
+    f.productionVersion !== 3 && template.family === 'workload' && rack
       ? machinePerTick(f, rack) * reservedTicks
       : 0;
   // Version 1 accepted jobs retain their original one-unit reimbursement rules.
   const reimbursed =
-    quoteVersion === 1 && template.family === 'workload' && rack
+    f.productionVersion !== 3 && quoteVersion === 1 && template.family === 'workload' && rack
       ? (f.builds[rack] ?? 0) *
         (MACHINE_POWER[rack] ?? 1) *
         (6 + f.computeBoost * 3) *

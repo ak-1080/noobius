@@ -34,7 +34,7 @@ export function growthProgress(f: Facility) {
     {
       id: 'second',
       title: 'Better together',
-      detail: 'Have two machines earning Compute.',
+      detail: f.productionVersion === 3 ? 'Build two machines for more client work.' : 'Have two machines earning Compute.',
       done: machines >= 2,
     },
     {
@@ -72,6 +72,6 @@ export function growthProgress(f: Facility) {
     completed: milestones.filter((m) => m.done).length,
     current: milestones.find((m) => !m.done)?.id ?? null,
     complete: milestones.every((m) => m.done),
-    rate: computePerTick(f) * 4,
+    rate: f.productionVersion === 3 ? 0 : computePerTick(f) * 4,
   };
 }

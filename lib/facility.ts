@@ -776,6 +776,8 @@ export const DAILY_TASKS = [
   },
   { id: 'repair', name: 'Fix 3 systems', stat: 'repairs', target: 3, cr: 50 },
 ];
+// Version 2 remains constructible for legacy fixtures and save replay. All
+// runtime account creation uses newActiveFacility() below.
 export function newFacility(now = Date.now()): Facility {
   return {
     economyVersion: 2,
@@ -816,12 +818,16 @@ export function newFacility(now = Date.now()): Facility {
     incident: null,
   };
 }
+export function newActiveFacility(now = Date.now()): Facility {
+  return { ...newFacility(now), productionVersion: 3 };
+}
 export const dayKey = (now: number) => new Date(now).toISOString().slice(0, 10);
 // Saved facility versions are concurrency counters. Read-time defaults and
 // day rollover must preserve that counter and every existing earned item.
 export function normalizeFacility(
   saved: Partial<Facility>,
   now = Date.now(),
+  targetProductionVersion?: 2 | 3,
 ): Facility {
   if (saved.career !== undefined && !validContractTerms(saved.career))
     throw new FacilityError(
@@ -843,7 +849,7 @@ export function normalizeFacility(
     );
   if (
     saved.productionVersion !== undefined &&
-    ![1, 2].includes(saved.productionVersion)
+    ![1, 2, 3].includes(saved.productionVersion)
   )
     throw new FacilityError(
       'This save uses a newer production system. Refresh before playing.',
@@ -880,7 +886,7 @@ export function normalizeFacility(
     f.computeAt = now;
     f.tycoonVersion = 1;
   }
-  if (saved.productionVersion !== 2) {
+  if (saved.productionVersion !== 2 && saved.productionVersion !== 3) {
     // Settle completed old ticks before changing rates, keeping the partial tick.
     // Existing job receipts, holdings and above-cap output remain earned property.
     f.storedCompute = storedComputeNow(
@@ -889,6 +895,13 @@ export function normalizeFacility(
     );
     f.computeAt += Math.max(0, Math.floor((now - f.computeAt) / 15000)) * 15000;
     f.productionVersion = 2;
+  }
+  if (targetProductionVersion === 3 && f.productionVersion === 2) {
+    // Freeze the earned, completed v2 ticks once. Future time alone no longer
+    // creates Compute. Keep pending jobs and any above-cap earned balance.
+    f.storedCompute = storedComputeNow(f, now);
+    f.computeAt = now;
+    f.productionVersion = 3;
   }
   f.career ??= newCareer(f);
   return f;
@@ -917,6 +930,15 @@ export const COMPUTE_JOBS = [
     required: 3,
   },
 ] as const;
+// A finite, supplied batch cannot be profitably looped by buying all inputs
+// from the NPC shop. Salvage and player trade make running one worthwhile.
+export const ACTIVE_COMPUTE_JOBS = [
+  { id: 'quick', name: 'Reclaim a server', seconds: 20, reward: 8, required: 1, cost: { scrap: 2 } },
+  { id: 'heavy', name: 'Cool a compute rack', seconds: 45, reward: 18, required: 3, cost: { copper: 2, coolant: 1 } },
+  { id: 'model', name: 'Run a model batch', seconds: 90, reward: 30, required: 6, cost: { silicon: 2, fiber: 1 } },
+] as const;
+export const activeBatchSeconds = (f: Facility, seconds: number) =>
+  Math.max(5, Math.ceil(seconds * (1 - Math.min(5, f.computeBoost) * 0.06)));
 export const OUTAGE_STEPS = {
   heat: ['Stop the job', 'Open cooling', 'Restart the rack'],
   power: ['Disconnect power', 'Reset the breaker', 'Reconnect power'],
@@ -934,7 +956,9 @@ export const computeTankCapacity = (f: Facility) =>
     ? Math.max(240, computePerTick(f) * 4 * 60)
     : 120 + modules(f) * 30 + f.computeBoost * 50;
 export const computePerTick = (f: Facility) =>
-  Object.keys(f.builds).reduce((sum, id) => sum + machinePerTick(f, id), 0);
+  f.productionVersion === 3
+    ? 0
+    : Object.keys(f.builds).reduce((sum, id) => sum + machinePerTick(f, id), 0);
 export const machineGain = (f: Facility, id: string) => {
   if ((f.builds[id] ?? 0) >= 3) return 0;
   const next = { ...f, builds: { ...f.builds, [id]: (f.builds[id] ?? 0) + 1 } };
@@ -961,6 +985,7 @@ export const rackPrice = (f: Facility, id: string) =>
 export const rackCount = (f: Facility) =>
   Object.values(f.builds).filter((n) => n > 0).length;
 export function storedComputeNow(f: Facility, now = Date.now()) {
+  if (f.productionVersion === 3) return Math.max(0, f.storedCompute);
   const until = Math.max(
     f.computeAt,
     f.tycoonVersion === 1 ? now : Math.min(now, f.incident?.at ?? now),
@@ -978,6 +1003,8 @@ export function storedComputeNow(f: Facility, now = Date.now()) {
 }
 /** The next storage tick uses the same reservation accounting as settlement. */
 export function computeForecast(f: Facility, now: number) {
+  if (f.productionVersion === 3)
+    return { nextAt: now, nextAmount: 0, perMinute: 0, pausedPerMinute: 0 };
   const nextAt =
     f.computeAt +
     (Math.max(0, Math.floor((now - f.computeAt) / 15000)) + 1) * 15000;
@@ -1012,6 +1039,12 @@ export function computeForecast(f: Facility, now: number) {
   };
 }
 export function settleFacilityProduction(f: Facility, now: number) {
+  if (f.productionVersion === 3) {
+    f.computeAt = now;
+    if (f.projectReservations)
+      f.projectReservations = f.projectReservations.filter((r) => r.readyAt > now);
+    return;
+  }
   f.storedCompute = storedComputeNow(f, now);
   f.computeAt = !modules(f)
     ? now
@@ -1188,7 +1221,9 @@ export function applyFacility(
       case 'compute-harvest': {
         if (f.storedCompute < 1)
           throw new FacilityError(
-            'Your machines are warming up. Compute arrives every 15 seconds.',
+            f.productionVersion === 3
+              ? 'Start a supplied machine batch or finish a client job to earn Compute.'
+              : 'Your machines are warming up. Compute arrives every 15 seconds.',
           );
         const reward = f.storedCompute;
         f.compute += reward;
@@ -1196,7 +1231,9 @@ export function applyFacility(
         count('computeEarned', reward);
         count('collections');
         if (!f.incident) scheduleIncident(f, now, true);
-        message = `+${reward} Compute. Your machines keep earning.`;
+        message = f.productionVersion === 3
+          ? `+${reward} previously earned Compute collected.`
+          : `+${reward} Compute. Your machines keep earning.`;
         break;
       }
       case 'compute-upgrade': {
@@ -1227,7 +1264,9 @@ export function applyFacility(
           throw new FacilityError(`You need ${cost} Compute for this upgrade.`);
         f.compute -= cost;
         f.computeBoost++;
-        message = 'Faster machines! Every machine now makes more Compute.';
+        message = f.productionVersion === 3
+          ? 'Faster machines! New supplied batches finish sooner.'
+          : 'Faster machines! Every machine now makes more Compute.';
         break;
       }
       case 'tycoon-daily': {
@@ -1259,6 +1298,27 @@ export function applyFacility(
         break;
       }
       case 'compute-start': {
+        if (f.productionVersion === 3) {
+          const batch = ACTIVE_COMPUTE_JOBS.find((j) => j.id === action.id);
+          if (!batch || modules(f) < batch.required)
+            throw new FacilityError('Build more rack levels to run this batch.');
+          if (f.workload)
+            throw new FacilityError('Collect your current machine batch first.');
+          const rack = availableRacks(f, now)[0];
+          if (!rack)
+            throw new FacilityError('Wait for an available machine before starting a batch.');
+          spend(batch.cost);
+          f.workload = {
+            id: action.requestId,
+            rack,
+            label: batch.name,
+            startedAt: now,
+            readyAt: now + activeBatchSeconds(f, batch.seconds) * 1000,
+            reward: batch.reward,
+          };
+          message = `${batch.name} started. Collect it when the batch finishes.`;
+          break;
+        }
         const job = COMPUTE_JOBS.find((j) => j.id === action.id);
         if (!job || modules(f) < job.required)
           throw new FacilityError('Build more rack levels to run this job.');
@@ -1459,9 +1519,13 @@ export function applyFacility(
         f.skills.engineering += 15;
         count('built');
         xp = 15;
-        message = level
-          ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
-          : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
+        message = f.productionVersion === 3
+          ? level
+            ? 'Machine upgraded! It can handle larger client workloads.'
+            : 'Machine online! Start a supplied batch or book client work.'
+          : level
+            ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
+            : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
         break;
       }
       case 'utility': {

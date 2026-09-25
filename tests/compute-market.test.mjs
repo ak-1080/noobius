@@ -332,6 +332,14 @@ void test('exact finalized payment delivers Compute once across concurrent retri
   );
   assert.equal(f.balance(f.buyer), 1150);
   assert.equal((await getComputeListing(f.db, f.input.id)).status, 'sold');
+  const { computeMarketSnapshot } = await import('../lib/compute-market-api.ts');
+  const sellerView = await computeMarketSnapshot(f.db, f.wallet(f.seller), {});
+  const buyerView = await computeMarketSnapshot(f.db, f.wallet(f.buyer), {});
+  assert.equal(sellerView.sales.length, 1);
+  assert.equal(sellerView.sales[0].status, 'settled');
+  assert.equal(sellerView.sales[0].compute, 250);
+  assert.equal(sellerView.sales[0].amount, '1000000');
+  assert.equal(buyerView.sales.length, 0);
 });
 void test('database failure rolls back reservation debit and finalized delivery together', async () => {
   const f = await fixture();

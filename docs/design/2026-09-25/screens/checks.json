@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "Margo marker neither opens a panel nor spends or builds",
+    "Margo collapses",
+    "Quick guide has four distinct loaded images",
+    "390px client screen has no document horizontal overflow",
+    "Vector repair guide renders at desktop and 390px without horizontal overflow"
+  ],
+  "errors": [],
+  "at": "2026-09-25T18:06:35.693Z",
+  "scope": "Isolated local guest saves only"
+}

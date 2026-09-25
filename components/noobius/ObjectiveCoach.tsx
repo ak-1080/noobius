@@ -1,20 +1,28 @@
-import {
-  ArrowRight,
-  Gift,
-  Hammer,
-  Navigation,
-  Sparkles,
-  X,
-} from 'lucide-react';
+'use client';
+import { useState } from 'react';
+import { MapPin, X, ChevronDown } from 'lucide-react';
 import type { NextStep, Objective } from '@/lib/objectives';
-import { guidanceFor } from '@/lib/guidance';
-import ComputeIcon from './ComputeIcon';
+import MargoPortrait from './MargoPortrait';
 
+const destinations: Record<string, string> = {
+  contracts: 'Clients → Repair & parts jobs',
+  operations: 'Clients',
+  facility: 'Center',
+  crafting: 'Workshop',
+  field: 'Crew → Fieldwork',
+  world: 'Crew',
+  map: 'Center → Rooms',
+  appearance: 'Locker',
+  inventory: 'Storage',
+  project: 'Crew → Cluster project',
+  compute: 'Center',
+};
 export default function ObjectiveCoach({
   objective,
   following,
   arrived,
   busy,
+  highlighted = false,
   onFollow,
   onStop,
 }: {
@@ -22,66 +30,80 @@ export default function ObjectiveCoach({
   following: NextStep | null;
   arrived: NextStep | null;
   busy: boolean;
+  highlighted?: boolean;
   onFollow: () => void;
   onStop: () => void;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const step = following ?? arrived ?? objective;
-  const collecting = ['compute-harvest', 'compute-collect'].includes(
-    step.action?.type ?? '',
-  );
-  const Icon = following
-    ? Navigation
-    : collecting
-      ? ComputeIcon
-      : step.panel === 'contracts'
-        ? Gift
-        : step.action?.type === 'build' || step.panel === 'facility'
-          ? Hammer
-          : step.action?.type === 'compute-upgrade'
-            ? Sparkles
-            : Navigation;
-  const action = busy
-    ? 'Working…'
-    : following
-      ? 'Stop walking'
-      : arrived
-        ? arrived.cta
-        : guidanceFor(step).cta;
-
+  const destination = destinations[step.panel ?? ''];
   return (
-    <button
-      className={`objective-hud next-action ${following ? 'is-guiding' : ''}`}
-      onClick={following || arrived ? onStop : onFollow}
-      disabled={busy}
-      aria-label={`${step.title}. ${action}`}
+    <aside
+      className={`objective-hud next-action margo-coach ${collapsed ? 'is-collapsed' : ''}`}
+      aria-label="Margo's guidance"
     >
-      <span className="next-action-icon" aria-hidden="true">
-        <Icon size={22} />
-      </span>
-      <span className="next-action-copy">
-        <small>
-          {following
-            ? 'On our way'
-            : arrived
-              ? 'You’re here'
-              : 'Your next move'}
-        </small>
-        <strong>{step.title}</strong>
-        <span className="next-action-detail">
-          {following ? 'Noobius is following the glowing path.' : step.detail}
-        </span>
-        <span className="next-action-cta">
-          {action}
-          {following ? <X size={14} /> : <ArrowRight size={15} />}
-        </span>
-      </span>
-      <i className="objective-meter" aria-hidden="true">
-        <i
-          style={{
-            width: `${following || arrived ? 100 : objective.progress}%`,
-          }}
-        />
-      </i>
-    </button>
+      <button
+        className="margo-portrait"
+        onClick={() => setCollapsed(!collapsed)}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Show Margo’s hint' : 'Hide Margo’s hint'}
+      >
+        <MargoPortrait />
+      </button>
+      {collapsed ? (
+        <button className="margo-reopen" onClick={() => setCollapsed(false)}>
+          Margo <ChevronDown size={14} />
+        </button>
+      ) : (
+        <div className="margo-bubble">
+          <div className="margo-heading">
+            <span>
+              MARGO <small>Shift supervisor</small>
+            </span>
+            <button
+              onClick={() => setCollapsed(true)}
+              aria-label="Hide Margo’s hint"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <strong>{step.title}</strong>
+          {following ? (
+            <p>Follow the path. Use the station when you arrive.</p>
+          ) : arrived ? (
+            <p>
+              Use the station here. Press <kbd>E</kbd> or tap it.
+            </p>
+          ) : step.target ? (
+            <p>
+              Walk to the station. Press <kbd>E</kbd> or tap it.
+            </p>
+          ) : (
+            <p>
+              Choose your next move in <b>{destination ?? 'the game menu'}</b>.
+            </p>
+          )}
+          {following || arrived ? (
+            <button className="margo-location" onClick={onStop}>
+              {following ? 'Stop walking' : 'Back to my goal'} <X size={13} />
+            </button>
+          ) : step.target ? (
+            <button
+              className="margo-location"
+              onClick={onFollow}
+              disabled={busy}
+              aria-pressed={highlighted}
+            >
+              <MapPin size={14} />
+              {highlighted ? 'Location marked' : 'Mark location'}
+            </button>
+          ) : null}
+          <details className="margo-details">
+            <summary>More help</summary>
+            <p>{step.detail}</p>
+          </details>
+        </div>
+      )}
+    </aside>
   );
 }

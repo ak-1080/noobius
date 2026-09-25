@@ -21,7 +21,7 @@ export const projectLoanQuote = (f: Facility, rack: string) => {
   return {
     capacity,
     duration,
-    pausedOutput: (machinePerTick(f, rack) * duration) / 15,
+    pausedOutput: f.productionVersion === 3 ? 0 : (machinePerTick(f, rack) * duration) / 15,
   };
 };
 export function validProjectReservations(

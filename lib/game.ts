@@ -1,4 +1,4 @@
-import { newFacility, type Facility } from './facility.ts';
+import { newActiveFacility, type Facility } from './facility.ts';
 export type JobType = 'cooling' | 'boot' | 'network';
 export type Upgrade = 'scanner' | 'visor' | 'tracer';
 export type Equipment = Record<Upgrade, boolean>;
@@ -263,7 +263,7 @@ export function guestProfile(): Profile {
   return {
     wallet: 'practice',
     name: 'Practice Noob',
-    facility: newFacility(),
+    facility: newActiveFacility(),
     credits: 0,
     xp: 0,
     shifts: 0,

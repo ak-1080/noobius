@@ -493,6 +493,23 @@ export default function ComputeMarketPanel({
           ))}
         </details>
       )}
+      {!payment && !!snapshot?.sales?.length && (
+        <details className="compute-trade-history">
+          <summary>Your completed sales</summary>
+          {snapshot.sales.map((sale) => {
+            const explorer = transactionLink(sale);
+            return (
+              <div className="compute-pending-row" key={sale.id}>
+                <span>
+                  <strong>{sale.compute.toLocaleString()} Compute sold</strong>
+                  <small> · {formatTokenUnits(sale.amount, sale.decimals)} {sale.network === 'devnet' ? 'devnet test tokens' : ticker} · {new Date(sale.settledAt).toLocaleDateString()}</small>
+                </span>
+                {explorer && <a href={explorer} target="_blank" rel="noopener noreferrer" aria-label="View completed sale on Solana Explorer"><ExternalLink size={16} /></a>}
+              </div>
+            );
+          })}
+        </details>
+      )}
       {snapshot?.mint && (
         <button
           className="compute-mint-copy"

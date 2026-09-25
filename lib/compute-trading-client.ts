@@ -35,6 +35,7 @@ export type ComputeMarketSnapshot = {
   listings: ComputeOffer[];
   pending: ComputeReceipt[];
   recent: ComputeReceipt[];
+  sales: (ComputeReceipt & { settledAt: number })[];
   message: string;
 };
 export type ComputeCheckout = {

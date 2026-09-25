@@ -74,7 +74,9 @@ export default function ReturnBriefing({
           <div>
             <strong>{stored.toLocaleString()} Compute</strong>
             <span>
-              {summary?.full
+              {summary?.activeProduction
+                ? 'Previously earned · ready to collect'
+                : summary?.full
                 ? 'Storage full · collect to make room'
                 : 'Stored by your machines'}
             </span>

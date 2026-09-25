@@ -252,7 +252,9 @@ export function resolveObjective(
         title: level
           ? `Upgrade ${rack.name.split(' · ')[0]}`
           : 'Build a machine',
-        detail: `${cost ? cost + ' Compute' : 'Free'} · adds ${machineGain(f, rack.id)} Compute/min.`,
+        detail: f.productionVersion === 3
+          ? `${cost ? cost + ' Compute' : 'Free'} · adds room for client work.`
+          : `${cost ? cost + ' Compute' : 'Free'} · adds ${machineGain(f, rack.id)} Compute/min.`,
         cta: level ? 'Upgrade' : 'Build',
         target: rack.id,
         action: { type: 'build', id: rack.id },

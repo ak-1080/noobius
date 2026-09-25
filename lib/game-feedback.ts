@@ -74,14 +74,16 @@ export function facilityReceipt(
   const after = result.facility;
   const delta = result.credits;
   const reward = `+${delta.toLocaleString()} Compute`;
-  const income = `${(computePerTick(before) * 4).toLocaleString()} → ${(computePerTick(after) * 4).toLocaleString()} Compute / min`;
+  const income = after.productionVersion === 3
+    ? action.type === 'compute-upgrade' ? 'new machine batches finish sooner' : 'more client capacity'
+    : `${(computePerTick(before) * 4).toLocaleString()} → ${(computePerTick(after) * 4).toLocaleString()} Compute / min`;
   let title: string, detail: string;
   switch (action.type) {
     case 'build':
     case 'compute-upgrade':
       title =
         action.type === 'compute-upgrade'
-          ? 'More passive Compute!'
+          ? after.productionVersion === 3 ? 'Faster machine batches!' : 'More passive Compute!'
           : before.builds[action.id!] > 0
             ? 'Machine upgraded!'
             : 'New machine online!';
@@ -245,7 +247,7 @@ export function returnSummary(f: Facility, now: number, connected = false) {
     const complete = f.workload.readyAt <= now;
     work.push({
       id: 'bonus:' + f.workload.readyAt,
-      title: 'Machine bonus',
+      title: f.productionVersion === 3 ? 'Machine batch' : 'Machine bonus',
       detail: complete
         ? 'Ready · review and collect'
         : timeLeft(f.workload.readyAt, now),
@@ -271,12 +273,13 @@ export function returnSummary(f: Facility, now: number, connected = false) {
       ['ready', 'waiting', 'running'].indexOf(b.phase),
   );
   const dailyReady = dailyRewardReady(f, now);
-  if (ready < Math.max(1, computePerTick(f) * 4) && !work.length && !dailyReady)
+  if (ready < (f.productionVersion === 3 ? 1 : Math.max(1, computePerTick(f) * 4)) && !work.length && !dailyReady)
     return null;
   return {
     ready,
-    full: ready >= computeTankCapacity(f),
-    rate: computePerTick(f) * 4,
+    activeProduction: f.productionVersion === 3,
+    full: f.productionVersion !== 3 && ready >= computeTankCapacity(f),
+    rate: f.productionVersion === 3 ? 0 : computePerTick(f) * 4,
     dailyReady,
     work,
   };

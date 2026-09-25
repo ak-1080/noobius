@@ -149,6 +149,12 @@ export async function computeMarketSnapshot(
         .bind(wallet)
         .all<ComputePayment>()
     : { results: [] };
+  const settledSales = wallet
+    ? await db
+        .prepare("SELECT p.* FROM compute_payments p JOIN compute_listings l ON l.id=p.listing_id WHERE l.seller=? AND l.status='sold' AND p.status='settled' ORDER BY p.updated_at DESC,p.id DESC LIMIT 5")
+        .bind(wallet)
+        .all<ComputePayment & { updated_at: number }>()
+    : { results: [] };
   return {
     available,
     viewer: wallet,
@@ -169,6 +175,12 @@ export async function computeMarketSnapshot(
           ).results.map((p) => receipt(db, p)),
         )
       : [],
+    sales: await Promise.all(
+      settledSales.results.map(async (p) => ({
+        ...(await receipt(db, p)),
+        settledAt: p.updated_at,
+      })),
+    ),
     message: available
       ? 'Buy Compute directly from other players.'
       : 'Token trading is not available yet. Keep building and earning Compute.',

@@ -10200,3 +10200,184 @@ a {
     font-size: 12px;
   }
 }
+
+/* Margo offers a hint; the player chooses and performs the work. */
+.objective-hud.next-action.margo-coach {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  text-align: left;
+  cursor: default;
+  backdrop-filter: none;
+}
+.margo-coach .margo-portrait {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 64px;
+  padding: 0;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.margo-portrait svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 3px #08121980);
+}
+.margo-bubble {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 15px;
+  background: #12272ff2;
+  border: 1px solid #87a49860;
+  border-left: 3px solid #c5ee8c;
+  border-radius: 3px 12px 12px;
+  box-shadow: 0 5px 20px #07111635;
+}
+.margo-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.margo-heading > span {
+  color: #c5ee8c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.margo-heading small {
+  font-size: 10px;
+  letter-spacing: 0;
+  color: #91aab0;
+  font-weight: 400;
+  margin-left: 7px;
+}
+.margo-heading button {
+  color: #abc1c5;
+  padding: 4px;
+  border-radius: 3px;
+}
+.margo-coach .margo-bubble > strong {
+  display: block;
+  color: #edf1e8;
+  font-size: 15px;
+  line-height: 1.3;
+  margin-top: 8px;
+}
+.margo-coach .margo-bubble p {
+  color: #bdcecb;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 7px 0 0;
+}
+.margo-coach kbd {
+  border: 1px solid #718b8c;
+  border-radius: 3px;
+  padding: 0 4px;
+  font: inherit;
+  color: #e6ecdf;
+}
+.margo-coach .margo-location {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #c5ee8c;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 11px;
+  padding: 6px 0;
+}
+.margo-coach button:focus-visible,
+.margo-coach summary:focus-visible {
+  outline: 2px solid #c5ee8c;
+  outline-offset: 4px;
+}
+.margo-details {
+  margin-top: 4px;
+}
+.margo-details summary {
+  color: #8aa5aa;
+  font-size: 11px;
+  cursor: pointer;
+}
+.margo-reopen {
+  align-self: center;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #11272fe8;
+  border: 1px solid #7a969255;
+  color: #c5ee8c;
+  font-size: 12px;
+}
+.margo-coach.is-collapsed {
+  width: max-content !important;
+}
+/* Vector guide art stays sharp at every screen size; no cropped phone captures. */
+.guide-topic-image.guide-vector-image {
+  width: min(600px, 100%);
+  height: auto;
+  aspect-ratio: auto;
+  margin: 20px auto;
+  overflow: visible;
+}
+.guide-vector-image > a {
+  display: block;
+  aspect-ratio: 5 / 4;
+}
+.guide-topic-image.guide-vector-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: contain;
+  transform: none;
+  margin: 0;
+}
+.guide-vector-image figcaption {
+  color: #a6bfc2;
+  font-size: 12px;
+  padding: 9px 12px;
+  background: #12282f;
+  border-radius: 0 0 10px 10px;
+}
+.guide-tip-details {
+  border-top: 1px solid #66858a50;
+  padding-top: 13px;
+  margin-top: 18px;
+}
+.guide-tip-details summary {
+  color: #c5ee8c;
+  cursor: pointer;
+  font-size: 14px;
+}
+.guide-tip-details p {
+  color: #bad0d4;
+  line-height: 1.6;
+  font-size: 14px;
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .home-guidance .objective-coach-wrap {
+    width: min(350px, 100%);
+  }
+  .margo-heading small {
+    display: none;
+  }
+  .margo-coach .margo-portrait {
+    flex-basis: 40px;
+    width: 40px;
+    height: 54px;
+  }
+  .margo-bubble {
+    padding: 10px 12px;
+  }
+}

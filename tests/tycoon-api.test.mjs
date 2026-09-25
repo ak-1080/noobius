@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { Client } from './api-client.mjs';
+import { isolatedNeighborhood, attachWorld, walkTo } from './world-client.mjs';
 import { newFacility } from '../lib/facility.ts';
 
 const ok = (r) => {
@@ -12,11 +13,12 @@ const ok = (r) => {
 const act = (c, type, extras = {}) =>
   c.request(
     'facility',
-    c.body({ action: { type, requestId: crypto.randomUUID(), ...extras } }),
+    c.body({ ...c.world, action: { type, requestId: crypto.randomUUID(), ...extras } }),
   );
 test('concurrent starter purchases create only one free machine in D1', async () => {
   const c = new Client();
   ok(await c.login());
+  await attachWorld(c, isolatedNeighborhood());
   const results = await Promise.all([
     act(c, 'build', { id: 'rack-a' }),
     act(c, 'build', { id: 'rack-b' }),
@@ -32,14 +34,15 @@ test('concurrent starter purchases create only one free machine in D1', async ()
   const next = Object.hasOwn(p.facility.builds, 'rack-a') ? 'rack-b' : 'rack-a';
   assert.equal((await act(c, 'build', { id: next })).status, 400);
 });
-test('D1 persists the legacy rate transition once before exposing new earnings', async () => {
+test('D1 settles legacy earnings once and stops unattended production', async () => {
   assert.match(
     process.env.NOOBIUS_TEST_ORIGIN ?? 'http://localhost:3000',
-    /^http:\/\/localhost:3000\/?$/,
+    /^http:\/\/(?:localhost|127\.0\.0\.1):300[0-9]\/?$/,
     'Legacy fixture only runs against local D1',
   );
   const c = new Client();
   ok(await c.login());
+  await attachWorld(c, isolatedNeighborhood());
   const now = Date.now(),
     f = newFacility(now - 60000);
   delete f.tycoonVersion;
@@ -95,6 +98,7 @@ c.commit()
   assert.equal(a.credits, 123); // stale mirror 999 must never be added
   assert.equal(a.facility.version, 18);
   assert.equal(a.facility.tycoonVersion, 1);
+  assert.equal(a.facility.productionVersion, 3);
   assert.equal(a.facility.storedCompute, 10); // seven saved + three old ticks
   assert.deepEqual(a.facility.inventory, { kit: 2 });
   assert.deepEqual(a.facility.craft, f.craft);
@@ -104,8 +108,25 @@ c.commit()
   assert.equal(b.facility.computeAt, a.facility.computeAt);
   const collected = ok(await act(c, 'compute-collect')).profile;
   assert.equal(collected.credits, 158);
-  await new Promise((r) => setTimeout(r, 15100));
   const harvest = ok(await act(c, 'compute-harvest')).profile;
-  assert.ok(harvest.credits >= 174); // preserved 10 plus at least one new-rate tick
+  assert.equal(harvest.credits, 168); // 123 + promised 35 + preserved 10
   assert.equal(harvest.facility.storedCompute, 0);
+  assert.equal((await act(c, 'compute-harvest')).status, 400);
+});
+test('fresh wallet gathers parts and starts one finite machine batch', async () => {
+  const c = new Client();
+  ok(await c.login());
+  await attachWorld(c, isolatedNeighborhood());
+  const fresh = ok(await c.request('profile')).profile;
+  assert.equal(fresh.facility.productionVersion, 3);
+  ok(await act(c, 'build', { id: 'rack-a' }));
+  assert.equal((await act(c, 'compute-start', { id: 'quick' })).status, 400);
+  await walkTo(c, 'scrap-a');
+  const gathered = ok(await act(c, 'gather', { id: 'scrap-a' })).profile;
+  assert.ok(gathered.facility.inventory.scrap >= 2);
+  const started = ok(await act(c, 'compute-start', { id: 'quick' })).profile;
+  assert.equal(started.credits, 0);
+  assert.equal(started.facility.workload.reward, 8);
+  assert.equal(started.facility.inventory.scrap, gathered.facility.inventory.scrap - 2);
+  assert.equal((await act(c, 'compute-start', { id: 'quick' })).status, 400);
 });

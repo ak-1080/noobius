@@ -459,7 +459,7 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
               <summary>Compare machines for this batch</summary>
               <p className="job-note">
                 Bigger machines fit more units. The same batch takes the same
-                time; compare the passive production you pause.
+                time. Compare capacity and the parts each job needs.
               </p>
               <div className="equipment-option-grid">
                 {racks.map((id) => {
@@ -486,17 +486,15 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                         {rack === id ? '✓' : ''}
                       </strong>
                       <span>
-                        Capacity {workloadCapacity(f, id)} units · normally{' '}
-                        {machinePerTick(f, id) * 4} Compute/min
+                        Capacity {workloadCapacity(f, id)} units
+                        {f.productionVersion !== 3 && <> · normally {machinePerTick(f, id) * 4} Compute/min</>}
                       </span>
                       <span>
                         {fits
                           ? `${comparison.duration}s · ${comparison.reward} Compute payment`
                           : 'This batch is too large'}
                       </span>
-                      <small>
-                        Pauses about {comparison.lostIdle} passive Compute
-                      </small>
+                      {f.productionVersion !== 3 && <small>Pauses about {comparison.lostIdle} passive Compute</small>}
                     </button>
                   );
                 })}

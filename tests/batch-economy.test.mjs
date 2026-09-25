@@ -341,7 +341,7 @@ test('migration preserves partial/future clocks and rejects unknown versions', (
   assert.equal(future.computeAt, 60000);
   assert.equal(storedComputeNow(future, 59999), 0);
   assert.throws(
-    () => normalizeFacility({ ...old, productionVersion: 3 }),
+    () => normalizeFacility({ ...old, productionVersion: 4 }),
     /newer/,
   );
 });
