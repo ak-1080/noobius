@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" role="img" aria-labelledby="title desc">
+  <title id="title">Open space for another room</title>
+  <desc id="desc">An existing server room connects through an open doorway to a larger outlined room with two empty machine spots.</desc>
+  <rect width="600" height="480" rx="28" fill="#0b202a"/>
+  <path d="M69 128h200v246H69Z" fill="#244551"/>
+  <path d="M312 75h218v299H312Z" fill="#c2ef8a" fill-opacity=".08"/>
+  <path d="M69 170h200M69 212h200M69 254h200M69 296h200M69 338h200M109 128v246M149 128v246M189 128v246M229 128v246" stroke="#355b67" stroke-width="2"/>
+  <path d="M312 117h218M312 159h218M312 201h218M312 243h218M312 285h218M312 327h218M354 75v299M396 75v299M438 75v299M480 75v299" stroke="#c2ef8a" stroke-opacity=".1" stroke-width="2"/>
+  <path d="M269 223v-95H69v246h200v-93" fill="none" stroke="#7394a0" stroke-width="12" stroke-linecap="square" stroke-linejoin="round"/>
+  <path d="M312 222V75h218v299H312v-93" fill="none" stroke="#c2ef8a" stroke-width="6" stroke-dasharray="13 10" stroke-linecap="square" stroke-linejoin="round"/>
+  <path d="M243 244h96m-20-19 20 19-20 19" fill="none" stroke="#c2ef8a" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="107" y="160" width="99" height="64" rx="8" fill="#0c2631" stroke="#6f929c" stroke-width="3"/>
+  <path d="M120 176h49m-49 16h49m-49 16h49" stroke="#496d7b" stroke-width="6" stroke-linecap="round"/>
+  <path d="M184 176h8m-8 16h8m-8 16h8" stroke="#c2ef8a" stroke-width="6" stroke-linecap="round"/>
+  <rect x="107" y="268" width="99" height="64" rx="8" fill="#0c2631" stroke="#6f929c" stroke-width="3"/>
+  <path d="M120 284h49m-49 16h49m-49 16h49" stroke="#496d7b" stroke-width="6" stroke-linecap="round"/>
+  <path d="M184 284h8m-8 16h8m-8 16h8" stroke="#c2ef8a" stroke-width="6" stroke-linecap="round"/>
+  <rect x="366" y="110" width="111" height="76" rx="10" fill="#17392f" stroke="#c2ef8a" stroke-width="3" stroke-dasharray="8 7"/>
+  <rect x="366" y="270" width="111" height="76" rx="10" fill="#17392f" stroke="#c2ef8a" stroke-width="3" stroke-dasharray="8 7"/>
+  <path d="M409 148h25m-12-12v24m-13 148h25m-12-12v24" stroke="#c2ef8a" stroke-width="6" stroke-linecap="round"/>
+  <path d="M78 417h442m-433-9-9 9 9 9m424-18 9 9-9 9" fill="none" stroke="#6b939c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

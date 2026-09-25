@@ -28,6 +28,11 @@ import { realmFor } from '@/lib/realm-catalog';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
 import { floorClear } from '@/lib/world-navigation';
+import {
+  createPickupGate,
+  worldMovement,
+  WORLD_MOVEMENT_KEYS,
+} from '@/lib/world-input';
 import { PING_LABELS } from '@/lib/social';
 import type { VisibleCrewSignal } from '@/lib/crew-signals';
 export type CrewPerson = {
@@ -51,8 +56,9 @@ type Props = {
   correction?: { x: number; z: number; revision: number } | null;
   facility: Facility;
   paused: boolean;
+  movementLocked?: boolean;
   people: CrewPerson[];
-  onInteract: (object: WorldObject) => void;
+  onInteract: (object: WorldObject) => void | Promise<unknown>;
   onPosition: (x: number, z: number) => void;
   onLivePosition: (x: number, z: number) => void;
   zoomCommand: number;
@@ -1011,16 +1017,46 @@ export default function Campus(props: Props) {
     let target: T.Vector3 | null = null,
       waypoints: T.Vector3[] = [],
       targetObject: WorldObject | null = null,
+      targetIsGuidance = false,
       raf = 0,
       last = 0,
       disposed = false,
-      lastAppearance = '';
+      lastAppearance = '',
+      lastPickupLabel: string | null = null;
+    const pickup = createPickupGate();
     const keys = new Set<string>(),
       ray = new T.Raycaster(),
       pointer = new T.Vector2(),
       plane = new T.Plane(new T.Vector3(0, 1, 0), 0),
       point = new T.Vector3();
-    const go = (x: number, z: number, object: WorldObject | null) => {
+    const interactObject = (obj: WorldObject, guidanceArrival = false) => {
+      const p = live.current;
+      if (p.paused || p.movementLocked || pickup.pendingId) return;
+      // A guided arrival updates the hint even when the resource is cooling
+      // down. Game strips action payloads from guidance; only a later direct
+      // interaction can gather and must pass the pickup gate below.
+      if (guidanceArrival || obj.kind !== 'node' || obj.workKey) {
+        void p.onInteract(obj);
+        return;
+      }
+      // Lock synchronously, before React commits the request's busy state.
+      // The game action owns error reporting and authoritative reward changes.
+      void pickup
+        .run(obj.id, p.facility.cooldowns[obj.id] ?? 0, Date.now(), () => {
+          avatar.g.rotation.y = Math.atan2(
+            obj.x - avatar.g.position.x,
+            obj.z - avatar.g.position.z,
+          );
+          return p.onInteract(obj);
+        })
+        .catch(() => {});
+    };
+    const go = (
+      x: number,
+      z: number,
+      object: WorldObject | null,
+      guidanceArrival = false,
+    ) => {
       const path = planPath(
         [avatar.g.position.x, avatar.g.position.z],
         [x, z],
@@ -1031,9 +1067,19 @@ export default function Campus(props: Props) {
       waypoints = path.map(([x, z]) => new T.Vector3(x, 0, z));
       target = waypoints.shift() ?? null;
       targetObject = target ? object : null;
+      targetIsGuidance = guidanceArrival;
       return !!target;
     };
-    const walkObject = (obj: WorldObject) => {
+    const walkObject = (obj: WorldObject, guidanceArrival = false) => {
+      if (
+        Math.hypot(obj.x - avatar.g.position.x, obj.z - avatar.g.position.z) < 3
+      ) {
+        target = null;
+        waypoints = [];
+        targetObject = null;
+        interactObject(obj, guidanceArrival);
+        return;
+      }
       const options = [
         [obj.x, obj.z + 1.65],
         [obj.x + 1.65, obj.z],
@@ -1047,7 +1093,8 @@ export default function Campus(props: Props) {
             Math.hypot(a[0] - avatar.g.position.x, a[1] - avatar.g.position.z) -
             Math.hypot(b[0] - avatar.g.position.x, b[1] - avatar.g.position.z),
         );
-      if (!dest.some(([x, z]) => go(x, z, obj))) live.current.onCancelGuide();
+      if (!dest.some(([x, z]) => go(x, z, obj, guidanceArrival)))
+        live.current.onCancelGuide();
     };
     correct.current = (x, z) => {
       avatar.g.position.set(x, 0, z);
@@ -1075,7 +1122,7 @@ export default function Campus(props: Props) {
       }
       const obj = sceneObjects.find((o) => o.id === id);
       if (obj && live.current.facility.unlocked.includes(obj.zone)) {
-        walkObject(obj);
+        walkObject(obj, true);
       }
     };
     if (live.current.correction)
@@ -1084,7 +1131,12 @@ export default function Campus(props: Props) {
     if (live.current.guideCommand?.id)
       guide.current(live.current.guideCommand.id);
     const click = (e: PointerEvent) => {
-      if (live.current.paused) return;
+      if (
+        live.current.paused ||
+        live.current.movementLocked ||
+        pickup.pendingId
+      )
+        return;
       live.current.onCancelGuide();
       canvas.focus({ preventScroll: true });
       const r = canvas.getBoundingClientRect();
@@ -1141,7 +1193,26 @@ export default function Campus(props: Props) {
       )
         return;
       const k = e.key.toLowerCase();
+      const movementKey = (WORLD_MOVEMENT_KEYS as readonly string[]).includes(
+        k,
+      );
+      // Retain physical key state while a server checkpoint holds position.
+      // E is never queued or repeated across the pending pickup.
+      if (live.current.movementLocked || pickup.pendingId) {
+        if (movementKey) {
+          e.preventDefault();
+          if (!e.repeat) {
+            live.current.onCancelGuide();
+            target = null;
+            waypoints = [];
+            targetObject = null;
+          }
+          keys.add(k);
+        }
+        return;
+      }
       if (
+        !e.repeat &&
         [
           'w',
           'a',
@@ -1203,7 +1274,7 @@ export default function Campus(props: Props) {
                   b.z - avatar.g.position.z,
                 ),
             )[0];
-          if (n) live.current.onInteract(n);
+          if (n) interactObject(n);
         }
       }
     };
@@ -1281,16 +1352,17 @@ export default function Campus(props: Props) {
       }
       const beforeX = avatar.g.position.x,
         beforeZ = avatar.g.position.z;
+      const input = worldMovement(
+        keys,
+        p.paused,
+        !!p.movementLocked || !!pickup.pendingId,
+      );
       let dx = 0,
         dz = 0,
         moving = false;
-      if (!p.paused) {
-        dx =
-          Number(keys.has('d') || keys.has('arrowright')) -
-          Number(keys.has('a') || keys.has('arrowleft'));
-        dz =
-          Number(keys.has('s') || keys.has('arrowdown')) -
-          Number(keys.has('w') || keys.has('arrowup'));
+      if (!p.paused && !p.movementLocked && !pickup.pendingId) {
+        dx = input.x;
+        dz = input.z;
         if (dx || dz) {
           target = null;
           waypoints = [];
@@ -1312,7 +1384,7 @@ export default function Campus(props: Props) {
             if (!target && targetObject) {
               const o = targetObject;
               targetObject = null;
-              p.onInteract(o);
+              interactObject(o, targetIsGuidance);
             }
           }
         }
@@ -1341,7 +1413,7 @@ export default function Campus(props: Props) {
             targetObject = null;
           }
         }
-      } else keys.clear();
+      }
       gait +=
         Math.hypot(
           avatar.g.position.x - beforeX,
@@ -1365,6 +1437,7 @@ export default function Campus(props: Props) {
         );
         if (
           obj &&
+          !moving &&
           Math.hypot(obj.x - avatar.g.position.x, obj.z - avatar.g.position.z) <
             4
         )
@@ -1392,19 +1465,21 @@ export default function Campus(props: Props) {
         ? Math.sin(((time - workStarted) / 1100) * Math.PI)
         : 0;
       workTool.visible =
-        working &&
+        !p.paused &&
         !moving &&
-        [
-          'gather',
-          'craft',
-          'collect',
-          'build',
-          'utility',
-          'contract-start',
-          'contract-service',
-          'project-inspect',
-          'project-service',
-        ].includes(p.workEvent?.kind ?? '');
+        (!!pickup.pendingId ||
+          (working &&
+            [
+              'gather',
+              'craft',
+              'collect',
+              'build',
+              'utility',
+              'contract-start',
+              'contract-service',
+              'project-inspect',
+              'project-service',
+            ].includes(p.workEvent?.kind ?? '')));
       avatar.animateFace(time, motion.matches || p.paused);
       avatar.body.position.y =
         motion.matches || p.paused
@@ -1583,7 +1658,6 @@ export default function Campus(props: Props) {
         f.outfit,
         f.accessory,
         p.playerName,
-        f.cooldowns,
         p.neighbors?.map((n) => [n.slot, n.name, n.online, n.level]),
         f.career?.accent,
         f.career?.trophy,
@@ -1726,9 +1800,7 @@ export default function Campus(props: Props) {
       for (const obj of sceneObjects) {
         const l = labels.get(obj.id)!;
         l.material.opacity =
-          obj.kind === 'node' && (f.cooldowns[obj.id] ?? 0) > Date.now()
-            ? 0.35
-            : 1;
+          obj.kind === 'node' && (f.cooldowns[obj.id] ?? 0) > now ? 0.35 : 1;
         l.visible =
           objects.get(obj.id)!.visible &&
           !(
@@ -1753,10 +1825,27 @@ export default function Campus(props: Props) {
         const contents = objects.get(obj.id)!.userData.contents as
           | T.Group
           | undefined;
-        if (contents)
+        if (contents) {
+          const size = (f.cooldowns[obj.id] ?? 0) > now ? 0.12 : 1;
           contents.scale.setScalar(
-            (f.cooldowns[obj.id] ?? 0) > Date.now() ? 0.12 : 1,
+            motion.matches
+              ? size
+              : T.MathUtils.damp(contents.scale.x, size, 18, dt),
           );
+        }
+      }
+      if (lastPickupLabel !== pickup.pendingId) {
+        if (lastPickupLabel) {
+          const previous = sceneObjects.find((o) => o.id === lastPickupLabel)!;
+          relabel(
+            labels.get(previous.id)!,
+            '↓ ' + (previous.item ? ITEMS[previous.item].name : previous.name),
+          );
+        }
+        if (pickup.pendingId) {
+          relabel(labels.get(pickup.pendingId)!, 'Collecting…');
+        }
+        lastPickupLabel = pickup.pendingId;
       }
       for (const person of p.people) {
         let g = peers.get(person.id);
@@ -1912,6 +2001,7 @@ export default function Campus(props: Props) {
     raf = requestAnimationFrame(frame);
     return () => {
       disposed = true;
+      pickup.dispose();
       cancelAnimationFrame(raf);
       observer.disconnect();
       travel.current = null;

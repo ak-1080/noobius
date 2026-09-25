@@ -7,31 +7,31 @@ const slides = [
     image: '/assets/noobius.jpeg',
     alt: 'Noobius ready for his first shift',
     title: 'Find your way around.',
-    text: 'Tap or click the floor to move. Use the + and − buttons to zoom, or your mouse wheel on desktop. “Your next move” shows a glowing path; tap the object when you arrive to do the work.',
+    text: 'Tap the floor to walk. Margo’s hint can mark your next stop. Walk there and tap the object, or press E nearby.',
   },
   {
-    image: '/assets/tutorial/tutorial-server.png',
-    alt: 'Your first server machine',
+    image: '/assets/guide/build.svg',
+    alt: 'Illustration: placing your first server on its building pad',
     title: 'Your first machine is free.',
-    text: 'Meet Margo, then open Center and build your free machine. Its green lights mean it is working.',
+    text: 'Open Center and build your free starter. Green lights mean it is working.',
   },
   {
     image: '/assets/compute-currency.png',
     alt: 'A Compute coin',
-    title: 'Green lights make Compute.',
-    text: 'Machines earn game money every 15 seconds. Tap Collect to pick it up.',
+    title: 'Put your machine to work.',
+    text: 'Recover parts, load a batch, then collect Compute when it finishes. Choose the next job yourself.',
   },
   {
-    image: '/assets/tutorial/tutorial-server.png',
-    alt: 'Server rack with green lights',
+    image: '/assets/guide/repair.svg',
+    alt: 'Illustration: a glowing circuit button marks the next repair step',
     title: 'Choose a job. Make it yours.',
-    text: 'Open Clients: book a computing job, or choose Repair & parts jobs. “Find missing parts” guides you to supplies. Finish, collect your payment, then upgrade or choose another job.',
+    text: 'Open Clients. Choose computing work or Repair & parts jobs. Complete the job, collect payment and choose what to upgrade.',
   },
   {
-    image: '/assets/facility.png',
-    alt: 'The Noobius data-center world',
+    image: '/assets/guide/expand.svg',
+    alt: 'Illustration: opening a new room for more machines',
     title: 'Level up. Explore further.',
-    text: 'Completed work earns XP. Tap your level beside Compute to see new worlds. Level 3 opens Cooling Works: bring supplies, connect the coolant pipes and recover parts for your next job.',
+    text: 'Completed work earns XP. Tap your level to see new worlds and their requirements. Cooling Works begins at level 3.',
   },
 ];
 export default function HowToSlides({
@@ -56,9 +56,9 @@ export default function HowToSlides({
             <div className="howto-next-example">
               <Navigation size={23} />
               <span>
-                <small>Your next move</small>
+                <small>Margo’s hint</small>
                 <strong>Meet Margo</strong>
-                <span className="howto-example-action">Show me Margo →</span>
+                <span className="howto-example-action">Mark location →</span>
               </span>
               <ArrowRight size={20} />
             </div>

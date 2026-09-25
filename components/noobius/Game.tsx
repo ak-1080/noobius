@@ -55,7 +55,7 @@ import {
   activeIncident,
   OUTAGE_NAMES,
   storedComputeNow,
-  computePerTick,
+  computeForecast,
 } from '@/lib/facility';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -439,10 +439,13 @@ export default function NoobiusGame() {
           mode === 'wallet',
           profile ? jobDrafts[profile.wallet] : undefined,
         ));
+  const [markedHint, setMarkedHint] = useState('');
+  const hintKey = `${profile?.wallet}:${objective.title}:${objective.target ?? ''}`;
   const briefing = nextBriefing(facility);
   const arrivedObject = OBJECTS.find((o) => o.id === arrivedStep?.target);
   const incident = activeIncident(facility, now);
   const storedCompute = storedComputeNow(facility, now);
+  const nextCompute = computeForecast(facility, now);
   const readyDaily = dailyRewardReady(facility, now);
   const returning = returnSummary(facility, now, mode === 'wallet');
   const returnSuggestion =
@@ -791,8 +794,7 @@ export default function NoobiusGame() {
     }
     if (object.kind === 'node') {
       setArrivedStep(null);
-      void act({ type: 'gather', id: object.id });
-      return;
+      return act({ type: 'gather', id: object.id });
     }
     if (object.kind === 'gate') {
       show('map', object);
@@ -981,10 +983,8 @@ export default function NoobiusGame() {
               realm={currentRealm}
               cluster={neighborhood.snapshot?.cluster}
               correction={neighborhood.correction}
-              paused={
-                needsIdentity ||
-                !!panel ||
-                !!activeJob ||
+              paused={needsIdentity || !!panel || !!activeJob}
+              movementLocked={
                 busy ||
                 (mode !== 'practice' &&
                   (!neighborhood.canMove || neighborhood.needsTakeover)) ||
@@ -1001,7 +1001,8 @@ export default function NoobiusGame() {
               guideCommand={guideCommand}
               objectiveId={
                 room === 'home'
-                  ? (arrivedStep?.target ?? objective.target)
+                  ? (arrivedStep?.target ??
+                    (markedHint === hintKey ? objective.target : undefined))
                   : undefined
               }
               workEvent={workEvent}
@@ -1177,7 +1178,13 @@ export default function NoobiusGame() {
                       : null
                   }
                   busy={busy}
-                  onFollow={followObjective}
+                  highlighted={markedHint === hintKey}
+                  onFollow={() => {
+                    // Margo marks a place. Only the player's direct world
+                    // interaction walks, opens a station, or does the work.
+                    stopFollowing();
+                    setMarkedHint(hintKey);
+                  }}
                   onStop={stopFollowing}
                 />
               )}
@@ -1197,7 +1204,7 @@ export default function NoobiusGame() {
                 <ComputeIcon size={30} />
                 <span>
                   {facility.workload && now >= facility.workload.readyAt
-                    ? `Collect bonus +${facility.workload.reward}`
+                    ? `Collect batch +${facility.workload.reward}`
                     : storedCompute > 0
                       ? `Collect +${storedCompute}`
                       : 'View machines'}
@@ -1206,16 +1213,13 @@ export default function NoobiusGame() {
                       facility.workload && now >= facility.workload.readyAt
                     ) && (
                       <small>
-                        Next +{computePerTick(facility)} in{' '}
-                        {Math.max(
-                          1,
-                          Math.ceil(
-                            (15000 -
-                              (Math.max(0, now - facility.computeAt) % 15000)) /
-                              1000,
-                          ),
-                        )}
-                        s
+                        {nextCompute.nextAmount > 0
+                          ? `Next +${nextCompute.nextAmount} in ${Math.max(1, Math.ceil((nextCompute.nextAt - now) / 1000))}s`
+                          : facility.productionVersion === 3
+                            ? facility.workload
+                              ? `Batch ready in ${Math.ceil((facility.workload.readyAt - now) / 1000)}s`
+                              : 'Choose a machine job'
+                            : 'Machines assigned to jobs'}
                       </small>
                     )}
                 </span>
@@ -1223,26 +1227,20 @@ export default function NoobiusGame() {
               </button>
             )}
           </div>
-          {room === 'home' && incident && (
-            <button
-              className="bonus-event-button"
-              onClick={() => show('outage')}
-            >
-              <Sparkles size={20} />
-              <span>
-                Bonus!<small>Wake a sleepy machine · +40</small>
-              </span>
-            </button>
-          )}
-          {celebration && !panel && !activeJob && (
-            <div className="milestone-toast" role="status">
-              <Sparkles size={27} />
-              <div>
-                <strong>{celebration.title}</strong>
-                <span>{celebration.detail}</span>
+          {celebration &&
+            !['compute-harvest', 'compute-collect', 'outage-fix'].includes(
+              celebration.kind,
+            ) &&
+            !panel &&
+            !activeJob && (
+              <div className="milestone-toast" role="status">
+                <Check size={23} />
+                <div>
+                  <strong>{celebration.title}</strong>
+                  <span>{celebration.detail}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
           <div className="campus-hotbar" aria-label="Campus tools">
             {[
               {
@@ -1479,9 +1477,9 @@ export default function NoobiusGame() {
                           : 'Some faults are tomorrow’s problem. Your completed repairs still count.',
                       briefing: 'One step at a time. You’ve got this.',
                       compute:
-                        'Build machines. Collect Compute. Grow your data center.',
+                        'Recover parts. Run machine batches. Choose client work.',
                       outage:
-                        'Tap the glowing buttons for a bonus. Your machines keep earning.',
+                        'Tap the glowing buttons to bring a machine back online.',
                     } as Record<string, string>
                   )[panel ?? '']
                 }
@@ -1775,6 +1773,16 @@ export default function NoobiusGame() {
                   busy={busy}
                   onAction={act}
                   onStarted={() => setPanel(null)}
+                  onFindParts={(item) => {
+                    const node = OBJECTS.find((o) => o.kind === 'node' && o.item === item && facility.unlocked.includes(o.zone));
+                    executeStep({
+                      title: `Collect ${item}`,
+                      detail: '',
+                      cta: '',
+                      target: node?.id ?? 'bit',
+                      panel: node ? undefined : 'market',
+                    });
+                  }}
                   onOutage={() => {
                     if (incident)
                       executeStep({
@@ -2189,7 +2197,12 @@ export default function NoobiusGame() {
               )}
               {panel === 'guide' && (
                 <QuickGuide
-                  onFollow={followObjective}
+                  onFollow={() => {
+                    stopFollowing();
+                    setPanel(null);
+                    if (room === 'home') setMarkedHint(hintKey);
+                    else void goWorld('home');
+                  }}
                   atHome={room === 'home'}
                 />
               )}

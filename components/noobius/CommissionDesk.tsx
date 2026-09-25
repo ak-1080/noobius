@@ -8,6 +8,7 @@ import {
   Trophy,
   ArrowRight,
   Check,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,16 +27,26 @@ import {
   specialtyName,
 } from '@/lib/commissions';
 import ItemIcon from './ItemIcon';
+import ComputeIcon from './ComputeIcon';
+import styles from './WorkPanels.module.css';
 const icons = { fast: Cpu, efficient: Leaf, stable: ShieldCheck };
-function Parts({ items }: { items: Bag }) {
+function Parts({ items, inventory }: { items: Bag; inventory: Bag }) {
   return (
-    <div className="commission-parts">
-      {Object.entries(items).map(([id, n]) => (
-        <span key={id}>
-          <ItemIcon item={id as keyof Bag} size={19} />
-          {n} {ITEMS[id as keyof Bag].name}
-        </span>
-      ))}
+    <div className={styles.parts}>
+      <span className={styles.label}>Supplies consumed · have / need</span>
+      <div className="commission-parts">
+        {Object.entries(items).map(([id, n]) => (
+          <span key={id}>
+            <span>
+              <ItemIcon item={id as keyof Bag} size={19} />
+              {ITEMS[id as keyof Bag].name}
+            </span>
+            <b data-missing={(inventory[id as keyof Bag] ?? 0) < n!}>
+              {inventory[id as keyof Bag] ?? 0} / {n}
+            </b>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -73,24 +84,22 @@ export default function CommissionDesk({
   const c = commissionsFor(f),
     racks = availableRacks(f, now),
     chosen = racks.includes(rack) ? rack : (racks[0] ?? ''),
-    p = milestoneProgress(f);
+    p = milestoneProgress(f),
+    occupied = c.active.length + (f.career?.active.length ?? 0);
   const afford = (bag: Bag, fee: number) =>
     f.compute >= fee &&
     Object.entries(bag).every(
       ([id, n]) => (f.inventory[id as keyof Bag] ?? 0) >= n!,
     );
   return (
-    <div className="commission-desk">
+    <div className={`commission-desk ${styles.desk}`}>
       <div className="commission-banner">
         <span>
           DISPATCH /{' '}
           {c.milestone ? 'DISTINCTION ' + c.milestone : 'YOUR NEXT CHAPTER'}
         </span>
         <h3>Your racks. Your call.</h3>
-        <p>
-          Choose the client that fits your supplies and machines. Explore while
-          the work runs.
-        </p>
+        <p>Pick a client. Load a batch. Explore while it runs.</p>
       </div>
       <div className="commission-tabs" aria-label="Client desk views">
         {[
@@ -123,6 +132,7 @@ export default function CommissionDesk({
                     <strong>{r.name}</strong>
                     <progress
                       max={100}
+                      aria-label={`${r.client} processing progress`}
                       value={Math.min(
                         100,
                         ((now - r.startedAt) / (r.readyAt - r.startedAt)) * 100,
@@ -182,15 +192,33 @@ export default function CommissionDesk({
                 }
               />
             </label>
-            <span>
-              2 shared client slots. A booked machine pauses its idle output.
-            </span>
+            <div className={styles.chips}>
+              <span>
+                <Layers size={14} aria-hidden="true" />
+                {occupied}/2 client slots occupied
+              </span>
+              <span>Booked racks pause idle output</span>
+            </div>
           </div>
           <div className="commission-offers">
             {commissionOffers(f).map((o) => {
               const q = commissionQuote(f, o.kind, chosen, units),
                 Icon = icons[o.kind],
-                can = !!chosen && units <= q.capacity && afford(q.cost, q.fee);
+                can = !!chosen && units <= q.capacity && afford(q.cost, q.fee),
+                missingParts = Object.entries(q.cost).some(
+                  ([id, n]) => (f.inventory[id as keyof Bag] ?? 0) < n!,
+                ),
+                blocked = !chosen
+                  ? 'No free machine. Build one or finish a running job.'
+                  : occupied >= 2
+                    ? 'Both client slots are occupied. Finish a job first.'
+                    : units > q.capacity
+                      ? `This setup fits ${q.capacity} units. Reduce your batch.`
+                      : f.compute < q.fee
+                        ? `Need ${(q.fee - f.compute).toLocaleString()} more Compute for the operating cost.`
+                        : missingParts
+                          ? 'Bring the missing supplies in your backpack.'
+                          : null;
               return (
                 <article key={o.id} className={`commission-offer ${o.kind}`}>
                   <div className="commission-type">
@@ -206,21 +234,61 @@ export default function CommissionDesk({
                     )}
                   </small>
                   <h3>{o.name}</h3>
-                  <p>{o.detail}</p>
-                  <div className="commission-quote">
-                    <strong>
-                      {q.reward} <small>Compute payment</small>
-                    </strong>
+                  <dl className={styles.metrics}>
+                    <div>
+                      <dt>COMPUTE PAYMENT</dt>
+                      <dd>
+                        <ComputeIcon size={20} />
+                        {q.reward.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>COMPUTE COST · UPFRONT</dt>
+                      <dd>
+                        <ComputeIcon size={18} />
+                        {q.fee.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>PROCESSING TIME</dt>
+                      <dd>
+                        <Clock3 size={17} aria-hidden="true" />
+                        {q.seconds}
+                        <small>sec</small>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>EXPERIENCE</dt>
+                      <dd>
+                        +{q.xp}
+                        <small>XP</small>
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className={styles.chips}>
                     <span>
-                      <Clock3 size={16} />
-                      {q.seconds}s · +{q.xp} XP
+                      <Layers size={14} aria-hidden="true" />
+                      {units}/{q.capacity} batch slots
                     </span>
-                    <span>{q.fee} Compute operating cost</span>
-                    <span>{q.lostIdle} estimated idle Compute forgone</span>
-                    <span>{q.capacity} batch slots on this setup</span>
                   </div>
-                  <Parts items={q.cost} />
-                  {!afford(q.cost, q.fee) && (
+                  <Parts items={q.cost} inventory={f.inventory} />
+                  <details className={styles.terms}>
+                    <summary>Booking details</summary>
+                    <p>{o.detail}</p>
+                    <dl>
+                      <div>
+                        <dt>Estimated idle output forgone</dt>
+                        <dd>{q.lostIdle} Compute</dd>
+                      </div>
+                    </dl>
+                    <p>
+                      Supplies and operating cost are spent when booked. The
+                      payment shown is before those costs. Accepted terms stay
+                      fixed; started work does not expire while you are away.
+                    </p>
+                  </details>
+                  {blocked && <p className={styles.notice}>{blocked}</p>}
+                  {missingParts && (
                     <button
                       className="text-action"
                       onClick={() => onParts(q.cost)}
@@ -231,11 +299,7 @@ export default function CommissionDesk({
                   )}
                   <Button
                     className="primary-action"
-                    disabled={
-                      busy ||
-                      !can ||
-                      c.active.length + (f.career?.active.length ?? 0) >= 2
-                    }
+                    disabled={busy || !can || occupied >= 2}
                     onClick={() =>
                       void onAction({
                         type: 'commission-start',
@@ -245,18 +309,26 @@ export default function CommissionDesk({
                       })
                     }
                   >
-                    {units > q.capacity
-                      ? 'Choose a smaller batch'
-                      : 'Book this client'}
+                    {!chosen
+                      ? 'Machine needed'
+                      : occupied >= 2
+                        ? 'Client slots full'
+                        : units > q.capacity
+                          ? 'Choose a smaller batch'
+                          : 'Book this client'}
                   </Button>
                 </article>
               );
             })}
           </div>
-          <p className="muted-small">
-            Choosing a client opens a fresh board. Started jobs keep their
-            quoted terms and never expire while you are away.
-          </p>
+          <details className={styles.terms}>
+            <summary>How bookings work</summary>
+            <p>
+              Booking opens a fresh board. Two slots are shared with repair and
+              parts jobs. A reserved machine pauses its idle output. Started
+              jobs keep their quoted terms and never expire while you are away.
+            </p>
+          </details>
           <div className="commission-links">
             <Button variant="outline" onClick={onJobs}>
               Repair & parts jobs
@@ -272,9 +344,8 @@ export default function CommissionDesk({
       )}
       {tab === 'specialties' && (
         <>
-          <p>
-            Earn records through work. Invest in the setup you enjoy. Every
-            specialty keeps its own progress.
+          <p className="muted-small">
+            Finish client work to certify your favorite specialty.
           </p>
           <div className="commission-offers">
             {SPECIALTIES.map((k) => {
@@ -290,28 +361,54 @@ export default function CommissionDesk({
                     {specialtyName[k]}
                   </div>
                   <h3>Certification {level} / 3</h3>
-                  <p>
-                    {
+                  <div className={styles.chips}>
+                    <span>
                       {
-                        fast: 'Each certification cuts another 10% from your client processing time. Throughput still uses extra wire.',
-                        efficient:
-                          'Each certification uses fewer chips and wire and fits 3 extra units. Flexible work still occupies your machine longer.',
-                        stable:
-                          'Each certification reduces coolant use. Reliability still needs crafted boards.',
-                      }[k]
-                    }
-                  </p>
-                  <strong>{c.completed[k]} completed commissions</strong>
+                        {
+                          fast: '−10% base processing time / tier',
+                          efficient: 'Fewer chips & wire',
+                          stable: 'Less coolant',
+                        }[k]
+                      }
+                    </span>
+                    {k === 'efficient' && <span>+3 batch slots / tier</span>}
+                  </div>
+                  <details className={styles.terms}>
+                    <summary>Specialty benefits</summary>
+                    <p>
+                      {
+                        {
+                          fast: 'Each certification cuts another 10% from your client processing time. Throughput still uses extra wire.',
+                          efficient:
+                            'Each certification uses fewer chips and wire and fits 3 extra units. Flexible work still occupies your machine longer.',
+                          stable:
+                            'Each certification reduces coolant use. Reliability still needs crafted boards.',
+                        }[k]
+                      }
+                    </p>
+                  </details>
+                  <strong>{c.completed[k]} client records</strong>
                   {level < 3 ? (
                     <>
                       <progress
                         value={Math.min(c.completed[k], need)}
                         max={need}
+                        aria-label={`${Math.min(c.completed[k], need)} of ${need} required client records`}
                       />
-                      <p>
-                        {need} records · {price} Compute
-                      </p>
-                      <Parts items={cost} />
+                      <dl className={styles.metrics}>
+                        <div>
+                          <dt>RECORDS REQUIRED</dt>
+                          <dd>{need}</dd>
+                        </div>
+                        <div>
+                          <dt>COMPUTE COST</dt>
+                          <dd>
+                            <ComputeIcon size={18} />
+                            {price.toLocaleString()}
+                          </dd>
+                        </div>
+                      </dl>
+                      <Parts items={cost} inventory={f.inventory} />
                       <Button
                         disabled={
                           busy || c.completed[k] < need || !afford(cost, price)
@@ -352,24 +449,43 @@ export default function CommissionDesk({
               ][c.milestone % 3]
             }
           </h3>
-          <p>
-            Finish a fresh portfolio, supply the build, and add a permanent
-            illuminated monument to your center. Every new distinction starts
-            another portfolio. Your machines and progress stay.
-          </p>
-          <ul>
-            <li>
-              {Math.min(p.needed, p.jobs)}/{p.needed} client commissions
+          <p>Complete this portfolio to light a permanent monument.</p>
+          <ul className={styles.requirements}>
+            <li data-complete={p.jobs >= p.needed}>
+              <strong>
+                {Math.min(p.needed, p.jobs)}/{p.needed}
+              </strong>
+              <span>Client commissions</span>
             </li>
-            <li>{Math.min(2, p.diversity)}/2 different specialties</li>
-            <li>{Math.min(1, p.visits.reclaim)}/1 Crew Commons recovery</li>
-            <li>
-              {Math.min(1, p.visits.specialist)}/1 Cooling Works, GPU or Archive
-              recovery
+            <li data-complete={p.diversity >= 2}>
+              <strong>{Math.min(2, p.diversity)}/2</strong>
+              <span>Different specialties</span>
+            </li>
+            <li data-complete={p.visits.reclaim >= 1}>
+              <strong>{Math.min(1, p.visits.reclaim)}/1</strong>
+              <span>Crew Commons recovery</span>
+            </li>
+            <li data-complete={p.visits.specialist >= 1}>
+              <strong>{Math.min(1, p.visits.specialist)}/1</strong>
+              <span>Cooling Works, GPU or Archive recovery</span>
             </li>
           </ul>
-          <Parts items={p.cost} />
-          <strong>{p.compute.toLocaleString()} Compute · +60 XP</strong>
+          <Parts items={p.cost} inventory={f.inventory} />
+          <dl className={styles.metrics}>
+            <div>
+              <dt>COMPUTE BUILD COST</dt>
+              <dd>
+                <ComputeIcon size={20} />
+                {p.compute.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt>EXPERIENCE</dt>
+              <dd>
+                +60<small>XP</small>
+              </dd>
+            </div>
+          </dl>
           <Button
             className="primary-action"
             disabled={busy || !p.ready || !afford(p.cost, p.compute)}
@@ -394,9 +510,17 @@ export default function CommissionDesk({
             </Button>
           </div>
           <p className="muted-small">
-            The free route uses Crew Commons and Cooling Works. No token or
-            teammate is required.
+            Free route: Crew Commons + Cooling Works. No token or teammate
+            needed.
           </p>
+          <details className={styles.terms}>
+            <summary>After this distinction</summary>
+            <p>
+              A new portfolio begins. Your monument, machines, certifications
+              and existing progress stay. The next distinction requires fresh
+              work and new build supplies.
+            </p>
+          </details>
         </div>
       )}
     </div>

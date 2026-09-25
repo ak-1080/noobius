@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" role="img" aria-labelledby="title desc">
+  <title id="title">Place your first server</title>
+  <desc id="desc">A server rack is lowered onto a marked building pad. Its green lights show the installed machine is ready.</desc>
+  <rect width="600" height="480" rx="28" fill="#0b202a"/>
+  <path d="m70 355 224-110 236 108-226 112Z" fill="#183a46" stroke="#45636c" stroke-width="3"/>
+  <path d="m112 335 234 110M166 309l234 110M225 280l230 111M125 380l227-109M181 407l227-109M242 435l225-109" stroke="#2a4e59" stroke-width="2"/>
+  <path d="m194 344 98-48 110 49-100 49Z" fill="#c2ef8a" fill-opacity=".08" stroke="#c2ef8a" stroke-width="4" stroke-dasharray="10 8"/>
+  <path d="m217 102 90-33 93 34-91 34Z" fill="#5d7b82" stroke="#75949b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m217 102 92 35v189l-92-36Z" fill="#193641" stroke="#6c8c92" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m309 137 91-34v187l-91 36Z" fill="#102a36" stroke="#54747f" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m234 124 59 23v44l-59-23Zm0 65 59 23v44l-59-23Zm0 65 59 23v29l-59-23Z" fill="#2e5360" stroke="#60828b" stroke-width="2"/>
+  <path d="m244 139 26 10m-26 10 26 10m-26 35 26 10m-26 10 26 10m-26 35 26 10" stroke="#10242e" stroke-width="5" stroke-linecap="round"/>
+  <path d="m280 155 5 2v10l-5-2Zm0 65 5 2v10l-5-2Zm0 61 5 2v10l-5-2Z" fill="#c2ef8a"/>
+  <path d="m329 151 52-20v124l-52 20Z" fill="#163c49"/>
+  <path d="m341 153 28-10m-28 27 28-10m-28 27 28-10m-28 27 28-10m-28 27 28-10m-28 27 28-10" stroke="#315968" stroke-width="4"/>
+  <path d="M138 107v114m-26-26 26 26 26-26" fill="none" stroke="#c2ef8a" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="461" cy="129" r="41" fill="#c2ef8a"/>
+  <path d="M441 129h40m-20-20v40" stroke="#17362d" stroke-width="9" stroke-linecap="round"/>
+  <path d="m242 358 27 13m51 0 26-13" stroke="#c2ef8a" stroke-width="5" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" role="img" aria-labelledby="title desc">
+  <title id="title">Follow the illuminated circuit</title>
+  <desc id="desc">A repair panel with three circuit buttons. The middle button is illuminated first. Tap the glowing button until all three progress lights are restored.</desc>
+  <rect width="600" height="480" rx="28" fill="#0b202a"/>
+  <rect x="45" y="74" width="510" height="340" rx="28" fill="#25454e" stroke="#708a8b" stroke-width="4"/>
+  <rect x="66" y="94" width="468" height="296" rx="18" fill="#102b33" stroke="#38575d" stroke-width="2"/>
+  <g fill="#b5c7c1"><circle cx="62" cy="91" r="4"/><circle cx="538" cy="91" r="4"/><circle cx="62" cy="397" r="4"/><circle cx="538" cy="397" r="4"/></g>
+  <path d="M141 203v-39h48v-41h60m51 83V130m159 75v-41h-48v-41h-60M139 307v41h160m158-41v41H299v-41" fill="none" stroke="#547e79" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M300 204v-37" stroke="#d5a765" stroke-width="5"/>
+  <g fill="#294c4e" stroke="#6c9290" stroke-width="3"><circle cx="245" cy="124" r="12"/><circle cx="300" cy="124" r="12"/><circle cx="355" cy="124" r="12"/></g>
+  <rect x="88" y="203" width="108" height="104" rx="20" fill="#193d46" stroke="#5a7881" stroke-width="4"/>
+  <rect x="238" y="195" width="124" height="120" rx="24" fill="#d4b273" fill-opacity=".13"/>
+  <rect x="246" y="203" width="108" height="104" rx="20" fill="#f0c776" stroke="#ffde9e" stroke-width="4"/>
+  <rect x="404" y="203" width="108" height="104" rx="20" fill="#193d46" stroke="#5a7881" stroke-width="4"/>
+  <path d="m148 225-27 36h21l-6 25 28-40h-22Z" fill="#71959b"/>
+  <path d="m306 225-27 36h21l-6 25 28-40h-22Z" fill="#554328"/>
+  <path d="m464 225-27 36h21l-6 25 28-40h-22Z" fill="#71959b"/>
+  <path d="m333 278 5 50 12-12 12 22 14-8-13-21 18-3Z" fill="#e7ede2" stroke="#102b33" stroke-width="4" stroke-linejoin="round"/>
+</svg>

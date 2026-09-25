@@ -77,7 +77,7 @@ import {
 } from './game';
 import {
   applyFacility,
-  newFacility,
+  newActiveFacility,
   normalizeFacility,
   repairLoot,
   ITEMS,
@@ -214,7 +214,7 @@ async function player(wallet: string): Promise<Profile> {
       .prepare(
         'UPDATE players SET facility_state=? WHERE wallet=? AND facility_state IS NULL',
       )
-      .bind(JSON.stringify(newFacility()), wallet)
+      .bind(JSON.stringify(newActiveFacility()), wallet)
       .run();
     p = (await db()
       .prepare('SELECT * FROM players WHERE wallet=?')
@@ -238,10 +238,10 @@ async function player(wallet: string): Promise<Profile> {
       .run();
     return player(wallet);
   }
-  if (saved.tycoonVersion !== 1 || saved.productionVersion !== 2) {
+  if (saved.tycoonVersion !== 1 || saved.productionVersion !== 3) {
     // Commit the rate transition before returning it to the client. Otherwise
     // a legacy read could display new-rate earnings that a later write reverts.
-    const migrated = normalizeFacility(saved, Date.now());
+    const migrated = normalizeFacility(saved, Date.now(), 3);
     await db()
       .prepare(
         'UPDATE players SET facility_state=?,facility_version=facility_version+1 WHERE wallet=? AND facility_version=? AND facility_state=?',

@@ -591,8 +591,7 @@ export default function ProjectPanel({
                               return (
                                 <NativeSelectOption key={id} value={id}>
                                   {OBJECTS.find((o) => o.id === id)?.name} ·{' '}
-                                  {q.duration}s · pauses {q.pausedOutput}{' '}
-                                  Compute
+                                  {q.duration}s · {facility.productionVersion === 3 ? 'reserves this machine' : `pauses ${q.pausedOutput} Compute`}
                                 </NativeSelectOption>
                               );
                             })}
@@ -601,9 +600,10 @@ export default function ProjectPanel({
                         {quote ? (
                           <p>
                             Process 20 commissioning packets in {quote.duration}
-                            s. This reserves the whole machine and pauses{' '}
-                            {quote.pausedOutput} Compute of ordinary output.
-                            Your other machines keep working.
+                            s. This reserves the whole machine.{' '}
+                            {facility.productionVersion === 3
+                              ? 'Use another machine for other work during the run.'
+                              : `It pauses ${quote.pausedOutput} Compute of ordinary output. Your other machines keep working.`}
                           </p>
                         ) : (
                           <p>

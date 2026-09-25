@@ -158,7 +158,7 @@ export function commissionQuote(
       quantity * ({ fast: 55, efficient: 50, stable: 75 }[kind] + demand) +
       80 * scale,
     xp: 20 + Math.ceil(quantity / 2),
-    lostIdle: Math.ceil(seconds / 15) * machinePerTick(f, rack),
+    lostIdle: f.productionVersion === 3 ? 0 : Math.ceil(seconds / 15) * machinePerTick(f, rack),
   };
 }
 export function milestoneProgress(f: Facility) {

@@ -31,6 +31,18 @@ export default function ComputeCollection({
   const forecast = computeForecast(facility, now);
   const seconds = Math.max(1, Math.ceil((forecast.nextAt - now) / 1000));
   const full = ready >= capacity;
+  if (facility.productionVersion === 3) {
+    if (!ready) return null;
+    return (
+      <section className="collection-strip has-compute" aria-label="Previously earned Compute">
+        <div className="collection-summary">
+          <ComputeIcon size={34} />
+          <div><strong>{ready.toLocaleString()} Compute ready</strong><span>Earned before the machine batch update.</span></div>
+          <Button className="primary-action" disabled={busy} onClick={() => void onAction({ type: 'compute-harvest' })}><ArrowDownToLine size={18} /> Collect</Button>
+        </div>
+      </section>
+    );
+  }
   if (!perTick) return null;
 
   return (

@@ -1,0 +1,298 @@
+[
+  {
+    "kind": "sorting",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "metrics": {
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 738,
+          "scroll": 738
+        },
+        {
+          "class": "game-panel-body",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "challenge-cards",
+          "width": 682,
+          "scroll": 682
+        }
+      ],
+      "buttons": 13
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-sorting.png"
+  },
+  {
+    "kind": "pipes",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "metrics": {
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 738,
+          "scroll": 738
+        },
+        {
+          "class": "game-panel-body",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "pipe-board",
+          "width": 340,
+          "scroll": 340
+        }
+      ],
+      "buttons": 10
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-pipes.png"
+  },
+  {
+    "kind": "scheduler",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "metrics": {
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 738,
+          "scroll": 738
+        },
+        {
+          "class": "game-panel-body",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "challenge-cards",
+          "width": 682,
+          "scroll": 682
+        }
+      ],
+      "buttons": 9
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-scheduler.png"
+  },
+  {
+    "kind": "restore",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "metrics": {
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "bodyWidth": 1440,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 738,
+          "scroll": 738
+        },
+        {
+          "class": "game-panel-body",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 682,
+          "scroll": 682
+        },
+        {
+          "class": "snapshot-cards",
+          "width": 682,
+          "scroll": 682
+        }
+      ],
+      "buttons": 5
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-restore.png"
+  },
+  {
+    "kind": "sorting",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "metrics": {
+      "viewport": 390,
+      "pageWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 332,
+          "scroll": 332
+        },
+        {
+          "class": "game-panel-body",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "challenge-cards",
+          "width": 286,
+          "scroll": 286
+        }
+      ],
+      "buttons": 13
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-sorting-mobile.png"
+  },
+  {
+    "kind": "pipes",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "metrics": {
+      "viewport": 390,
+      "pageWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 332,
+          "scroll": 332
+        },
+        {
+          "class": "game-panel-body",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "pipe-board",
+          "width": 286,
+          "scroll": 286
+        }
+      ],
+      "buttons": 10
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-pipes-mobile.png"
+  },
+  {
+    "kind": "scheduler",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "metrics": {
+      "viewport": 390,
+      "pageWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 332,
+          "scroll": 332
+        },
+        {
+          "class": "game-panel-body",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "challenge-cards",
+          "width": 286,
+          "scroll": 286
+        }
+      ],
+      "buttons": 9
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-scheduler-mobile.png"
+  },
+  {
+    "kind": "restore",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "metrics": {
+      "viewport": 390,
+      "pageWidth": 390,
+      "bodyWidth": 390,
+      "overflow": [
+        {
+          "class": "noobius-modal game-panel-shell field-modal",
+          "width": 332,
+          "scroll": 332
+        },
+        {
+          "class": "game-panel-body",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "realm-challenge _challenge_4n9jr_47",
+          "width": 286,
+          "scroll": 286
+        },
+        {
+          "class": "snapshot-cards",
+          "width": 286,
+          "scroll": 286
+        }
+      ],
+      "buttons": 5
+    },
+    "errors": [],
+    "shot": "docs/design/2026-09-25/screens/challenge-restore-mobile.png"
+  }
+]

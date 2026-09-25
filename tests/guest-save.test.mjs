@@ -10,7 +10,6 @@ import {
   applyFacility,
   newFacility,
   storedComputeNow,
-  computeTankCapacity,
   dayKey,
 } from '../lib/facility.ts';
 
@@ -78,7 +77,8 @@ test('guest reload preserves name, combined appearance, purchases, money, and pr
   assert.equal(restored.profile.name, p.name);
   assert.equal(restored.profile.credits, 42);
   assert.equal(restored.profile.facility.compute, 42);
-  assert.equal(restored.profile.facility.computeAt, p.facility.computeAt);
+  assert.equal(restored.profile.facility.computeAt, t.now);
+  assert.equal(restored.profile.facility.productionVersion, 3);
   assert.equal(restored.profile.facility.outfit, 'starter-blue');
   assert.equal(restored.profile.facility.accessory, 'cap');
   assert.equal(restored.profile.equipment.visor, true);
@@ -114,7 +114,7 @@ test('next-day return keeps stamps, caps offline income, and cannot collect the 
   assert.deepEqual(restored.profile.facility.daily, {});
   assert.equal(
     storedComputeNow(restored.profile.facility, t.now),
-    computeTankCapacity(restored.profile.facility),
+    1440, // Already earned under v2, even above the new batch-only capacity.
   );
   const collected = applyFacility(
     restored.profile.facility,
@@ -139,7 +139,7 @@ test('next-day return keeps stamps, caps offline income, and cannot collect the 
         again.profile.credits,
         t.now,
       ),
-    /warming/,
+    /Start a supplied machine batch/,
   );
 });
 
@@ -301,16 +301,16 @@ test('reading and saving an unchanged legacy guest persists the production migra
   t.advance(30001);
   const store = t.makeStore(), loaded = store.read().snapshot;
   assert.equal(loaded.profile.facility.storedCompute, 1260);
-  assert.equal(loaded.profile.facility.productionVersion, 2);
+  assert.equal(loaded.profile.facility.productionVersion, 3);
   const before = JSON.parse(t.data.get(GUEST_SAVE_KEY)).revision;
   assert.equal(store.write(loaded.profile, loaded.shift).kind, 'saved');
   const saved = JSON.parse(t.data.get(GUEST_SAVE_KEY));
   assert.notEqual(saved.revision, before);
-  assert.equal(saved.profile.facility.productionVersion, 2);
+  assert.equal(saved.profile.facility.productionVersion, 3);
   t.advance(15000);
   const later = t.makeStore().read().snapshot;
   assert.equal(later.profile.facility.storedCompute, 1260);
-  assert.equal(storedComputeNow(later.profile.facility, t.now), 1277);
+  assert.equal(storedComputeNow(later.profile.facility, t.now), 1260);
 });
 
 test('guest migration handles a concurrent tab and retries failed storage without false success', () => {
@@ -324,7 +324,7 @@ test('guest migration handles a concurrent tab and retries failed storage withou
   const conflict = b.write(bv.profile, bv.shift);
   assert.equal(conflict.kind, 'conflict');
   assert.equal(conflict.snapshot.profile.name, 'NewestName');
-  assert.equal(conflict.snapshot.profile.facility.productionVersion, 2);
+  assert.equal(conflict.snapshot.profile.facility.productionVersion, 3);
   assert.equal(b.write(conflict.snapshot.profile, null).kind, 'saved');
 
   const raw = JSON.parse(t.data.get(GUEST_SAVE_KEY));
@@ -337,13 +337,13 @@ test('guest migration handles a concurrent tab and retries failed storage withou
   assert.equal(JSON.parse(t.data.get(GUEST_SAVE_KEY)).profile.facility.productionVersion, undefined);
   t.storage.setItem = originalSet;
   assert.equal(retry.write(v.profile, v.shift).kind, 'saved');
-  assert.equal(JSON.parse(t.data.get(GUEST_SAVE_KEY)).profile.facility.productionVersion, 2);
+  assert.equal(JSON.parse(t.data.get(GUEST_SAVE_KEY)).profile.facility.productionVersion, 3);
 });
 
 test('future production versions cannot be replaced by a fresh guest fallback', () => {
   const t = setup(), a = t.makeStore(); a.read(); a.write(t.profile, null);
   const newer = JSON.parse(t.data.get(GUEST_SAVE_KEY));
-  newer.profile.facility.productionVersion = 3;
+  newer.profile.facility.productionVersion = 4;
   const raw = JSON.stringify(newer); t.data.set(GUEST_SAVE_KEY, raw);
   const b = t.makeStore();
   assert.equal(b.read().issue, 'newer');

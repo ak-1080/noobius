@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" role="img" aria-labelledby="title desc">
+  <title id="title">Add stronger server modules</title>
+  <desc id="desc">A rack gains two green server modules above its original module. An upward arrow marks the equipment upgrade.</desc>
+  <rect width="600" height="480" rx="28" fill="#0b202a"/>
+  <ellipse cx="277" cy="405" rx="166" ry="28" fill="#06171f"/>
+  <path d="m159 91 143-30 83 48-143 32Z" fill="#65838b" stroke="#84a1a7" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m159 91 83 50v260l-83-50Z" fill="#193440" stroke="#5e7f8a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m242 141 143-32v260l-143 32Z" fill="#102630" stroke="#648992" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m255 162 117-26v62l-117 26Z" fill="#385e51" stroke="#c2ef8a" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m255 244 117-26v62l-117 26Z" fill="#385e51" stroke="#c2ef8a" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m255 326 117-26v56l-117 26Z" fill="#2c4e5b" stroke="#698891" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m268 181 63-14m-63 29 63-14m-63 81 63-14m-63 29 63-14m-63 78 63-14m-63 29 63-14" stroke="#122d36" stroke-width="6" stroke-linecap="round"/>
+  <path d="m345 165 10-2v19l-10 2Zm0 82 10-2v19l-10 2Zm0 81 10-2v19l-10 2Z" fill="#c2ef8a"/>
+  <path d="m181 144 37 22v164l-37-22Z" fill="#20414e"/>
+  <path d="m190 166 19 11m-19 13 19 11m-19 13 19 11m-19 13 19 11m-19 13 19 11m-19 13 19 11" stroke="#4c6f7b" stroke-width="4"/>
+  <path d="M458 317V151m-35 36 35-36 35 36" fill="none" stroke="#c2ef8a" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="106" cy="164" r="29" fill="#c2ef8a"/><path d="M94 164h24m-12-12v24" stroke="#17362d" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="106" cy="248" r="29" fill="#c2ef8a"/><path d="M94 248h24m-12-12v24" stroke="#17362d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M107 308v44m-16-22 32 19" stroke="#466873" stroke-width="5" stroke-linecap="round"/>
+</svg>

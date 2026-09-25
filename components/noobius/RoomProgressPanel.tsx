@@ -18,6 +18,7 @@ import {
   ZONES,
   machineGain,
   machinePerTick,
+  workloadCapacity,
   modules,
   type Facility,
   type FacilityAction,
@@ -40,7 +41,7 @@ const ROOM_COPY: Record<ZoneId, { icon: typeof Fan; text: string }> = {
   },
   workshop: {
     icon: Hammer,
-    text: 'Make parts at the workbench and learn skills from Patch. Your machines keep earning.',
+    text: 'Make parts at the workbench and learn skills from Patch.',
   },
   thermal: {
     icon: Fan,
@@ -187,10 +188,12 @@ export default function RoomProgressPanel({
                     </small>
                   </span>
                   <span>
-                    {level
-                      ? `+${(machinePerTick(f, plot.id) * 4).toLocaleString()}/min`
-                      : `+${machineGain(f, plot.id).toLocaleString()}/min`}
-                    <small>{level ? 'Earning Compute' : 'Once built'}</small>
+                    {f.productionVersion === 3
+                      ? level ? `${workloadCapacity(f, plot.id)} client units` : 'New work slot'
+                      : level
+                        ? `+${(machinePerTick(f, plot.id) * 4).toLocaleString()}/min`
+                        : `+${machineGain(f, plot.id).toLocaleString()}/min`}
+                    <small>{f.productionVersion === 3 ? 'Run supplied jobs here' : level ? 'Earning Compute' : 'Once built'}</small>
                   </span>
                 </div>
               );
@@ -205,7 +208,7 @@ export default function RoomProgressPanel({
         {!state.open && (
           <>
             <p className="room-purchase-note">
-              Unlocking gives you space. Build machines separately to earn more.
+              Unlocking gives you space. Build machines separately to handle more work.
             </p>
             <div className="room-requirements" aria-label="Unlock requirements">
               <div className={!state.missingLevels ? 'is-met' : ''}>
@@ -292,7 +295,7 @@ export default function RoomProgressPanel({
         {!state.open && state.missingCompute > 0 && (
           <p className="room-shortage">
             Need {state.missingCompute.toLocaleString()} more Compute. Collect
-            your earnings below.
+            from jobs or finished batches.
           </p>
         )}
       </section>
