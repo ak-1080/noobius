@@ -1,6 +1,6 @@
 # Noobius handoff for a new Codex session
 
-**Updated September 25, 2026.** Start here on another computer. The GitHub repository is [`ak-1080/noobius`](https://github.com/ak-1080/noobius); `main` is the source branch after this handoff is merged. Read this file and `README.md` before changing the game. The current production site is **not** automatically redeployed when GitHub changes.
+**Updated September 28, 2026.** Start here on another computer. The GitHub repository is [`ak-1080/noobius`](https://github.com/ak-1080/noobius); `main` is the source branch after this handoff is merged. Read this file and `README.md` before changing the game. The current production site is **not** automatically redeployed when GitHub changes.
 
 ## What the owner is building
 
@@ -17,7 +17,7 @@ The owner explicitly deferred global font changes. The checked-in font lab is a 
 | GitHub `main` | Latest committed game, promotional images, design/research notes, tests, deployment configuration and this handoff. GitHub Actions tests/builds on code changes; they do not deploy. |
 | `https://play.noobius.io/` | Public production game. Still uses the prior 15-second machine accrual until a separately reviewed production release. Real-token trading disabled. |
 | `https://noobius.io/` | Separate coming-soon site. |
-| `https://noobius-game-staging.rinkydooonso.workers.dev/` | Isolated staging game with the September 25 active-play and presentation update. Its separate D1 database and devnet test-token checkout remain configured. Only valueless devnet tokens are involved. The two final how-to-play SVG replacements in this main commit may still need a staging redeploy. |
+| `https://noobius-game-staging.rinkydooonso.workers.dev/` | Isolated staging game with the September 25 active-play and presentation update, redeployed September 28 with the final batch and realm guide SVGs. Its separate D1 database and devnet test-token checkout remain configured. Only valueless devnet tokens are involved. |
 | `https://noobius-rooms-staging.rinkydooonso.workers.dev/` | Staging room service. Production rooms are at `https://rooms.noobius.io/`. |
 
 Player saves, sessions and offers live in Cloudflare D1. Room state uses Cloudflare Durable Objects. They are **not GitHub files**. The existing hosted services keep running if this laptop is off. A new laptop can clone, edit, build and test the project immediately; it needs its own GitHub/Cloudflare login for pushes or deployments. The private Helius RPC URL, staging payment signer/test keys and local database/backup files are intentionally ignored under `.wrangler/` or held in Cloudflare secrets. Do not commit, paste or recreate them casually. The staging D1 export taken before this update exists only on the original computer under ignored `.wrangler/staging-backups/`; it is not portable through GitHub.
@@ -38,10 +38,19 @@ Player saves, sessions and offers live in Cloudflare D1. Room state uses Cloudfl
 - A separate earlier **human** Phantom devnet purchase settled between two players on September 24, before this active-play build. A new human checkout on the current staging build remains to be done. Production public health passed after staging deployment.
 - Repository-wide lint still has existing findings, including generated preview code. Do not claim a clean lint run; compare relevant changes to baseline.
 
+## September 28 autonomous acceptance work
+
+- Added `npm run audit:economy`: deterministic local simulations using actual action rules, merchant purchases, crafting time and rotating client workloads. See [the evidence and limits](docs/verification/2026-09-28-active-economy.md) and its JSON report. No hosted saves or wallets are used by this command.
+- Expanded save-transition regressions: serialized client work retains paid inputs, deadlines and rewards; simultaneous crafts/batches and frozen legacy storage settle independently exactly once. All **463 tests**, TypeScript and the guarded staging build/deploy passed.
+- Confirmed zero time-only issuance and losing NPC-input margins for simple batches. However, NPC-supplied client work remains profitable: an idealized upgraded sequential strategy yielded **32,022 net Compute per simulated hour**. Walking/server delays are excluded; this is a repeatability warning, not a measured player rate or proof of bot resistance. No arbitrary price/reward nerf was applied.
+- Took a fresh ignored staging D1 export before deployment at `.wrangler/staging-backups/pre-economy-acceptance-2026-09-28.sql`. The guarded deploy checked devnet RPC, mint/proof, payment drain and login/save/market smoke. Worker version: `a3456c62-a1e6-4dd5-b5a8-cf31aade0f7e`. Production remains unchanged.
+- A new [hosted staging session](docs/verification/2026-09-28-staging-three-round-gameplay.json) passed three repair rounds for each of three generated players, finite-batch/replay checks, visitor privacy, competing item buyers, reconnect and fresh-login save checks in 195 seconds. It was not a capacity/load test and made no blockchain transfer. All test cleanup passed.
+- [Responsive layout checks](docs/verification/2026-09-28-staging-responsive.md) passed guide/picker inspection at phone and tablet widths. Physical-phone gameplay performance and signing remain unverified.
+
 ## What remains, in priority order
 
 1. **Human staging acceptance.** Have a fresh player and a fully upgraded returning player play without coaching. Check the salvage → batch → client → reinvest/trade loop, Margo's hint, comprehension of each realm, and reasons to keep playing. Repeat on real mobile devices. Verify that a seller sees a completed sale after a new human devnet test-token checkout. Use test tokens only; do not touch real funds.
-2. **Economy and bot resistance.** Finite batches remove idle minting, but salvage interactions and other rewards can still be scripted. Measure Compute created, spent and traded; compare active play with repeat scripts and merchant-input strategies. Consider short server-validated spatial salvage actions only if playtests show they improve the game. Do not mistake extra clicks for proof of human play. Tune output, material scarcity, recurring sinks and advanced-player choices from evidence.
+2. **Economy and bot resistance.** The September 28 diagnostic measures idle and NPC-input workload strategies; expand it to all parallel reward routes and choose a bounded recurring-client demand/issuance policy. Finite batches remove idle minting, but gathering and client work can still be scripted. Measure Compute created, spent and traded. Consider short server-validated spatial salvage actions only if playtests show they improve the game. Do not mistake extra clicks for proof of human play. Tune output, material scarcity, recurring sinks and advanced-player choices from evidence.
 3. **Performance and operating limits.** Check the full realm art on lower-end phones, pickup smoothness on real devices, longer multiplayer repair/trade sessions and sustained capacity/cost. The current four realms have distinct architecture inside the existing footprint; they are not yet four enlarged worlds with entirely separate navigation systems.
 4. **Release decision.** Keep `play.noobius.io` unchanged until the new-build migration, real-browser/wallet testing, payment recovery and economy results are reviewed. A main push does not deploy. Treat real-value token trading, Solana mainnet setup, payout funding, safeguards and legal review as a separate release track.
 
