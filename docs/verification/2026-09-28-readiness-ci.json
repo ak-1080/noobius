@@ -1,0 +1,94 @@
+{
+  "runId": 36491494956,
+  "headSha": "9894b70d6ea2713c8bd716054dec766e3762d4e7",
+  "url": "https://github.com/ak-1080/noobius/actions/runs/36491494956",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "Isolated saves, economy and live rooms",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-09-28T22:17:29Z",
+      "completedAt": "2026-09-28T22:25:30Z"
+    },
+    {
+      "name": "Test and build / Node 24",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-09-28T22:17:29Z",
+      "completedAt": "2026-09-28T22:18:35Z"
+    },
+    {
+      "name": "Test and build / Node 22",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-09-28T22:17:29Z",
+      "completedAt": "2026-09-28T22:18:26Z"
+    }
+  ],
+  "integrationSuites": [
+    {
+      "suite": "api",
+      "result": "passed",
+      "seconds": 5
+    },
+    {
+      "suite": "migration-reconciliation",
+      "result": "passed",
+      "seconds": 0
+    },
+    {
+      "suite": "onboarding-api",
+      "result": "passed",
+      "seconds": 0
+    },
+    {
+      "suite": "batch-api",
+      "result": "passed",
+      "seconds": 1
+    },
+    {
+      "suite": "client-demand-api",
+      "result": "passed",
+      "seconds": 1
+    },
+    {
+      "suite": "earning-policy-api",
+      "result": "passed",
+      "seconds": 2
+    },
+    {
+      "suite": "facility-api",
+      "result": "passed",
+      "seconds": 68
+    },
+    {
+      "suite": "multiplayer-api",
+      "result": "passed",
+      "seconds": 15
+    },
+    {
+      "suite": "realm-progression-api",
+      "result": "passed",
+      "seconds": 39
+    },
+    {
+      "suite": "commissions-api",
+      "result": "passed",
+      "seconds": 1
+    },
+    {
+      "suite": "room-auth-api",
+      "result": "passed",
+      "seconds": 1
+    },
+    {
+      "suite": "room-coordinator-api",
+      "result": "passed",
+      "seconds": 311
+    }
+  ],
+  "scope": "GitHub checks for the exact candidate head. The isolated API suites use generated local accounts and fresh scratch databases; they do not establish hosted capacity, real-wallet browser acceptance, or mainnet readiness.",
+  "mergedCommit": "9508fb0853c7c6ccd2cb1ce6a174f40887d4027b"
+}
