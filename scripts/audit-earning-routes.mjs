@@ -97,7 +97,7 @@ export function auditEarningRoutes() {
       {
         route: 'NPC jobs / specialist commissions / legacy deliveries',
         guard:
-          'shared 12-start/4,000 client demand plus 6,000 aggregate issuance; payments reserved at start',
+          'per-account 12-start/4,000 client demand plus linked-pool 6,000 aggregate issuance; payments reserved at start',
       },
       {
         route: 'supplied machine batches',

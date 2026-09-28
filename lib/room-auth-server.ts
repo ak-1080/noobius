@@ -394,7 +394,9 @@ async function refreshGrant(
 const checkpointId = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
-const ACTION_FREEZE_MS = 3000;
+// Budget for checkpoint round trips and D1 work without extending a receipt
+// on replay. Movement stays fenced until completion or this bounded expiry.
+const ACTION_FREEZE_MS = 8000;
 export type RoomCheckpoint = {
   id: string;
   baseSequence: number;
@@ -624,10 +626,14 @@ export async function handleRoomService(
     .bind(signed.keyId, signed.nonce, now + ROOM_NONCE_MS);
   const statements = prune
     ? [
-        db.prepare('DELETE FROM room_service_nonces WHERE expires_at<=?').bind(now),
+        db
+          .prepare('DELETE FROM room_service_nonces WHERE expires_at<=?')
+          .bind(now),
         claim,
         db.prepare('DELETE FROM room_grants WHERE expires_at<=?').bind(now),
-        db.prepare('DELETE FROM room_checkpoints WHERE expires_at<=?').bind(now),
+        db
+          .prepare('DELETE FROM room_checkpoints WHERE expires_at<=?')
+          .bind(now),
       ]
     : [claim];
   const claimed = await db.batch(statements);

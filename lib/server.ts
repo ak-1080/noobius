@@ -227,7 +227,10 @@ type PlayerRow = {
   facility_state: string | null;
   facility_version: number;
 };
-async function player(wallet: string): Promise<Profile> {
+async function player(
+  wallet: string,
+  includeAllowance = true,
+): Promise<Profile> {
   let p = await db()
     .prepare('SELECT * FROM players WHERE wallet=?')
     .bind(wallet)
@@ -260,7 +263,7 @@ async function player(wallet: string): Promise<Profile> {
         p.facility_state,
       )
       .run();
-    return player(wallet);
+    return player(wallet, includeAllowance);
   }
   if (saved.tycoonVersion !== 1 || saved.productionVersion !== 3) {
     // Commit the rate transition before returning it to the client. Otherwise
@@ -277,7 +280,7 @@ async function player(wallet: string): Promise<Profile> {
         p.facility_state,
       )
       .run();
-    return player(wallet);
+    return player(wallet, includeAllowance);
   }
   const publicId = await ensurePublicId(db(), wallet);
   return {
@@ -290,7 +293,9 @@ async function player(wallet: string): Promise<Profile> {
     shifts: p.shifts,
     bestScore: p.best_score,
     equipment: { scanner: !!p.scanner, visor: !!p.visor, tracer: !!p.tracer },
-    earningAllowance: await earningAllowance(db(), wallet),
+    ...(includeAllowance
+      ? { earningAllowance: await earningAllowance(db(), wallet) }
+      : {}),
     facility: normalizeFacility({
       ...JSON.parse(p.facility_state!),
       version: p.facility_version,
@@ -1247,7 +1252,9 @@ export async function handleGame(request: Request, action: string) {
   }
 
   if (action === 'facility') {
-    const p = await player(wallet),
+    // The response reads the allowance after committing; a redundant pre-read
+    // consumes the work checkpoint's finite lifetime without authorizing work.
+    const p = await player(wallet, false),
       previous = p.facility!,
       a = body.action as FacilityAction;
     if (!a || typeof a.type !== 'string' || typeof a.requestId !== 'string')
