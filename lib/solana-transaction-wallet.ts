@@ -7,6 +7,7 @@ import {
   verifySignature,
 } from '@solana/kit';
 import type { StandardWallet } from './solana-wallet.ts';
+import { walletBrand, UNSUPPORTED_WALLET } from './wallet-options.ts';
 const encode64 = (bytes: ArrayLike<number>) =>
   base64.encode(Uint8Array.from(bytes));
 export async function signSolanaTransaction(
@@ -15,12 +16,7 @@ export async function signSolanaTransaction(
   owner: string,
   network: string,
 ) {
-  // MetaMask currently presents devnet checkout requests as Solana Mainnet.
-  // Do not show a misleading approval prompt for a test-token payment.
-  if (network === 'devnet' && /metamask/i.test(wallet.name))
-    throw Error(
-      'MetaMask is showing this devnet test payment as Solana Mainnet. Cancel this checkout and use a Solana wallet set to devnet for testing.',
-    );
+  if (!walletBrand(wallet.name)) throw Error(UNSUPPORTED_WALLET);
   const chain =
     network === 'mainnet-beta'
       ? 'solana:mainnet'
@@ -84,7 +80,11 @@ export async function signSolanaTransaction(
     (a) =>
       a.address === owner && a.chains.includes(chain as `${string}:${string}`),
   );
-  if (!current || !current.features.includes('solana:signTransaction'))
+  if (
+    !walletBrand(wallet.name) ||
+    !current ||
+    !current.features.includes('solana:signTransaction')
+  )
     throw Error(
       'Your wallet changed during approval. No payment was submitted.',
     );

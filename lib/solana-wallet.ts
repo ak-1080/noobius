@@ -1,6 +1,10 @@
 import { getWallets } from '@wallet-standard/app';
 import { bytesToHex } from 'viem';
-import type { Provider } from './wallet-options.ts';
+import {
+  walletBrand,
+  UNSUPPORTED_WALLET,
+  type Provider,
+} from './wallet-options.ts';
 
 export type StandardWallet = ReturnType<
   ReturnType<typeof getWallets>['get']
@@ -38,6 +42,7 @@ const solanaAccounts = (accounts: readonly Account[]) =>
 export function supportsSolanaWallet(wallet: StandardWallet) {
   const features = wallet.features as Partial<Features>;
   return (
+    !!walletBrand(wallet.name) &&
     wallet.chains.some((chain) => chain.startsWith('solana:')) &&
     typeof features['standard:connect']?.connect === 'function' &&
     typeof features['standard:events']?.on === 'function' &&
@@ -45,14 +50,15 @@ export function supportsSolanaWallet(wallet: StandardWallet) {
   );
 }
 
-// A small adapter lets both ecosystems share the application's session lifecycle.
-// Wallet metadata only selects/display a provider; the server verifies ownership.
+// Only supported Solana products enter the application's session lifecycle.
 export function solanaWalletProvider(wallet: StandardWallet): Provider {
+  if (!walletBrand(wallet.name)) throw Error(UNSUPPORTED_WALLET);
   const features = wallet.features as unknown as Features;
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   let off: (() => void) | undefined;
   return {
     async request({ method, params }) {
+      if (!walletBrand(wallet.name)) throw Error(UNSUPPORTED_WALLET);
       if (!supportsSolanaWallet(wallet))
         throw new Error(
           'This wallet no longer supports Solana message signing.',
