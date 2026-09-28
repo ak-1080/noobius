@@ -51,6 +51,8 @@ import {
 } from '@/lib/contracts';
 import ItemIcon from './ItemIcon';
 import ComputeIcon from './ComputeIcon';
+import ClientDemandMeter from './ClientDemandMeter';
+import { clientDemandQuote } from '@/lib/client-demand';
 import GoalsPanel from './GoalsPanel';
 import {
   careerSuggestions,
@@ -293,6 +295,18 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
     quantity,
     run.quoteVersion ?? 1,
   );
+  const demand = clientDemandQuote(f, quote.reward, now);
+  const demandFits = batchEnabled
+    ? Array.from({ length: Math.min(30, batchLimit) }, (_, i) => i + 1).filter(
+        (n) =>
+          clientDemandQuote(
+            f,
+            jobSetup(f, t, style, rack, now, n, 2).reward,
+            now,
+          ).allowed,
+      )
+    : [];
+  const availableUnits = demandFits.at(-1) ?? 0;
   const prepareParts = () => {
     props.onDraft?.(run.id, { style, rack: rack ?? '', quantity });
     onParts(quote.cost, {
@@ -487,14 +501,23 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
                       </strong>
                       <span>
                         Capacity {workloadCapacity(f, id)} units
-                        {f.productionVersion !== 3 && <> · normally {machinePerTick(f, id) * 4} Compute/min</>}
+                        {f.productionVersion !== 3 && (
+                          <>
+                            {' '}
+                            · normally {machinePerTick(f, id) * 4} Compute/min
+                          </>
+                        )}
                       </span>
                       <span>
                         {fits
                           ? `${comparison.duration}s · ${comparison.reward} Compute payment`
                           : 'This batch is too large'}
                       </span>
-                      {f.productionVersion !== 3 && <small>Pauses about {comparison.lostIdle} passive Compute</small>}
+                      {f.productionVersion !== 3 && (
+                        <small>
+                          Pauses about {comparison.lostIdle} passive Compute
+                        </small>
+                      )}
                     </button>
                   );
                 })}
@@ -585,14 +608,17 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
           </div>
           {t.family === 'workload' && (
             <p className="job-note">
-              {run.quoteVersion === 2
-                ? rack
-                  ? `${quantity} unit${quantity === 1 ? '' : 's'} together · one report. This machine pauses about ${quote.lostIdle} Compute of idle income while working.`
-                  : 'Choose a machine. Larger machines can process more units together; more units use more parts and earn a larger payment. Every batch earns one report.'
-                : rack
-                  ? `Your existing one-unit job keeps its original terms: ${quote.reservedOutput} Compute replaces paused output. Total payment: ${quote.reward} Compute.`
-                  : 'This existing job keeps its original one-unit terms. Choose a machine to see its payment.'}{' '}
-              Your other machines keep producing.
+              {f.productionVersion === 3
+                ? `${quantity} unit${quantity === 1 ? '' : 's'} · one report. Payment and supplies are fixed when started.`
+                : run.quoteVersion === 2
+                  ? rack
+                    ? `${quantity} unit${quantity === 1 ? '' : 's'} together · one report. This machine pauses about ${quote.lostIdle} Compute of idle income while working.`
+                    : 'Choose a machine. Larger machines can process more units together; more units use more parts and earn a larger payment. Every batch earns one report.'
+                  : rack
+                    ? `Your existing one-unit job keeps its original terms: ${quote.reservedOutput} Compute replaces paused output. Total payment: ${quote.reward} Compute.`
+                    : 'This existing job keeps its original one-unit terms. Choose a machine to see its payment.'}{' '}
+              {f.productionVersion !== 3 &&
+                'Your other machines keep producing.'}
             </p>
           )}
           <div className="job-actions">
@@ -604,6 +630,26 @@ function ActiveJob({ run, ...props }: Props & { run: ContractRun }) {
               <p className="job-note">
                 Choose fewer units or a machine with more capacity.
               </p>
+            ) : !demand.allowed ? (
+              <div className="job-recovery">
+                <strong>Choose work within remaining client demand</strong>
+                <p className="job-note">{demand.message}</p>
+                {availableUnits > 0 && availableUnits < quantity && (
+                  <Button
+                    className="primary-action"
+                    disabled={busy}
+                    onClick={() =>
+                      props.onDraft?.(run.id, {
+                        style,
+                        rack: rack ?? '',
+                        quantity: availableUnits,
+                      })
+                    }
+                  >
+                    Use {availableUnits} unit{availableUnits === 1 ? '' : 's'}
+                  </Button>
+                )}
+              </div>
             ) : t.family === 'workload' && !rack && !racks.length ? (
               <div className="job-recovery">
                 <strong>No free machine yet</strong>
@@ -909,7 +955,12 @@ export default function JobsPanel(props: Props) {
   const { facility: f, now, busy, onAction, onBuild, onLocker, onGold } = props,
     c = careerFor(f),
     licensed = operatorLicense(c);
-  const nextGoals = careerSuggestions(f, f.compute, !props.practice).filter(
+  const nextGoals = careerSuggestions(
+    f,
+    f.compute,
+    !props.practice,
+    now,
+  ).filter(
     (goal) =>
       goal.panel === 'project' ||
       goal.view?.jobsTab === 'equipment' ||
@@ -967,6 +1018,7 @@ export default function JobsPanel(props: Props) {
           <TabsTrigger value="progress">My goals</TabsTrigger>
         </TabsList>
         <TabsContent value="board">
+          <ClientDemandMeter facility={f} now={now} />
           {props.personalGoals && (
             <div className="job-goal-entry">
               <button

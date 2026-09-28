@@ -15,6 +15,11 @@ import {
 } from './realm-operations.ts';
 import { machinePerTick } from './production.ts';
 import {
+  newClientDemand,
+  validClientDemand,
+  type ClientDemand,
+} from './client-demand.ts';
+import {
   validProjectReservations,
   type ProjectReservation,
 } from './commissioning.ts';
@@ -60,6 +65,7 @@ export type Facility = {
   commissions?: Commissions;
   fieldWork?: FieldWork;
   career?: Career;
+  clientDemand?: ClientDemand;
   economyVersion?: number;
   tycoonVersion?: number;
   productionVersion?: number;
@@ -834,6 +840,13 @@ export function normalizeFacility(
       'This save contains unsupported job terms. Refresh before playing.',
     );
   if (
+    saved.clientDemand !== undefined &&
+    !validClientDemand(saved.clientDemand)
+  )
+    throw new FacilityError(
+      'This save contains unsupported client demand. Refresh before playing.',
+    );
+  if (
     saved.craft &&
     !validCraftVariant(saved.craft.recipe, saved.craft.variant)
   )
@@ -904,6 +917,7 @@ export function normalizeFacility(
     f.productionVersion = 3;
   }
   f.career ??= newCareer(f);
+  if (f.productionVersion === 3) f.clientDemand ??= newClientDemand(f);
   return f;
 }
 export const itemCount = (bag: Bag) =>
@@ -933,9 +947,30 @@ export const COMPUTE_JOBS = [
 // A finite, supplied batch cannot be profitably looped by buying all inputs
 // from the NPC shop. Salvage and player trade make running one worthwhile.
 export const ACTIVE_COMPUTE_JOBS = [
-  { id: 'quick', name: 'Reclaim a server', seconds: 20, reward: 8, required: 1, cost: { scrap: 2 } },
-  { id: 'heavy', name: 'Cool a compute rack', seconds: 45, reward: 18, required: 3, cost: { copper: 2, coolant: 1 } },
-  { id: 'model', name: 'Run a model batch', seconds: 90, reward: 30, required: 6, cost: { silicon: 2, fiber: 1 } },
+  {
+    id: 'quick',
+    name: 'Reclaim a server',
+    seconds: 20,
+    reward: 8,
+    required: 1,
+    cost: { scrap: 2 },
+  },
+  {
+    id: 'heavy',
+    name: 'Cool a compute rack',
+    seconds: 45,
+    reward: 18,
+    required: 3,
+    cost: { copper: 2, coolant: 1 },
+  },
+  {
+    id: 'model',
+    name: 'Run a model batch',
+    seconds: 90,
+    reward: 30,
+    required: 6,
+    cost: { silicon: 2, fiber: 1 },
+  },
 ] as const;
 export const activeBatchSeconds = (f: Facility, seconds: number) =>
   Math.max(5, Math.ceil(seconds * (1 - Math.min(5, f.computeBoost) * 0.06)));
@@ -1042,7 +1077,9 @@ export function settleFacilityProduction(f: Facility, now: number) {
   if (f.productionVersion === 3) {
     f.computeAt = now;
     if (f.projectReservations)
-      f.projectReservations = f.projectReservations.filter((r) => r.readyAt > now);
+      f.projectReservations = f.projectReservations.filter(
+        (r) => r.readyAt > now,
+      );
     return;
   }
   f.storedCompute = storedComputeNow(f, now);
@@ -1231,9 +1268,10 @@ export function applyFacility(
         count('computeEarned', reward);
         count('collections');
         if (!f.incident) scheduleIncident(f, now, true);
-        message = f.productionVersion === 3
-          ? `+${reward} previously earned Compute collected.`
-          : `+${reward} Compute. Your machines keep earning.`;
+        message =
+          f.productionVersion === 3
+            ? `+${reward} previously earned Compute collected.`
+            : `+${reward} Compute. Your machines keep earning.`;
         break;
       }
       case 'compute-upgrade': {
@@ -1264,9 +1302,10 @@ export function applyFacility(
           throw new FacilityError(`You need ${cost} Compute for this upgrade.`);
         f.compute -= cost;
         f.computeBoost++;
-        message = f.productionVersion === 3
-          ? 'Faster machines! New supplied batches finish sooner.'
-          : 'Faster machines! Every machine now makes more Compute.';
+        message =
+          f.productionVersion === 3
+            ? 'Faster machines! New supplied batches finish sooner.'
+            : 'Faster machines! Every machine now makes more Compute.';
         break;
       }
       case 'tycoon-daily': {
@@ -1301,12 +1340,18 @@ export function applyFacility(
         if (f.productionVersion === 3) {
           const batch = ACTIVE_COMPUTE_JOBS.find((j) => j.id === action.id);
           if (!batch || modules(f) < batch.required)
-            throw new FacilityError('Build more rack levels to run this batch.');
+            throw new FacilityError(
+              'Build more rack levels to run this batch.',
+            );
           if (f.workload)
-            throw new FacilityError('Collect your current machine batch first.');
+            throw new FacilityError(
+              'Collect your current machine batch first.',
+            );
           const rack = availableRacks(f, now)[0];
           if (!rack)
-            throw new FacilityError('Wait for an available machine before starting a batch.');
+            throw new FacilityError(
+              'Wait for an available machine before starting a batch.',
+            );
           spend(batch.cost);
           f.workload = {
             id: action.requestId,
@@ -1519,13 +1564,14 @@ export function applyFacility(
         f.skills.engineering += 15;
         count('built');
         xp = 15;
-        message = f.productionVersion === 3
-          ? level
-            ? 'Machine upgraded! It can handle larger client workloads.'
-            : 'Machine online! Start a supplied batch or book client work.'
-          : level
-            ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
-            : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
+        message =
+          f.productionVersion === 3
+            ? level
+              ? 'Machine upgraded! It can handle larger client workloads.'
+              : 'Machine online! Start a supplied batch or book client work.'
+            : level
+              ? `Machine upgraded! Now earning ${computePerTick(f) * 4} Compute/min.`
+              : `Machine online! Now earning ${computePerTick(f) * 4} Compute/min.`;
         break;
       }
       case 'utility': {

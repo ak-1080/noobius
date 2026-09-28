@@ -1,0 +1,314 @@
+{
+  "version": 2,
+  "rules": "productionVersion 3, client quoteVersion 2",
+  "clientLimits": {
+    "version": 1,
+    "windowMs": 86400000,
+    "bookings": 12,
+    "compute": 4000
+  },
+  "assumptions": [
+    "One simulated hour; real applyFacility actions, rotating client offers and shared rolling demand.",
+    "Synthetic starter/endgame facilities; seed buying capital and upgrades are not earned in these scenarios.",
+    "No player trades, free inventory, daily claims, outages, commissions, or service/supply jobs included.",
+    "Walking, server spatial checks, latency and request limits excluded: repeat results are an idealized throughput ceiling.",
+    "Crafted inputs use standard recipes, sequential craft time and NPC raw-material prices.",
+    "Individual route rates ignore the shared cap for comparison; repeatStrategies enforce it and oversized routes cannot book unchanged.",
+    "This measures repeatability, not enjoyment, human behavior, token value or safe player capacity."
+  ],
+  "idleComputeAfterSevenDays": 0,
+  "batchRoutes": [
+    {
+      "id": "quick",
+      "reward": 8,
+      "npcInputCompute": 10,
+      "netCompute": -2,
+      "baseSeconds": 14,
+      "freshBaseSeconds": 20
+    },
+    {
+      "id": "heavy",
+      "reward": 18,
+      "npcInputCompute": 22,
+      "netCompute": -4,
+      "baseSeconds": 32,
+      "freshBaseSeconds": 45
+    },
+    {
+      "id": "model",
+      "reward": 30,
+      "npcInputCompute": 36,
+      "netCompute": -6,
+      "baseSeconds": 63,
+      "freshBaseSeconds": 90
+    }
+  ],
+  "workloadRoutes": [
+    {
+      "id": "tiny-model",
+      "style": "standard",
+      "quantity": 30,
+      "reward": 984,
+      "npcInputCompute": 360,
+      "netCompute": 624,
+      "jobSeconds": 60,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 37440
+    },
+    {
+      "id": "tiny-model",
+      "style": "fast",
+      "quantity": 30,
+      "reward": 984,
+      "npcInputCompute": 570,
+      "netCompute": 414,
+      "jobSeconds": 42,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 35485
+    },
+    {
+      "id": "tiny-model",
+      "style": "efficient",
+      "quantity": 30,
+      "reward": 984,
+      "npcInputCompute": 240,
+      "netCompute": 744,
+      "jobSeconds": 72,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 37200
+    },
+    {
+      "id": "tiny-model",
+      "style": "stable",
+      "quantity": 30,
+      "reward": 984,
+      "npcInputCompute": 360,
+      "netCompute": 624,
+      "jobSeconds": 60,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 37440
+    },
+    {
+      "id": "render-rush",
+      "style": "standard",
+      "quantity": 30,
+      "reward": 1986,
+      "npcInputCompute": 1140,
+      "netCompute": 846,
+      "jobSeconds": 90,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 33840
+    },
+    {
+      "id": "render-rush",
+      "style": "fast",
+      "quantity": 30,
+      "reward": 1986,
+      "npcInputCompute": 1350,
+      "netCompute": 636,
+      "jobSeconds": 63,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 36342
+    },
+    {
+      "id": "render-rush",
+      "style": "efficient",
+      "quantity": 30,
+      "reward": 1986,
+      "npcInputCompute": 741,
+      "netCompute": 1245,
+      "jobSeconds": 108,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 41500
+    },
+    {
+      "id": "render-rush",
+      "style": "stable",
+      "quantity": 30,
+      "reward": 1986,
+      "npcInputCompute": 1140,
+      "netCompute": 846,
+      "jobSeconds": 90,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 33840
+    },
+    {
+      "id": "quiet-inference",
+      "style": "standard",
+      "quantity": 30,
+      "reward": 3072,
+      "npcInputCompute": 2280,
+      "netCompute": 792,
+      "jobSeconds": 180,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 15840
+    },
+    {
+      "id": "quiet-inference",
+      "style": "fast",
+      "quantity": 30,
+      "reward": 3072,
+      "npcInputCompute": 2490,
+      "netCompute": 582,
+      "jobSeconds": 126,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 16628
+    },
+    {
+      "id": "quiet-inference",
+      "style": "efficient",
+      "quantity": 30,
+      "reward": 3072,
+      "npcInputCompute": 1482,
+      "netCompute": 1590,
+      "jobSeconds": 216,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 26500
+    },
+    {
+      "id": "quiet-inference",
+      "style": "stable",
+      "quantity": 30,
+      "reward": 3072,
+      "npcInputCompute": 2280,
+      "netCompute": 792,
+      "jobSeconds": 180,
+      "craftingSeconds": 0,
+      "fitsEmptyClientAllowance": true,
+      "idealizedNetPerHour": 15840
+    },
+    {
+      "id": "wobbly-training",
+      "style": "standard",
+      "quantity": 30,
+      "reward": 6696,
+      "npcInputCompute": 3390,
+      "netCompute": 3306,
+      "jobSeconds": 240,
+      "craftingSeconds": 240,
+      "fitsEmptyClientAllowance": false,
+      "idealizedNetPerHour": 24795
+    },
+    {
+      "id": "wobbly-training",
+      "style": "fast",
+      "quantity": 30,
+      "reward": 6696,
+      "npcInputCompute": 3600,
+      "netCompute": 3096,
+      "jobSeconds": 168,
+      "craftingSeconds": 240,
+      "fitsEmptyClientAllowance": false,
+      "idealizedNetPerHour": 27317
+    },
+    {
+      "id": "wobbly-training",
+      "style": "efficient",
+      "quantity": 30,
+      "reward": 6696,
+      "npcInputCompute": 3018,
+      "netCompute": 3678,
+      "jobSeconds": 288,
+      "craftingSeconds": 240,
+      "fitsEmptyClientAllowance": false,
+      "idealizedNetPerHour": 25077
+    },
+    {
+      "id": "wobbly-training",
+      "style": "stable",
+      "quantity": 30,
+      "reward": 6696,
+      "npcInputCompute": 2928,
+      "netCompute": 3768,
+      "jobSeconds": 240,
+      "craftingSeconds": 192,
+      "fitsEmptyClientAllowance": false,
+      "idealizedNetPerHour": 31400
+    }
+  ],
+  "repeatStrategies": [
+    {
+      "tier": "starter rack, no modules",
+      "initialCompute": 1000,
+      "finalCompute": 1727,
+      "netCompute": 727,
+      "earnedCompute": 1129,
+      "spentCompute": 402,
+      "actions": 55,
+      "completedJobs": 12,
+      "completed": {
+        "render-rush": 5,
+        "tiny-model": 5,
+        "quiet-inference": 2
+      },
+      "purchased": {
+        "copper": 18,
+        "silicon": 23
+      },
+      "elapsedSeconds": 1110,
+      "pendingWork": 0,
+      "stopReason": "Shared rolling client demand exhausted for the next offer",
+      "clientDemand": {
+        "usedBookings": 12,
+        "usedCompute": 1129,
+        "remainingBookings": 0,
+        "remainingCompute": 2871,
+        "nextAt": 1790640000000
+      },
+      "remainingInventory": {
+        "copper": 0,
+        "silicon": 0
+      }
+    },
+    {
+      "tier": "fully upgraded, all client qualifications",
+      "initialCompute": 100000,
+      "finalCompute": 102500,
+      "netCompute": 2500,
+      "earnedCompute": 3981,
+      "spentCompute": 1481,
+      "actions": 14,
+      "completedJobs": 3,
+      "completed": {
+        "render-rush": 2,
+        "tiny-model": 1
+      },
+      "purchased": {
+        "copper": 59,
+        "silicon": 89
+      },
+      "elapsedSeconds": 276,
+      "pendingWork": 0,
+      "stopReason": "Shared rolling client demand exhausted for the next offer",
+      "clientDemand": {
+        "usedBookings": 3,
+        "usedCompute": 3981,
+        "remainingBookings": 9,
+        "remainingCompute": 19,
+        "nextAt": 1790640000000
+      },
+      "remainingInventory": {
+        "copper": 0,
+        "silicon": 0
+      }
+    }
+  ],
+  "conclusions": {
+    "passiveMintRemoved": true,
+    "npcSuppliedBatchLoopProfitable": false,
+    "npcClientWorkProfitable": true,
+    "clientWorkBounded": true,
+    "botResistanceProven": false
+  }
+}

@@ -11,6 +11,7 @@ import {
   storedComputeNow,
 } from '../lib/facility.ts';
 import { contractFor } from '../lib/contracts.ts';
+import { CLIENT_DEMAND } from '../lib/client-demand.ts';
 import { auditActiveEconomy } from '../scripts/audit-active-economy.mjs';
 
 const id = () => crypto.randomUUID();
@@ -212,6 +213,7 @@ test('economy diagnostic accounts for all bought inputs and distinguishes idle m
   assert.equal(report.idleComputeAfterSevenDays, 0);
   assert.equal(report.conclusions.npcSuppliedBatchLoopProfitable, false);
   assert.equal(report.conclusions.npcClientWorkProfitable, true);
+  assert.equal(report.conclusions.clientWorkBounded, true);
   assert.equal(report.conclusions.botResistanceProven, false);
   for (const scenario of report.repeatStrategies) {
     const invoice = Object.entries(scenario.purchased).reduce(
@@ -224,6 +226,9 @@ test('economy diagnostic accounts for all bought inputs and distinguishes idle m
       scenario.earnedCompute - invoice,
     );
     assert.ok(scenario.completedJobs > 0);
+    assert.ok(scenario.completedJobs <= CLIENT_DEMAND.bookings);
+    assert.ok(scenario.earnedCompute <= CLIENT_DEMAND.compute);
+    assert.match(scenario.stopReason, /demand exhausted/);
     assert.ok(scenario.elapsedSeconds <= 3600);
     assert.equal(scenario.pendingWork, 0);
     assert.equal(

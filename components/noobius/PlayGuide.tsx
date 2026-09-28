@@ -42,7 +42,7 @@ export const GUIDE_TOPICS = [
     text: 'Open Clients. Compare three customers, reserve a machine and supply the job. For hands-on work, choose Repair & parts jobs.',
     image: '/assets/tutorial/tutorial-server.png',
     alt: 'A server machine ready for another shift',
-    tip: 'Demand changes after each booking. Commissions build your Throughput, Resourceful or Reliability specialization. Distinctions combine client work, realm recoveries and crafted supplies into a permanent monument; then you can start another portfolio.',
+    tip: 'All client jobs share 12 bookings and up to 4,000 Compute in payments over the last 24 hours. Demand is used when a job starts; waiting does not queue new work. Commissions build your specialization. Distinctions combine client work, realm recoveries and crafted supplies into a permanent monument.',
   },
   {
     id: 'bonuses',
@@ -278,8 +278,8 @@ function GuideDetails() {
         </p>
         <p>
           Each machine has three levels. Upgrades add client-batch capacity.
-          Speed upgrades shorten new machine batches. The Build panel shows
-          the cost and capacity before you buy.
+          Speed upgrades shorten new machine batches. The Build panel shows the
+          cost and capacity before you buy.
         </p>
         <p>
           Machines stop when a batch ends. They do not start another run on
@@ -329,7 +329,8 @@ function GuideDetails() {
         </div>
         <p>
           Larger machines hold bigger client batches; they do not process the
-          same client batch faster. Speed upgrades cost {BOOST_PRICES.join(', ')}
+          same client batch faster. Speed upgrades cost{' '}
+          {BOOST_PRICES.join(', ')}
           Compute and shorten newly started machine batches. Room prices and
           requirements appear on each door before you spend.
         </p>

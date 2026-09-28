@@ -10,6 +10,7 @@ import { RoomClient } from '../lib/room-client.ts';
 import { actionWorksite } from '../lib/action-authority.ts';
 import { OBJECTS } from '../lib/facility.ts';
 import { contractFor, serviceChallenge } from '../lib/contracts.ts';
+import { CLIENT_DEMAND, clientDemandStatus } from '../lib/client-demand.ts';
 import { planPath } from '../lib/navigation.ts';
 import { floorClear } from '../lib/world-navigation.ts';
 
@@ -18,6 +19,7 @@ const production = origin === 'https://play.noobius.io';
 const staging =
   origin === 'https://noobius-game-staging.rinkydooonso.workers.dev';
 const hosted = production || staging;
+const checkClientDemand = process.env.NOOBIUS_TEST_CLIENT_DEMAND === '1';
 if (!hosted && origin !== 'http://127.0.0.1:3003')
   throw Error(
     'Explicit production, staging, or isolated local port 3003 required',
@@ -69,6 +71,7 @@ const report = {
   checks: [],
   actors: 3,
   repairRoundsPerActor: rounds,
+  clientDemandChecked: checkClientDemand,
   roomInterruption: redeployRoom
     ? 'hosted-room-worker-redeploy'
     : restartRoom
@@ -280,6 +283,9 @@ async function work(p) {
     );
     assert.ok(offer);
     const terms = contractFor(offer);
+    const bookingsBefore = checkClientDemand
+      ? clientDemandStatus(p.profile.facility, Date.now()).usedBookings
+      : null;
     ok(await p.field('contract-accept', { id: offer.id }));
     // Gather through proximity-checked interactions. No material is injected.
     for (const item of new Set(['scrap', ...Object.keys(terms.cost)])) {
@@ -295,6 +301,21 @@ async function work(p) {
     }
     await p.walk(terms.target);
     ok(await p.field('contract-start', { id: offer.id }));
+    if (checkClientDemand) {
+      const ledger = p.profile.facility.clientDemand;
+      const entry = ledger.bookings.find(
+        (entry) => entry.id === offer.id && entry.kind === 'job',
+      );
+      assert.ok(entry, 'Hosted server recorded this client booking');
+      assert.equal(
+        entry.reward,
+        p.profile.facility.career.active.find((r) => r.id === offer.id).reward,
+      );
+      assert.equal(
+        clientDemandStatus(p.profile.facility, Date.now()).usedBookings,
+        bookingsBefore + 1,
+      );
+    }
     for (let step = 0; step < 3; step++) {
       const run = p.profile.facility.career.active.find(
         (r) => r.id === offer.id,
@@ -434,7 +455,12 @@ try {
           : best,
       );
       await seller.walk(next.id);
-      await sleep(Math.max(0, (seller.profile.facility.cooldowns[next.id] ?? 0) - Date.now()) + 100);
+      await sleep(
+        Math.max(
+          0,
+          (seller.profile.facility.cooldowns[next.id] ?? 0) - Date.now(),
+        ) + 100,
+      );
       ok(await seller.field('gather', { id: next.id }));
     }
   };
@@ -458,7 +484,9 @@ try {
     await seller.refresh();
     assert.equal(seller.profile.credits, beforeBatch + 8);
     assert.equal(seller.profile.facility.storedCompute, stored);
-    pass('A supplied machine batch pays once and unattended time starts no new batch');
+    pass(
+      'A supplied machine batch pays once and unattended time starts no new batch',
+    );
     await stockSellerScrap(1);
   }
   await buyer.scene('home-' + seller.profile.id);
@@ -511,6 +539,7 @@ try {
   const expected = actors.map((p) => ({
     credits: p.profile.credits,
     inventory: p.profile.facility.inventory,
+    clientDemand: p.profile.facility.clientDemand,
     id: p.profile.id,
   }));
   buyer.socket.terminate();
@@ -524,7 +553,25 @@ try {
     assert.equal(p.profile.id, expected[i].id);
     assert.equal(p.profile.credits, expected[i].credits);
     assert.deepEqual(p.profile.facility.inventory, expected[i].inventory);
+    if (checkClientDemand) {
+      assert.deepEqual(
+        p.profile.facility.clientDemand,
+        expected[i].clientDemand,
+        'Fresh logins preserve the client allowance',
+      );
+      const demand = clientDemandStatus(p.profile.facility, Date.now());
+      assert.equal(
+        demand.usedBookings,
+        rounds,
+        'Replay, trade and reconnect cannot multiply or reset demand',
+      );
+      assert.ok(demand.usedCompute <= CLIENT_DEMAND.compute);
+    }
   }
+  if (checkClientDemand)
+    pass(
+      'Client bookings and payments survive claim retries, item trades and fresh logins within the shared cap',
+    );
   pass(
     'Dropped socket recovers and fresh signed logins retain earned balances and traded items',
   );

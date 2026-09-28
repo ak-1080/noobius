@@ -6,6 +6,7 @@ import {
 import type { Bag, Facility, FacilityAction, ItemId } from './facility.ts';
 import { PROJECT_VARIANTS } from './projects.ts';
 import { validDispatchChoices, type DispatchChoices } from './dispatch.ts';
+import { bookClientDemand, clientDemandQuote } from './client-demand.ts';
 
 export type ContractFamily = 'service' | 'supply' | 'workload';
 export type ModuleStyle = 'standard' | 'fast' | 'efficient' | 'stable';
@@ -446,7 +447,7 @@ export function availableRacks(f: Facility, now = Date.now()): string[] {
     (id) =>
       f.builds[id] > 0 &&
       !reserved.includes(id) &&
-      !f.commissions?.active.some(r=>r.rack===id) &&
+      !f.commissions?.active.some((r) => r.rack === id) &&
       !(f.workload?.rack === id && f.workload.readyAt > now) &&
       !f.projectReservations?.some((r) => r.rack === id && r.readyAt > now),
   );
@@ -504,7 +505,10 @@ export function contractQuote(
       : 0;
   // Version 1 accepted jobs retain their original one-unit reimbursement rules.
   const reimbursed =
-    f.productionVersion !== 3 && quoteVersion === 1 && template.family === 'workload' && rack
+    f.productionVersion !== 3 &&
+    quoteVersion === 1 &&
+    template.family === 'workload' &&
+    rack
       ? (f.builds[rack] ?? 0) *
         (MACHINE_POWER[rack] ?? 1) *
         (6 + f.computeBoost * 3) *
@@ -538,17 +542,18 @@ export function contractQuote(
 
 /** Amount already occupied by workloads at the same 15-second production ticks. */
 export function reservedProduction(f: Facility, until: number): number {
-  return [...(f.career?.active ?? []), ...(f.projectReservations ?? []), ...(f.commissions?.active??[])].reduce(
-    (sum, r) => {
-      if (!r.rack || r.startedAt === null || r.readyAt === null) return sum;
-      const end = Math.floor(
-        Math.max(0, Math.min(until, r.readyAt) - f.computeAt) / 15000,
-      );
-      const start = Math.floor(Math.max(0, r.startedAt - f.computeAt) / 15000);
-      return sum + Math.max(0, end - start) * machinePerTick(f, r.rack);
-    },
-    0,
-  );
+  return [
+    ...(f.career?.active ?? []),
+    ...(f.projectReservations ?? []),
+    ...(f.commissions?.active ?? []),
+  ].reduce((sum, r) => {
+    if (!r.rack || r.startedAt === null || r.readyAt === null) return sum;
+    const end = Math.floor(
+      Math.max(0, Math.min(until, r.readyAt) - f.computeAt) / 15000,
+    );
+    const start = Math.floor(Math.max(0, r.startedAt - f.computeAt) / 15000);
+    return sum + Math.max(0, end - start) * machinePerTick(f, r.rack);
+  }, 0);
 }
 
 export class ContractError extends Error {}
@@ -611,7 +616,7 @@ export function applyContract(
     };
   }
   if (a.type === 'contract-accept') {
-    if (c.active.length+(f.commissions?.active.length??0) >= 2)
+    if (c.active.length + (f.commissions?.active.length ?? 0) >= 2)
       fail('Finish or cancel a job before accepting another.');
     const offer = c.offers.find(
       (o) => o.id === a.id && !c.active.some((r) => r.id === o.id),
@@ -711,7 +716,14 @@ export function applyContract(
       quantity,
       run.quoteVersion ?? 1,
     );
+    const demand = clientDemandQuote(f, quote.reward, now);
+    if (!demand.allowed) fail(demand.message!);
     spend(quote.cost);
+    bookClientDemand(
+      f,
+      { kind: 'job', id: run.id, at: now, reward: quote.reward },
+      now,
+    );
     Object.assign(run, {
       cost: quote.cost,
       duration: quote.duration,
@@ -730,7 +742,7 @@ export function applyContract(
         t.family === 'supply'
           ? 'Parts dispatched. The client is checking the delivery.'
           : t.family === 'workload'
-            ? 'Rack reserved. Your other machines keep working.'
+            ? 'Rack reserved. Supplies and client demand are committed to this job.'
             : 'Fault located. Follow the repair sequence.',
       xp: 0,
     };

@@ -2,6 +2,7 @@ import type { Bag, Facility, FacilityAction, ItemId } from './facility.ts';
 import { availableRacks, careerFor } from './contracts.ts';
 import { machinePerTick, workloadCapacity } from './production.ts';
 import type { RealmId } from './realm-catalog.ts';
+import { bookClientDemand, clientDemandQuote } from './client-demand.ts';
 export const SPECIALTIES = ['fast', 'efficient', 'stable'] as const;
 export type Specialty = (typeof SPECIALTIES)[number];
 export const specialtyName = {
@@ -158,7 +159,10 @@ export function commissionQuote(
       quantity * ({ fast: 55, efficient: 50, stable: 75 }[kind] + demand) +
       80 * scale,
     xp: 20 + Math.ceil(quantity / 2),
-    lostIdle: f.productionVersion === 3 ? 0 : Math.ceil(seconds / 15) * machinePerTick(f, rack),
+    lostIdle:
+      f.productionVersion === 3
+        ? 0
+        : Math.ceil(seconds / 15) * machinePerTick(f, rack),
   };
 }
 export function milestoneProgress(f: Facility) {
@@ -219,9 +223,17 @@ export function applyCommission(f: Facility, a: FacilityAction, now: number) {
       fail('Choose an available machine.');
     const q = commissionQuote(f, offer.kind, a.rack, a.quantity ?? 1);
     if (q.quantity > q.capacity) fail('That machine cannot fit this batch.');
+    const demand = clientDemandQuote(f, q.reward, now);
+    if (!demand.allowed) fail(demand.message!);
     spend(q.cost, q.fee);
+    const id = crypto.randomUUID();
+    bookClientDemand(
+      f,
+      { kind: 'commission', id, at: now, reward: q.reward },
+      now,
+    );
     c.active.push({
-      id: crypto.randomUUID(),
+      id,
       offer: offer.id,
       name: offer.name,
       client: offer.client,

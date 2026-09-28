@@ -5,10 +5,21 @@ import {
   workloadCapacity,
   type Facility,
 } from './facility.ts';
-import { careerFor, contractFor, type ModuleStyle } from './contracts.ts';
+import {
+  careerFor,
+  contractFor,
+  contractQuote,
+  type ModuleStyle,
+} from './contracts.ts';
 import { resolveObjective } from './objectives.ts';
 import type { Objective } from './objectives.ts';
-import { commissionsFor, milestoneProgress } from './commissions.ts';
+import {
+  commissionsFor,
+  commissionOffers,
+  commissionQuote,
+  milestoneProgress,
+} from './commissions.ts';
+import { clientDemandQuote } from './client-demand.ts';
 import { tycoonObjective } from './tycoon.ts';
 import { careerSuggestions, jobSetup, jobSelection } from './job-choices.ts';
 
@@ -121,6 +132,14 @@ export function shiftObjective(
             'Choose available equipment and a machine that fits your batch. Then prepare only the parts you need.',
           view: { jobsTab: 'board', jobId: current.id },
         });
+      const demand = clientDemandQuote(f, quote.reward, now);
+      if (!demand.allowed)
+        return wrap({
+          title: 'Review remaining client demand',
+          detail: demand.message!,
+          view: { jobsTab: 'board', jobId: current.id },
+          reward: 'Choose a smaller batch or prepare other work',
+        });
       if (selection.styleAvailable && !canPay(f.inventory, quote.cost))
         return {
           ...resolveObjective(f, credits, now, { items: quote.cost }),
@@ -172,6 +191,25 @@ export function shiftObjective(
     });
   if (modules(f) >= 9 || commissions.active.length || commissions.serial > 1) {
     const p = milestoneProgress(f);
+    const availableDemand = [
+      ...career.offers.map(
+        (offer) =>
+          contractQuote(f, contractFor(offer), 'standard', undefined, now)
+            .reward,
+      ),
+      ...commissionOffers(f).map(
+        (offer) => commissionQuote(f, offer.kind, 'rack-a', 1).reward,
+      ),
+    ].some((reward) => clientDemandQuote(f, reward, now).allowed);
+    if (!p.ready && !availableDemand)
+      return wrap({
+        title: 'Prepare supplies between client orders',
+        detail:
+          'Client demand is used for now. Recover realm materials, craft parts or trade; more bookings open over the next 24 hours.',
+        cta: 'Open realm recovery',
+        panel: 'field',
+        reward: 'Useful supplies for your next project',
+      });
     return wrap({
       title: p.ready
         ? `Build distinction ${p.chapter}`
@@ -184,5 +222,5 @@ export function shiftObjective(
       reward: 'Specialty records · permanent distinctions',
     });
   }
-  return careerSuggestions(f, credits, connected)[0] ?? wrap({});
+  return careerSuggestions(f, credits, connected, now)[0] ?? wrap({});
 }

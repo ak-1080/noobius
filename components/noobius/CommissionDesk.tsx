@@ -28,6 +28,8 @@ import {
 } from '@/lib/commissions';
 import ItemIcon from './ItemIcon';
 import ComputeIcon from './ComputeIcon';
+import ClientDemandMeter from './ClientDemandMeter';
+import { clientDemandQuote } from '@/lib/client-demand';
 import styles from './WorkPanels.module.css';
 const icons = { fast: Cpu, efficient: Leaf, stable: ShieldCheck };
 function Parts({ items, inventory }: { items: Bag; inventory: Bag }) {
@@ -114,6 +116,7 @@ export default function CommissionDesk({
       </div>
       {tab === 'clients' && (
         <>
+          <ClientDemandMeter facility={f} now={now} />
           {dailyReady && (
             <Button variant="outline" onClick={onDaily}>
               View your daily bonus · ready
@@ -197,14 +200,37 @@ export default function CommissionDesk({
                 <Layers size={14} aria-hidden="true" />
                 {occupied}/2 client slots occupied
               </span>
-              <span>Booked racks pause idle output</span>
+              <span>
+                {f.productionVersion === 3
+                  ? 'Finite jobs · choose every booking'
+                  : 'Booked racks pause idle output'}
+              </span>
             </div>
           </div>
           <div className="commission-offers">
             {commissionOffers(f).map((o) => {
               const q = commissionQuote(f, o.kind, chosen, units),
+                demand = clientDemandQuote(f, q.reward, now),
+                availableUnits =
+                  Array.from(
+                    { length: Math.min(30, q.capacity) },
+                    (_, i) => i + 1,
+                  )
+                    .filter(
+                      (n) =>
+                        clientDemandQuote(
+                          f,
+                          commissionQuote(f, o.kind, chosen, n).reward,
+                          now,
+                        ).allowed,
+                    )
+                    .at(-1) ?? 0,
                 Icon = icons[o.kind],
-                can = !!chosen && units <= q.capacity && afford(q.cost, q.fee),
+                can =
+                  !!chosen &&
+                  units <= q.capacity &&
+                  demand.allowed &&
+                  afford(q.cost, q.fee),
                 missingParts = Object.entries(q.cost).some(
                   ([id, n]) => (f.inventory[id as keyof Bag] ?? 0) < n!,
                 ),
@@ -214,11 +240,13 @@ export default function CommissionDesk({
                     ? 'Both client slots are occupied. Finish a job first.'
                     : units > q.capacity
                       ? `This setup fits ${q.capacity} units. Reduce your batch.`
-                      : f.compute < q.fee
-                        ? `Need ${(q.fee - f.compute).toLocaleString()} more Compute for the operating cost.`
-                        : missingParts
-                          ? 'Bring the missing supplies in your backpack.'
-                          : null;
+                      : !demand.allowed
+                        ? demand.message
+                        : f.compute < q.fee
+                          ? `Need ${(q.fee - f.compute).toLocaleString()} more Compute for the operating cost.`
+                          : missingParts
+                            ? 'Bring the missing supplies in your backpack.'
+                            : null;
               return (
                 <article key={o.id} className={`commission-offer ${o.kind}`}>
                   <div className="commission-type">
@@ -275,12 +303,14 @@ export default function CommissionDesk({
                   <details className={styles.terms}>
                     <summary>Booking details</summary>
                     <p>{o.detail}</p>
-                    <dl>
-                      <div>
-                        <dt>Estimated idle output forgone</dt>
-                        <dd>{q.lostIdle} Compute</dd>
-                      </div>
-                    </dl>
+                    {f.productionVersion !== 3 && (
+                      <dl>
+                        <div>
+                          <dt>Estimated idle output forgone</dt>
+                          <dd>{q.lostIdle} Compute</dd>
+                        </div>
+                      </dl>
+                    )}
                     <p>
                       Supplies and operating cost are spent when booked. The
                       payment shown is before those costs. Accepted terms stay
@@ -288,6 +318,18 @@ export default function CommissionDesk({
                     </p>
                   </details>
                   {blocked && <p className={styles.notice}>{blocked}</p>}
+                  {!demand.allowed &&
+                    availableUnits > 0 &&
+                    availableUnits < units && (
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => setUnits(availableUnits)}
+                      >
+                        Use {availableUnits} unit
+                        {availableUnits === 1 ? '' : 's'}
+                      </Button>
+                    )}
                   {missingParts && (
                     <button
                       className="text-action"
@@ -315,7 +357,9 @@ export default function CommissionDesk({
                         ? 'Client slots full'
                         : units > q.capacity
                           ? 'Choose a smaller batch'
-                          : 'Book this client'}
+                          : !demand.allowed
+                            ? 'Client demand unavailable'
+                            : 'Book this client'}
                   </Button>
                 </article>
               );
