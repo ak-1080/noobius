@@ -1,20 +1,23 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-export function database() {
-  const sqlite = new DatabaseSync(':memory:');
+export function database({
+  sqlite = new DatabaseSync(':memory:'),
+  migrate = true,
+} = {}) {
   const journal = JSON.parse(
     readFileSync(
       new URL('../drizzle/meta/_journal.json', import.meta.url),
       'utf8',
     ),
   );
-  for (const entry of journal.entries)
-    sqlite.exec(
-      readFileSync(
-        new URL(`../drizzle/${entry.tag}.sql`, import.meta.url),
-        'utf8',
-      ),
-    );
+  if (migrate)
+    for (const entry of journal.entries)
+      sqlite.exec(
+        readFileSync(
+          new URL(`../drizzle/${entry.tag}.sql`, import.meta.url),
+          'utf8',
+        ),
+      );
   class Prepared {
     constructor(sql, args = []) {
       this.sql = sql;

@@ -1,0 +1,20 @@
+{
+  "testedAt": "2026-09-28T21:48:07.800Z",
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "network": "devnet",
+  "mint": "8uhnWPWTadPn8ZPbrwqVYirjyUEnFd39UCs4gVRwfPBn",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "signature": "32ugbRQXy5jAWm1T7ygRZY9b2N1dgKJdSWZontyozrvG65nkcvm3TazHAuEkYyLt6KTDFnbKtmhXVN3mpkgFfN8F",
+  "computeDelivered": 250,
+  "testTokensTransferred": "1",
+  "duplicateDeliveryPrevented": true,
+  "ledger": "isolated hosted Cloudflare staging D1",
+  "wallet": "generated test accounts, not browser extensions",
+  "gameWorker": "645596f5-7600-48b8-92e4-3346d318d13f",
+  "recoveryWorker": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+  "limitations": [
+    "Generated, isolated devnet test identities with fixture Compute; not normal gameplay earning",
+    "No browser-extension approval or real user funds",
+    "No production deployment or mainnet acceptance"
+  ]
+}

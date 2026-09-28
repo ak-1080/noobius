@@ -28,10 +28,12 @@ export async function reconcileComputePayment(
   if (!payment.buyer_signature || !payment.buyer_transaction)
     throw Error('Recorded payment is incomplete.');
   const quote = JSON.parse(payment.quote_json) as ComputePaymentQuote;
+  const neverAuthorized =
+    payment.status === 'recorded' && !payment.authorized_transaction;
   const observed = await rpc.observe(
     quote,
     payment.buyer_signature,
-    payment.status === 'recorded' && !payment.authorized_transaction,
+    neverAuthorized,
   );
   if (observed.status === 'settled')
     return (
@@ -40,12 +42,24 @@ export async function reconcileComputePayment(
   if (observed.status === 'failed' || observed.status === 'expired') {
     if (observed.signature !== payment.buyer_signature)
       throw Error('Recovery signature mismatch.');
+    // A concurrent recovery can authorize while this network observation is
+    // pending. Buyer-only expiry evidence is valid only if the durable record
+    // still has never become broadcastable at the instant it is released.
+    const buyerOnlyExpiry = observed.status === 'expired' && neverAuthorized;
     await db.batch([
       db
         .prepare(
-          "UPDATE compute_payments SET status=?,finalized_slot=?,updated_at=? WHERE id=? AND buyer_signature=? AND status IN ('recorded','submitted') AND EXISTS(SELECT 1 FROM compute_listings WHERE quote_id=? AND status='reserved')",
+          "UPDATE compute_payments SET status=?,finalized_slot=?,updated_at=? WHERE id=? AND buyer_signature=? AND status IN ('recorded','submitted') AND (?=0 OR (status='recorded' AND authorized_transaction IS NULL)) AND EXISTS(SELECT 1 FROM compute_listings WHERE quote_id=? AND status='reserved')",
         )
-        .bind(observed.status, observed.slot, now, id, observed.signature, id),
+        .bind(
+          observed.status,
+          observed.slot,
+          now,
+          id,
+          observed.signature,
+          buyerOnlyExpiry ? 1 : 0,
+          id,
+        ),
       db
         .prepare(
           "UPDATE compute_listings SET status='open',quote_id=NULL WHERE quote_id=? AND status='reserved' AND changes()=1",

@@ -369,9 +369,12 @@ export async function neighborhoodSnapshot(
   const self = await requireMembership(db, wallet, controller, now);
   const rows = (
     await db
-      .prepare(`SELECT p.public_id,p.name,p.xp,p.facility_state,c.slot,c.room,c.x,c.z,c.updated_at
+      .prepare(`SELECT p.public_id,p.name,p.xp,p.facility_state,c.slot,c.room,c.x,c.z,c.updated_at,
+      EXISTS(SELECT 1 FROM room_grants g JOIN sessions s ON s.token_hash=g.session_hash AND s.wallet=g.wallet
+        WHERE g.wallet=c.wallet AND g.neighborhood_id=c.neighborhood_id AND g.client_id=c.client_id
+        AND g.generation=c.generation AND g.scene=c.room AND g.writer_until>? AND g.expires_at>? AND s.expires_at>?) AS live_writer
     FROM crew_presence c JOIN players p ON p.wallet=c.wallet WHERE c.neighborhood_id=? AND c.lease_until>? ORDER BY c.slot`)
-      .bind(self.neighborhood_id, now)
+      .bind(now, now, now, self.neighborhood_id, now)
       .all<{
         public_id: string;
         xp: number;
@@ -382,6 +385,7 @@ export async function neighborhoodSnapshot(
         x: number;
         z: number;
         updated_at: number;
+        live_writer: number;
       }>()
   ).results;
   const publicRows = rows.map((r) => {
@@ -394,7 +398,9 @@ export async function neighborhoodSnapshot(
       name: r.name,
       slot: r.slot,
       scene: r.room,
-      online: r.updated_at > now - VISIBLE_FOR_MS,
+      // A stationary authenticated socket is still online. Keep movement
+      // freshness separate: a heartbeat must not become a position receipt.
+      online: r.updated_at > now - VISIBLE_FOR_MS || r.live_writer === 1,
       level: playerLevel(r.xp),
       racks: Object.values(f.builds).reduce((n, v) => n + v, 0),
       outfit: f.outfit,

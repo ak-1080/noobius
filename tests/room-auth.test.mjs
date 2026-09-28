@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { database } from './sqlite-d1.mjs';
 import { newFacility } from '../lib/facility.ts';
-import { joinNeighborhood, changeScene } from '../lib/neighborhoods-server.ts';
+import {
+  joinNeighborhood,
+  changeScene,
+  neighborhoodSnapshot,
+} from '../lib/neighborhoods-server.ts';
 import { issueRoomTicket, handleRoomService } from '../lib/room-auth-server.ts';
 import {
   roomAuthConfig,
@@ -87,7 +91,7 @@ async function fixture(t, count = 1, expiresAt = now + 600_000) {
   return { db, crew, issue, service, connect };
 }
 
-test('room config defaults off and rejects malformed origins, keys and rotation sets', () => {
+void test('room config defaults off and rejects malformed origins, keys and rotation sets', () => {
   assert.equal(roomAuthConfig({}), null);
   const read = (c, local = false) =>
     roomAuthConfig(
@@ -123,7 +127,7 @@ test('room config defaults off and rejects malformed origins, keys and rotation 
   assert.deepEqual(read(local, true), local);
 });
 
-test('service signatures bind exact bytes, path, origin, audience, key and timestamp', async () => {
+void test('service signatures bind exact bytes, path, origin, audience, key and timestamp', async () => {
   const body = { operation: 'ticket-consume', ticket: 'a'.repeat(64) };
   assert.deepEqual(
     (await verifyRoomServiceRequest(await request(body), config, () => now))
@@ -183,7 +187,7 @@ test('service signatures bind exact bytes, path, origin, audience, key and times
   );
 });
 
-test('slow signed bodies cannot outlive the signature window or ticket deadline', async (t) => {
+void test('slow signed bodies cannot outlive the signature window or ticket deadline', async (t) => {
   const f = await fixture(t);
   const { ticket } = await f.issue();
   let clock = now;
@@ -239,7 +243,7 @@ test('slow signed bodies cannot outlive the signature window or ticket deadline'
   );
 });
 
-test('tickets are hashed, single-use and return only limited room authority', async (t) => {
+void test('tickets are hashed, single-use and return only limited room authority', async (t) => {
   const f = await fixture(t),
     p = f.crew[0];
   const issued = await f.issue();
@@ -289,7 +293,7 @@ test('tickets are hashed, single-use and return only limited room authority', as
   );
 });
 
-test('concurrent ticket consumers create at most one usable grant; nonces execute once', async (t) => {
+void test('concurrent ticket consumers create at most one usable grant; nonces execute once', async (t) => {
   const f = await fixture(t),
     { ticket } = await f.issue();
   const attempts = await Promise.allSettled([
@@ -310,7 +314,7 @@ test('concurrent ticket consumers create at most one usable grant; nonces execut
   );
 });
 
-test('room replay claims stay strict while expired rows are pruned less often', async (t) => {
+void test('room replay claims stay strict while expired rows are pruned less often', async (t) => {
   const f = await fixture(t);
   const { grant } = await f.connect();
   f.db.sqlite
@@ -345,7 +349,7 @@ test('room replay claims stay strict while expired rows are pruned less often', 
   );
 });
 
-test('reissuing replaces only usable tickets; a stale issuer cannot delete a takeover ticket', async (t) => {
+void test('reissuing replaces only usable tickets; a stale issuer cannot delete a takeover ticket', async (t) => {
   const f = await fixture(t),
     p = f.crew[0];
   const old = await f.issue(),
@@ -390,7 +394,7 @@ test('reissuing replaces only usable tickets; a stale issuer cannot delete a tak
   );
 });
 
-test('new grants replace old grants and removed service keys revoke their grants', async (t) => {
+void test('new grants replace old grants and removed service keys revoke their grants', async (t) => {
   const f = await fixture(t),
     first = await f.connect(),
     second = await f.connect();
@@ -420,7 +424,7 @@ test('new grants replace old grants and removed service keys revoke their grants
   );
 });
 
-test('originating session logout, expiry and shortening are respected despite a second login', async (t) => {
+void test('originating session logout, expiry and shortening are respected despite a second login', async (t) => {
   const f = await fixture(t),
     p = f.crew[0],
     { grant } = await f.connect();
@@ -449,7 +453,7 @@ test('originating session logout, expiry and shortening are respected despite a 
   );
 });
 
-test('authority refresh preserves position freshness, observes HTTP travel, and never resurrects leases', async (t) => {
+void test('authority refresh preserves position freshness, observes HTTP travel, and never resurrects leases', async (t) => {
   const f = await fixture(t),
     p = f.crew[0],
     { grant } = await f.connect();
@@ -482,7 +486,72 @@ test('authority refresh preserves position freshness, observes HTTP travel, and 
   );
 });
 
-test('a concurrent replacement between authorization and refresh cannot renew the stale grant', async (t) => {
+void test('stationary live sockets remain visible without forging a movement timestamp and disappear after authority expires', async (t) => {
+  const f = await fixture(t, 2),
+    p = f.crew[0],
+    observer = f.crew[1],
+    { grant } = await f.connect(p);
+  await f.service({ operation: 'authority-refresh', grant }, now + 8000);
+  const snapshot = (time) =>
+    neighborhoodSnapshot(
+      f.db,
+      observer.session.wallet,
+      observer.controller,
+      time,
+    );
+  const stationary = await snapshot(now + 15000);
+  const peer = stationary.neighbors.find((n) => n.slot === p.membership.slot);
+  assert.equal(peer.online, true);
+  assert.ok(stationary.people.some((n) => n.id === peer.id));
+  assert.equal(
+    f.db.sqlite
+      .prepare('SELECT updated_at FROM crew_presence WHERE wallet=?')
+      .get(p.session.wallet).updated_at,
+    now,
+  );
+  const expired = await snapshot(now + 28000);
+  assert.equal(expired.neighbors.find((n) => n.id === peer.id).online, false);
+  assert.ok(!expired.people.some((n) => n.id === peer.id));
+});
+
+void test('revoked sessions and mismatched room controllers cannot advertise stale stationary sockets as online', async (t) => {
+  const f = await fixture(t, 2),
+    p = f.crew[0],
+    observer = f.crew[1],
+    { grant } = await f.connect(p);
+  await f.service({ operation: 'authority-refresh', grant }, now + 8000);
+  const online = async () =>
+    (
+      await neighborhoodSnapshot(
+        f.db,
+        observer.session.wallet,
+        observer.controller,
+        now + 15000,
+      )
+    ).neighbors.find((n) => n.slot === p.membership.slot).online;
+  const stored = f.db.sqlite.prepare('SELECT * FROM room_grants').get();
+  assert.equal(await online(), true);
+  for (const [column, value] of [
+    ['client_id', 'replaced'],
+    ['generation', stored.generation + 1],
+    ['scene', 'home-' + 'f'.repeat(32)],
+    ['neighborhood_id', 'f'.repeat(32)],
+  ]) {
+    f.db.sqlite
+      .prepare(`UPDATE room_grants SET ${column}=? WHERE grant_hash=?`)
+      .run(value, stored.grant_hash);
+    assert.equal(await online(), false, column);
+    f.db.sqlite
+      .prepare(`UPDATE room_grants SET ${column}=? WHERE grant_hash=?`)
+      .run(stored[column], stored.grant_hash);
+  }
+  f.db.sqlite
+    .prepare('DELETE FROM sessions WHERE token_hash=?')
+    .run(p.session.sessionHash);
+  assert.equal(await online(), false);
+});
+
+void test('a concurrent replacement between authorization and refresh cannot renew the stale grant', async (t) => {
   const f = await fixture(t),
     { grant } = await f.connect();
   const before = f.db.sqlite
@@ -519,7 +588,7 @@ test('a concurrent replacement between authorization and refresh cannot renew th
   );
 });
 
-test('controller takeover, scene change and expired tickets invalidate earlier connections', async (t) => {
+void test('controller takeover, scene change and expired tickets invalidate earlier connections', async (t) => {
   const f = await fixture(t),
     p = f.crew[0],
     issued = await f.issue();
@@ -563,7 +632,7 @@ test('controller takeover, scene change and expired tickets invalidate earlier c
   );
 });
 
-test('private interior permission and realm entitlement are rechecked at refresh', async (t) => {
+void test('private interior permission and realm entitlement are rechecked at refresh', async (t) => {
   const f = await fixture(t, 2),
     [host, guest] = f.crew;
   const hostId = f.db.sqlite
@@ -605,7 +674,7 @@ test('private interior permission and realm entitlement are rechecked at refresh
   );
 });
 
-test('narrow service operations reject arbitrary identity, checkpoints and client positions before mutation', async (t) => {
+void test('narrow service operations reject arbitrary identity, checkpoints and client positions before mutation', async (t) => {
   const f = await fixture(t),
     { grant } = await f.connect();
   const before = f.db.sqlite.prepare('SELECT * FROM crew_presence').get();
@@ -639,7 +708,7 @@ test('narrow service operations reject arbitrary identity, checkpoints and clien
   );
 });
 
-test('room authority looks up private hosts by index instead of scanning every player', async (t) => {
+void test('room authority looks up private hosts by index instead of scanning every player', async (t) => {
   const f = await fixture(t, 2);
   const [host, guest] = f.crew;
   const hostId = f.db.sqlite

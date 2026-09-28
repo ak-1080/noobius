@@ -1,0 +1,580 @@
+{
+  "schemaVersion": 1,
+  "status": "assertions-passed-cleanup-fix-validated",
+  "startedAt": "2026-09-28T21:39:47.549Z",
+  "assertionsFinishedAt": "2026-09-28T21:45:18.039Z",
+  "durationMs": 445414,
+  "command": "node scripts/release-api-tests.mjs",
+  "runtime": {
+    "node": "v24.14.0",
+    "vite": "8.0.16",
+    "vinext": "1.0.0-beta.5",
+    "wrangler": "4.92.0",
+    "miniflare": "4.20260515.0"
+  },
+  "origin": "http://127.0.0.1:3003",
+  "coordinatorOrigin": "http://127.0.0.1:3004",
+  "migrations": [
+    "0000_spicy_the_watchers",
+    "0001_calm_mister_fear",
+    "0002_fancy_master_mold",
+    "0003_confused_wolfsbane",
+    "0004_odd_blackheart",
+    "0005_tired_jocasta",
+    "0006_handy_polaris",
+    "0007_nappy_red_wolf",
+    "0008_foamy_sersi",
+    "0009_bouncy_lilith",
+    "0010_red_piledriver",
+    "0011_curly_chameleon",
+    "0012_military_invisible_woman",
+    "0013_amazing_ozymandias"
+  ],
+  "totals": {
+    "tests": 27,
+    "pass": 27,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "suites": [
+    {
+      "file": "tests/api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 4968,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/migration-reconciliation.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 157,
+      "counts": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/onboarding-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 267,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/batch-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 928,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/client-demand-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 787,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/earning-policy-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 2196,
+      "counts": {
+        "tests": 6,
+        "pass": 6,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/room-auth-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 750,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/room-coordinator-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 313587,
+      "counts": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/facility-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 66650,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/multiplayer-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 15518,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/realm-progression-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 39169,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    },
+    {
+      "file": "tests/commissions-api.test.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 437,
+      "counts": {
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      }
+    }
+  ],
+  "fullRunCleanup": {
+    "originalRunnerExitCode": 1,
+    "reason": "All suites passed. A macOS EPERM process-group liveness probe escaped the child exit callback during shutdown.",
+    "recovery": "Process inventory verified no remaining owned workers; the exact generated credential/config list was removed.",
+    "recoveredAt": "2026-09-28T21:47:06.487Z",
+    "generatedCredentialsRemoved": true,
+    "fix": "Permission denial retains group ownership for bounded retries. Unresolved groups fail cleanup; generated credential removal and report writing always run."
+  },
+  "cleanupValidation": {
+    "command": "node scripts/release-api-tests.mjs --suite onboarding-api --suite room-auth-api",
+    "status": "passed",
+    "runnerExitCode": 0,
+    "startedAt": "2026-09-28T21:47:15.742Z",
+    "finishedAt": "2026-09-28T21:47:25.524Z",
+    "durationMs": 9782,
+    "totals": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "suites": [
+      {
+        "file": "tests/onboarding-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 569,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/room-auth-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 543,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    ],
+    "ownedProcessGroupsRemaining": 0,
+    "generatedCredentialsRemoved": true,
+    "loopbackPortsReleasedVerified": true,
+    "independentFailurePathChecks": [
+      "EPERM child exit settles without throwing and retains ownership until a later ESRCH.",
+      "Persistent EPERM and unresolved groups fail cleanup with exit1; signal scope remains registered owned groups only.",
+      "Mixed-group and unexpected probe errors still remove generated credentials.",
+      "A failed credential-file removal does not stop remaining removals and records cleanup failure.",
+      "Cached stop preserves cleanup failure after interrupted interim status updates."
+    ]
+  },
+  "isolation": {
+    "freshRunnerOwnedD1": true,
+    "canonicalMigrationsApplied": true,
+    "fixtureDataResetBetweenSuites": true,
+    "fixtureAdapter": "Explicit Node preload intercepts exact local Wrangler DB fixture commands and uses native SQLite against the runner-owned D1 file.",
+    "toolConfigHome": "Runner-owned scratch os.homedir override in owned Node child processes and inherited children only; global HOME unchanged.",
+    "generatedCredentialsRemoved": true,
+    "occupiedPortRefusalVerified": true,
+    "fixtureBridgeRefusesRemoteUnknownConfigAndEscapedPersist": true,
+    "unrecognizedNpxLauncherRefused": true,
+    "homeIsolationInheritedByOwnedChildrenVerified": true,
+    "fixtureSqlCannotAttachAnotherDatabase": true,
+    "toolTemporaryPaths": "runner-owned scratch in owned children only"
+  },
+  "evidenceLimits": [
+    "API and room suites ran against local workerd D1 and the local WebSocket coordinator; migration-reconciliation uses in-memory SQLite.",
+    "The full core assertion run exited1 during runner shutdown. Cleanup was fixed and validated separately with actual owned workers. Later local runner changes (source scanning, fixture authorization and temporary paths) received targeted validation; the full grant-renewal assertions were not repeated.",
+    "No production or staging requests, deployment, real-wallet approval or transaction occurred.",
+    "Local QA passes do not prove hosted backup/restore, hosted capacity or durable provider rollback.",
+    "One local D1 SQLITE_BUSY failure was preserved in the prior-attempt record. It did not recur in the unchanged fresh facility run; no arbitrary API retry or production mutation was added."
+  ],
+  "coreRunDurationMs": 330490,
+  "coreRunSuiteInventory": [
+    "tests/api.test.mjs",
+    "tests/migration-reconciliation.test.mjs",
+    "tests/onboarding-api.test.mjs",
+    "tests/batch-api.test.mjs",
+    "tests/client-demand-api.test.mjs",
+    "tests/earning-policy-api.test.mjs",
+    "tests/room-auth-api.test.mjs",
+    "tests/room-coordinator-api.test.mjs"
+  ],
+  "durationScope": "Sum of selected passing suite executions across isolated runs; not one default command invocation. Full core run duration and additional run metadata are recorded separately.",
+  "defaultSuiteInventory": [
+    "tests/api.test.mjs",
+    "tests/migration-reconciliation.test.mjs",
+    "tests/onboarding-api.test.mjs",
+    "tests/batch-api.test.mjs",
+    "tests/client-demand-api.test.mjs",
+    "tests/earning-policy-api.test.mjs",
+    "tests/room-auth-api.test.mjs",
+    "tests/room-coordinator-api.test.mjs",
+    "tests/facility-api.test.mjs",
+    "tests/multiplayer-api.test.mjs",
+    "tests/realm-progression-api.test.mjs",
+    "tests/commissions-api.test.mjs"
+  ],
+  "extendedApiValidation": {
+    "status": "passed",
+    "commands": [
+      "node scripts/release-api-tests.mjs --suite facility-api --suite multiplayer-api --suite realm-progression-api --suite commissions-api",
+      "node scripts/release-api-tests.mjs --suite facility-api"
+    ],
+    "totals": {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "suites": [
+      {
+        "file": "tests/facility-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 66650,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/multiplayer-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 15518,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/realm-progression-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 39169,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/commissions-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 437,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    ],
+    "fixtureCorrection": "Facility fixture now buys finite quick-batch supplies, waits 20.1 seconds, expects 8 Compute, and rejects empty passive harvest under productionVersion 3. Production rules and concurrent API assertions were unchanged.",
+    "priorFailedAttempts": [
+      {
+        "runnerExitCode": 1,
+        "totals": {
+          "tests": 4,
+          "pass": 3,
+          "fail": 1,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "failedSuite": "tests/facility-api.test.mjs",
+        "reason": "Obsolete fixture lacked required quick-batch supplies and retained version2 duration/reward/passive-harvest expectations."
+      },
+      {
+        "runnerExitCode": 1,
+        "totals": {
+          "tests": 1,
+          "pass": 0,
+          "fail": 1,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "failedSuite": "tests/facility-api.test.mjs",
+        "reason": "Corrected fixture reached rejoin after batch checks; local workerd D1 returned D1_ERROR NOSENTRY database is locked SQLITE_BUSY on a crew controller lease UPDATE. The unchanged fixture passed in a fresh scratch. No concurrent native fixture write or hosted production cause was verified."
+      }
+    ],
+    "facilityFinalRunnerExitCode": 0,
+    "facilityFinalOwnedProcessGroupsRemaining": 0,
+    "facilityFinalGeneratedCredentialsRemoved": true
+  },
+  "finalConfigValidation": {
+    "command": "node scripts/release-api-tests.mjs --suite onboarding-api --suite room-auth-api",
+    "status": "passed",
+    "runnerExitCode": 0,
+    "startedAt": "2026-09-28T21:56:31.716Z",
+    "finishedAt": "2026-09-28T21:56:44.731Z",
+    "totals": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "suites": [
+      {
+        "file": "tests/onboarding-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 813,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/room-auth-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 560,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    ],
+    "ownedProcessGroupsRemaining": 0,
+    "generatedCredentialsRemoved": true,
+    "cssHmrUpdates": 0,
+    "workerRestarts": 0,
+    "internalErrors": 0,
+    "sourceScanner": "QA Tailwind scans the canonical source root, whose gitignore excludes generated scratch logs and SQLite files.",
+    "facilityValidation": {
+      "command": "node scripts/release-api-tests.mjs --suite facility-api",
+      "status": "passed",
+      "runnerExitCode": 0,
+      "startedAt": "2026-09-28T21:58:28.956Z",
+      "finishedAt": "2026-09-28T21:59:43.423Z",
+      "suite": {
+        "file": "tests/facility-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 66650,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "ownedProcessGroupsRemaining": 0,
+      "generatedCredentialsRemoved": true,
+      "cssHmrUpdates": 0,
+      "workerRestarts": 0,
+      "internalErrors": 0
+    }
+  },
+  "boundaryValidation": {
+    "command": "node scripts/release-api-tests.mjs --suite commissions-api --suite earning-policy-api --suite room-auth-api",
+    "status": "passed",
+    "runnerExitCode": 0,
+    "startedAt": "2026-09-28T22:03:28.969Z",
+    "finishedAt": "2026-09-28T22:03:40.321Z",
+    "totals": {
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "suites": [
+      {
+        "file": "tests/commissions-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 343,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/earning-policy-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 853,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "file": "tests/room-auth-api.test.mjs",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 260,
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    ],
+    "ownedProcessGroupsRemaining": 0,
+    "generatedCredentialsRemoved": true,
+    "fixtureSqlAuthorizer": "Native SQLite authorizer rejects ATTACH, DETACH, PRAGMA and extension/file I/O functions; fixture temporary tables remain in memory.",
+    "runtimeRequirement": "Release runner requires native SQLite setAuthorizer and is verified on Node 24.14. Missing support fails before scratch creation or worker startup; general source/rule checks retain Node 22.18 compatibility.",
+    "toolTemporaryPaths": "TMPDIR, TMP and TEMP point to runner-owned scratch for owned children only.",
+    "independentChecks": {
+      "validNativeInsertUpdateSelectAndJsonSet": true,
+      "attachVacuumIntoPragmasExtensionAndFileFunctionsDenied": true,
+      "nativeConnectionsOpened": 10,
+      "nativeConnectionsClosed": 10,
+      "unsafeFunctionBodiesInvoked": 0,
+      "originalFixtureSubprocessInvocations": 0,
+      "missingAuthorizerFailsBeforeAllocationAndPortProbes": true,
+      "childTemporaryPathsOverrideInheritedValues": true,
+      "scratchTemporaryDirectoryCreatedBeforeLaunchWithMode": "0700",
+      "evidence": "Extracted current-source in-memory SQLite and VM checks; no outside files or live probes."
+    }
+  }
+}
