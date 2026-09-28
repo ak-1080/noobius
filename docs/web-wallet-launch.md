@@ -1,5 +1,7 @@
 # Noobius: website and wallet launch checklist
 
+**Historical September 8 design, superseded September 28:** current player connections support only Phantom, Solflare, Backpack and Jupiter on Solana. The ecosystem tabs, arbitrary installed-wallet fallback, MetaMask registration and EVM browser helpers are removed. Legacy stored identities/server verification remain for data and regression compatibility, not as advertised connection options. See [the current policy and checks](verification/2026-09-28-four-wallets.md).
+
 Updated September 8, 2026. First milestone: a visitor opens an HTTPS website, signs in with Ethereum/EVM **or** Solana, enters the existing game, and returns to the same saved progress. A Cloudflare-managed custom domain will follow once purchased.
 
 ## What exists and what changed

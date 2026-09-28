@@ -12,13 +12,14 @@ import {
   validateBuyerPayment,
 } from '../lib/solana-payment.ts';
 import { solanaWalletProvider } from '../lib/solana-wallet.ts';
+import { signSolanaTransaction } from '../lib/solana-transaction-wallet.ts';
 import {
   ComputeCheckoutSession,
   formatTokenUnits,
   tokenUnits,
   transactionLink,
 } from '../lib/compute-trading-client.ts';
-async function fixture() {
+async function fixture(name = 'Phantom') {
   const buyer = await generateKeyPairSigner(),
     seller = await generateKeyPairSigner(),
     authorization = await generateKeyPairSigner(),
@@ -44,7 +45,7 @@ async function fixture() {
   };
   const calls = [];
   const wallet = {
-    name: 'Test Solana Wallet',
+    name,
     chains: ['solana:devnet'],
     accounts: [account],
     features: {
@@ -109,21 +110,26 @@ void test('token prices use exact integer units without floating point loss', ()
     assert.throws(() => tokenUnits(value, 6));
   assert.throws(() => tokenUnits('18446744073709551616', 0));
 });
-void test('Wallet Standard signs the exact devnet transaction without broadcasting it', async () => {
-  const f = await fixture(),
-    signed = await f.sign();
-  assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0].chain, 'solana:devnet');
-  assert.equal(f.calls[0].account.address, f.buyer.address);
-  assert.equal(
-    (await validateBuyerPayment(f.quote, signed)).transactionBase64,
-    signed,
+for (const name of ['Phantom', 'Solflare', 'Backpack', 'Jupiter'])
+  void test(
+    name +
+      ': Wallet Standard signs the exact devnet transaction without broadcasting it',
+    async () => {
+      const f = await fixture(name),
+        signed = await f.sign();
+      assert.equal(f.calls.length, 1);
+      assert.equal(f.calls[0].chain, 'solana:devnet');
+      assert.equal(f.calls[0].account.address, f.buyer.address);
+      assert.equal(
+        (await validateBuyerPayment(f.quote, signed)).transactionBase64,
+        signed,
+      );
+      assert.equal(
+        base64.encode(f.calls[0].transaction),
+        f.quote.unsignedTransactionBase64,
+      );
+    },
   );
-  assert.equal(
-    base64.encode(f.calls[0].transaction),
-    f.quote.unsignedTransactionBase64,
-  );
-});
 void test('wallet account/network changes and missing sign-only capability stop approval', async () => {
   const f = await fixture();
   await assert.rejects(
@@ -284,4 +290,41 @@ void test('review amount and wallet must match the payment that will be signed',
         }),
       /do not match/,
     );
+});
+
+void test('direct checkout signing refuses unsupported wallets on devnet and mainnet before prompting', async () => {
+  const f = await fixture();
+  for (const name of [
+    'MetaMask',
+    'Rabby Wallet',
+    'Coinbase Wallet',
+    'Rainbow',
+    'WalletConnect',
+    'Unknown Wallet',
+  ]) {
+    f.wallet.name = name;
+    for (const network of ['devnet', 'mainnet-beta'])
+      await assert.rejects(
+        signSolanaTransaction(
+          f.wallet,
+          f.quote.unsignedTransactionBase64,
+          f.buyer.address,
+          network,
+        ),
+        /Choose Phantom/,
+      );
+  }
+  assert.equal(f.calls.length, 0);
+});
+void test('a wallet identity change during approval cannot produce a payment submission', async () => {
+  const f = await fixture(),
+    original = f.wallet.features['solana:signTransaction'].signTransaction;
+  f.wallet.features['solana:signTransaction'].signTransaction = async (
+    input,
+  ) => {
+    const result = await original(input);
+    f.wallet.name = 'Unknown Wallet';
+    return result;
+  };
+  await assert.rejects(f.sign(), /wallet changed/);
 });

@@ -1,3 +1,12 @@
-Wallet identification icons from rainbow-me/rainbowkit, commit 03360ee924cfa6af13ff1d623b356bf5a170348e.
+Wallet product identification only; trademarks belong to the respective products.
+
+Phantom: rainbow-me/rainbowkit, commit 03360ee924cfa6af13ff1d623b356bf5a170348e.
 https://raw.githubusercontent.com/rainbow-me/rainbowkit/03360ee924cfa6af13ff1d623b356bf5a170348e/packages/rainbowkit/src/wallets/walletConnectors/
-See LICENSE.txt for the MIT license. Logos identify their respective wallet products.
+MIT license: LICENSE.txt. Other wallet icons from that source have been removed.
+
+Solflare and Backpack: TeamRaccoons/Unified-Wallet-Kit, commit 9901c2f29fe6269e3ce2194be77cb1977446fc50, src/misc/constants.ts (MIT per package.json).
+https://github.com/TeamRaccoons/Unified-Wallet-Kit/blob/9901c2f29fe6269e3ce2194be77cb1977446fc50/src/misc/constants.ts
+
+Jupiter: official product logo https://jup.ag/svg/jupiter-logo.svg, retrieved September 28, 2026. Used solely to identify the Jupiter wallet option; not covered by the RainbowKit license.
+Official installation page: https://jup.ag/wallet
+Official integration guide: https://developers.jup.ag/docs/tool-kits/wallet-kit/jupiter-wallet-extension

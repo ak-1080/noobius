@@ -7352,9 +7352,6 @@ a {
   font-weight: 650;
   color: #a8a8ae;
 }
-.wallet-other-title {
-  margin-top: 22px;
-}
 .wallet-popular-list {
   display: grid;
   gap: 4px;
@@ -7379,29 +7376,13 @@ a {
 .wallet-brand-row:disabled {
   opacity: 0.55;
 }
-.wallet-brand-row > img,
-.wallet-generic-icon {
+.wallet-brand-row > img {
   width: 42px;
   height: 42px;
   flex: 0 0 42px;
   border-radius: 10px;
 }
-.wallet-generic-icon {
-  display: grid;
-  place-items: center;
-  background: #393b43;
-  font-size: 24px;
-  font-weight: 800;
-  color: white;
-}
-.wallet-icon-solflare {
-  background: linear-gradient(145deg, #ffb241, #f15c45);
-}
-.wallet-icon-backpack {
-  background: linear-gradient(145deg, #fd7777, #d7273a);
-}
-.wallet-install-icon > img,
-.wallet-install-icon > .wallet-generic-icon {
+.wallet-install-icon > img {
   display: grid;
   width: 64px;
   height: 64px;

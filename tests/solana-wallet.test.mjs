@@ -8,9 +8,12 @@ import {
   verifySolanaMessage,
 } from '../lib/solana-auth.ts';
 import { signInSolanaWallet } from '../lib/wallet.ts';
-import { solanaWalletProvider } from '../lib/solana-wallet.ts';
+import {
+  solanaWalletProvider,
+  supportsSolanaWallet,
+} from '../lib/solana-wallet.ts';
 
-async function fixture() {
+async function fixture(name = 'Phantom') {
   const key = await crypto.subtle.generateKey('Ed25519', true, [
     'sign',
     'verify',
@@ -27,7 +30,7 @@ async function fixture() {
   };
   let listener;
   const wallet = {
-    name: 'Test wallet',
+    name,
     chains: ['solana:mainnet'],
     accounts: [account],
     features: {
@@ -80,55 +83,63 @@ void test('Solana identities retain canonical case and use a separate namespace'
   );
 });
 
-void test('Wallet Standard signs the exact challenge and server verifies Ed25519 ownership', async () => {
-  const f = await fixture(),
-    provider = solanaWalletProvider(f.wallet);
-  const message = solanaSignInMessage(
-    f.address,
-    'https://noobius.example',
-    '1234567890abcdef',
-    1700000000000,
-  );
-  assert.match(
-    message,
-    /^noobius.example wants you to sign in with your Solana account:/,
-  );
-  assert.match(message, /Expiration Time: 2023-11-14T22:18:20.000Z/);
-  assert.match(message, /Chain ID: mainnet/);
-  assert.match(
-    solanaSignInMessage(
-      f.address,
-      'https://noobius.example',
-      'nonce',
-      1700000000000,
-      'devnet',
-    ),
-    /Chain ID: devnet/,
-  );
-  const result = await signInSolanaWallet(
-    provider,
-    async () => ({ message }),
-    async (signature) => {
-      assert.equal(
-        await verifySolanaMessage(f.address, message, signature),
-        true,
+for (const name of ['Phantom', 'Solflare', 'Backpack', 'Jupiter'])
+  void test(
+    name +
+      ': Wallet Standard signs the exact challenge and server verifies Ed25519 ownership',
+    async () => {
+      const f = await fixture(name),
+        provider = solanaWalletProvider(f.wallet);
+      const message = solanaSignInMessage(
+        f.address,
+        'https://noobius.example',
+        '1234567890abcdef',
+        1700000000000,
       );
+      assert.match(
+        message,
+        /^noobius.example wants you to sign in with your Solana account:/,
+      );
+      assert.match(message, /Expiration Time: 2023-11-14T22:18:20.000Z/);
+      assert.match(message, /Chain ID: mainnet/);
+      assert.match(
+        solanaSignInMessage(
+          f.address,
+          'https://noobius.example',
+          'nonce',
+          1700000000000,
+          'devnet',
+        ),
+        /Chain ID: devnet/,
+      );
+      const result = await signInSolanaWallet(
+        provider,
+        async () => ({ message }),
+        async (signature) => {
+          assert.equal(
+            await verifySolanaMessage(f.address, message, signature),
+            true,
+          );
+          assert.equal(
+            await verifySolanaMessage(f.address, message + '!', signature),
+            false,
+          );
+          const other = await fixture();
+          assert.equal(
+            await verifySolanaMessage(other.address, message, signature),
+            false,
+          );
+          return 'verified';
+        },
+      );
+      assert.equal(result.data, 'verified');
+      assert.equal(result.address, f.address);
       assert.equal(
-        await verifySolanaMessage(f.address, message + '!', signature),
+        await verifySolanaMessage(f.address, message, '0x00'),
         false,
       );
-      const other = await fixture();
-      assert.equal(
-        await verifySolanaMessage(other.address, message, signature),
-        false,
-      );
-      return 'verified';
     },
   );
-  assert.equal(result.data, 'verified');
-  assert.equal(result.address, f.address);
-  assert.equal(await verifySolanaMessage(f.address, message, '0x00'), false);
-});
 
 void test('adapter rejects wallet message wrapping and cleans up account listeners', async () => {
   const f = await fixture(),
@@ -211,7 +222,9 @@ void test('wallet chain mismatch explains how to connect to staging Devnet', asy
     request: async ({ method }) => {
       if (method === 'solana_connect') return [f.address];
       if (method === 'solana_signMessage')
-        throw Error('Chain ID does not match the provided chain ID for verification.');
+        throw Error(
+          'Chain ID does not match the provided chain ID for verification.',
+        );
       throw Error('Unexpected wallet request');
     },
   };
@@ -222,5 +235,52 @@ void test('wallet chain mismatch explains how to connect to staging Devnet', asy
       async () => assert.fail('must not verify'),
     ),
     /Switch your wallet to Solana Devnet/,
+  );
+});
+
+void test('unsupported products cannot enter discovery or invoke connection/message signing', async () => {
+  for (const name of [
+    'MetaMask',
+    'Rabby Wallet',
+    'Coinbase Wallet',
+    'Rainbow',
+    'WalletConnect',
+    'Unknown Wallet',
+    'Phantom clone',
+    'Jupiter Impostor',
+  ]) {
+    const f = await fixture(name);
+    f.wallet.features['standard:connect'].connect = () =>
+      assert.fail('Must not connect');
+    f.wallet.features['solana:signMessage'].signMessage = () =>
+      assert.fail('Must not sign');
+    assert.equal(supportsSolanaWallet(f.wallet), false);
+    assert.throws(
+      () => solanaWalletProvider(f.wallet),
+      /Choose Phantom, Solflare, Backpack or Jupiter/,
+    );
+  }
+});
+void test('an approved wallet that changes identity or capability is rejected and disconnects listeners', async () => {
+  const f = await fixture('Jupiter'),
+    provider = solanaWalletProvider(f.wallet),
+    seen = [];
+  provider.on('accountsChanged', (accounts) => seen.push(accounts));
+  f.wallet.name = 'Unknown Wallet';
+  f.emit();
+  assert.deepEqual(seen, [[]]);
+  for (const method of [
+    'solana_connect',
+    'solana_accounts',
+    'solana_signMessage',
+    'solana_signTransaction',
+  ])
+    await assert.rejects(provider.request({ method }), /Choose Phantom/);
+  f.wallet.name = 'Jupiter';
+  delete f.wallet.features['solana:signMessage'];
+  assert.equal(supportsSolanaWallet(f.wallet), false);
+  await assert.rejects(
+    provider.request({ method: 'solana_connect' }),
+    /no longer supports/,
   );
 });

@@ -39,7 +39,12 @@ import {
   type Shift,
   type Upgrade,
 } from '@/lib/game';
-import { type Provider, type WalletOption } from '@/lib/wallet-options';
+import {
+  type Provider,
+  type WalletOption,
+  supportedWalletOptions,
+  UNSUPPORTED_WALLET,
+} from '@/lib/wallet-options';
 export type { Provider, WalletOption } from '@/lib/wallet-options';
 export class ClientError extends Error {
   constructor(
@@ -295,31 +300,6 @@ export function useNoobius() {
       refreshSolana();
     });
     refreshSolana();
-    // Register MetaMask's Solana wallet with Wallet Standard. Its signatures
-    // then follow the same Solana sign-in path as the other wallets.
-    void Promise.all([
-      import('@metamask/multichain-api-client'),
-      import('@metamask/solana-wallet-standard'),
-    ])
-      .then(
-        async ([
-          { getMultichainClient, getDefaultTransport, isMetamaskInstalled },
-          { registerSolanaWalletStandard },
-        ]) => {
-          const installed = await isMetamaskInstalled();
-          if (!alive || !installed) return;
-          const client = getMultichainClient({
-            transport: getDefaultTransport(),
-          });
-          await registerSolanaWalletStandard({ client });
-        },
-      )
-      .then(() => {
-        if (alive) refreshSolana();
-      })
-      .catch((error) => {
-        console.warn('MetaMask Solana wallet unavailable:', error);
-      });
     return () => {
       alive = false;
       offRegister();
@@ -461,8 +441,8 @@ export function useNoobius() {
   }, []);
   const connect = async (option: WalletOption) =>
     run(async () => {
-      if (option.ecosystem !== 'solana')
-        throw new Error('Choose a Solana wallet to play.');
+      if (!supportedWalletOptions(wallets).includes(option))
+        throw new Error(UNSUPPORTED_WALLET);
       let verified: GameData | undefined;
       const verify = async (signature: string) => {
         const data = await api<GameData>('verify', { signature });
@@ -508,7 +488,6 @@ export function useNoobius() {
           'noobius-wallet',
           JSON.stringify({
             name: option.name,
-            rdns: option.rdns,
             ecosystem: 'solana',
           }),
         );
@@ -529,7 +508,6 @@ export function useNoobius() {
       return;
     let remembered: {
       name?: string;
-      rdns?: string;
       ecosystem?: string;
     } | null = null;
     try {
@@ -551,9 +529,7 @@ export function useNoobius() {
       (option) =>
         option.ecosystem === family &&
         remembered!.ecosystem === family &&
-        (remembered!.rdns
-          ? option.rdns === remembered!.rdns
-          : option.name === remembered!.name),
+        option.name === remembered!.name,
     );
     if (!chosen) return;
     let alive = true;
