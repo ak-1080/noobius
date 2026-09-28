@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "checkedAt": "2026-09-28T23:18:59.166Z",
+  "checks": [
+    {
+      "name": "game-entry",
+      "ok": true,
+      "status": 200,
+      "durationMs": 592
+    },
+    {
+      "name": "coming-soon",
+      "ok": true,
+      "status": 200,
+      "durationMs": 279
+    },
+    {
+      "name": "game-database",
+      "ok": true,
+      "status": 200,
+      "durationMs": 433
+    },
+    {
+      "name": "anonymous-exchange",
+      "ok": true,
+      "status": 200,
+      "durationMs": 501
+    },
+    {
+      "name": "room-router",
+      "ok": true,
+      "status": 404,
+      "durationMs": 311
+    }
+  ]
+}

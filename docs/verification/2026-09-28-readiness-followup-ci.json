@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-28 23:26:43 UTC",
+  "repository": "ak-1080/noobius",
+  "runId": 36497125542,
+  "headSha": "729e54c4c0a24806f5fd99ec1a61ed049d2beb67",
+  "url": "https://github.com/ak-1080/noobius/actions/runs/36497125542",
+  "event": "pull_request",
+  "createdAt": "2026-09-28T23:16:33Z",
+  "updatedAt": "2026-09-28T23:24:53Z",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "completedAt": "2026-09-28T23:17:45Z",
+      "conclusion": "success",
+      "id": 109179173684,
+      "name": "Test and build / Node 24",
+      "startedAt": "2026-09-28T23:16:37Z",
+      "status": "completed",
+      "url": "https://github.com/ak-1080/noobius/actions/runs/36497125542/job/109179173684"
+    },
+    {
+      "completedAt": "2026-09-28T23:24:52Z",
+      "conclusion": "success",
+      "id": 109179174048,
+      "name": "Isolated saves, economy and live rooms",
+      "startedAt": "2026-09-28T23:16:37Z",
+      "status": "completed",
+      "url": "https://github.com/ak-1080/noobius/actions/runs/36497125542/job/109179174048"
+    },
+    {
+      "completedAt": "2026-09-28T23:17:48Z",
+      "conclusion": "success",
+      "id": 109179174073,
+      "name": "Test and build / Node 22",
+      "startedAt": "2026-09-28T23:16:37Z",
+      "status": "completed",
+      "url": "https://github.com/ak-1080/noobius/actions/runs/36497125542/job/109179174073"
+    }
+  ],
+  "unitChecks": [
+    {
+      "node": 22,
+      "observedAt": "2026-09-28T23:17:16.1857292Z",
+      "tests": 567,
+      "suites": 0,
+      "pass": 567,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "node": 24,
+      "observedAt": "2026-09-28T23:17:16.3781192Z",
+      "tests": 567,
+      "suites": 0,
+      "pass": 567,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  ],
+  "integrationSuites": [
+    {
+      "suite": "api",
+      "result": "passed",
+      "seconds": 5,
+      "observedAt": "2026-09-28T23:17:27.3666725Z"
+    },
+    {
+      "suite": "migration-reconciliation",
+      "result": "passed",
+      "seconds": 0,
+      "observedAt": "2026-09-28T23:17:27.7129552Z"
+    },
+    {
+      "suite": "onboarding-api",
+      "result": "passed",
+      "seconds": 1,
+      "observedAt": "2026-09-28T23:17:28.2687468Z"
+    },
+    {
+      "suite": "batch-api",
+      "result": "passed",
+      "seconds": 1,
+      "observedAt": "2026-09-28T23:17:29.1879755Z"
+    },
+    {
+      "suite": "client-demand-api",
+      "result": "passed",
+      "seconds": 1,
+      "observedAt": "2026-09-28T23:17:29.9326683Z"
+    },
+    {
+      "suite": "earning-policy-api",
+      "result": "passed",
+      "seconds": 3,
+      "observedAt": "2026-09-28T23:17:32.6724405Z"
+    },
+    {
+      "suite": "facility-api",
+      "result": "passed",
+      "seconds": 69,
+      "observedAt": "2026-09-28T23:18:41.2163200Z"
+    },
+    {
+      "suite": "multiplayer-api",
+      "result": "passed",
+      "seconds": 16,
+      "observedAt": "2026-09-28T23:18:56.8313410Z"
+    },
+    {
+      "suite": "realm-progression-api",
+      "result": "passed",
+      "seconds": 39,
+      "observedAt": "2026-09-28T23:19:35.8630072Z"
+    },
+    {
+      "suite": "commissions-api",
+      "result": "passed",
+      "seconds": 1,
+      "observedAt": "2026-09-28T23:19:36.5911644Z"
+    },
+    {
+      "suite": "room-auth-api",
+      "result": "passed",
+      "seconds": 1,
+      "observedAt": "2026-09-28T23:19:37.3322558Z"
+    },
+    {
+      "suite": "room-coordinator-api",
+      "result": "passed",
+      "seconds": 312,
+      "observedAt": "2026-09-28T23:24:48.9092680Z"
+    }
+  ],
+  "acceptance": {
+    "unitRules": 567,
+    "nodeVersions": [
+      22,
+      24
+    ],
+    "unitFailures": 0,
+    "unitSkipped": 0,
+    "integrationSuitesPassed": 12,
+    "integrationSuitesFailed": 0,
+    "integrationAssertionCount": null,
+    "integrationAssertionCountEvidence": "Not available in the GitHub log: child test summaries stay in runner-owned scratch files and no scratch report artifact was uploaded."
+  },
+  "cleanup": {
+    "evidence": "Successful runner exit contract; not a direct scratch report observation.",
+    "directScratchReportAvailable": false,
+    "uploadedArtifactCount": 0,
+    "successContract": {
+      "ownedProcessGroupsRemaining": 0,
+      "generatedCredentialsRemoved": true
+    },
+    "qualification": "The exact candidate runner makes owned-process cleanup errors or credential-removal errors fail the acceptance step. Its successful exit is the CI evidence here; individual scratch cleanup fields were not published."
+  },
+  "provenance": {
+    "jobConclusions": "GitHub Actions run metadata for the exact candidate head.",
+    "unitCounts": "Node 22 and Node 24 summary lines in the downloaded GitHub Actions log.",
+    "integrationResults": "Twelve explicit suite result and rounded-duration lines in the downloaded GitHub Actions log.",
+    "cleanupContract": "scripts/release-api-tests.mjs at the exact candidate head; Actions artifact inventory returned zero artifacts."
+  },
+  "scope": "Isolated local HTTP, D1 and WebSocket acceptance with generated test identities and runner-owned scratch databases. This CI result does not establish hosted capacity, browser-extension signing, real-value mainnet payments or a hosted database cutover."
+}

@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-28",
+  "candidateCommit": "729e54c4c0a24806f5fd99ec1a61ed049d2beb67",
+  "scope": "isolated staging and valueless Solana devnet test token only",
+  "productionChanged": false,
+  "ownerWalletsUsed": false,
+  "realFundsUsed": false,
+  "workers": {
+    "recovery": "addd4dfe-9c77-4dce-8b1a-cd194e2e42ca",
+    "game": "fce6ed88-0bff-4246-8678-2e6c4de28d32"
+  },
+  "deploymentOrder": [
+    "recovery",
+    "game"
+  ],
+  "preflights": {
+    "hostedRpc": true,
+    "mintAndFinalizedPriorGeneratedProof": true,
+    "typecheck": true,
+    "build": true,
+    "unsettledPayments": 0,
+    "newMigrationsApplied": 0
+  },
+  "smoke": {
+    "ok": true,
+    "checkedAt": "2026-09-28T23:17:06.199Z",
+    "checks": [
+      "page-and-asset",
+      "database-health",
+      "devnet-wallet-login",
+      "persistent-profile",
+      "configured-test-token-market-and-unqualified-wallet-denial"
+    ]
+  },
+  "health": {
+    "httpStatus": 200,
+    "status": "ok",
+    "service": "noobius-game",
+    "returningLoginVersion": 1
+  },
+  "secrets": "RPC endpoint and generated signer remain ignored or in Cloudflare secrets; omitted from this report",
+  "limits": [
+    "Deployment smoke is not sustained capacity or real wallet/device acceptance.",
+    "The prior repaired detached-payment trial is separate evidence; no new transfer was created by this deployment."
+  ]
+}

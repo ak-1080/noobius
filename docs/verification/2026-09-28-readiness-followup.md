@@ -29,6 +29,14 @@ See [capacity cohort operations](../capacity-cohort-operations.md) for commands,
 
 Run `npm test`, `npm run typecheck` and `npm run test:release-api`. Use Node 24.14 or newer for the isolated API runner. The native scheduled-runtime tests are part of `npm test`; no hosted credentials or funded wallets are required.
 
+## Validation and current staging
+
+All **567** rule/runtime tests and TypeScript passed. Targeted follow-up lint passes; `lib/server.ts` retains five pre-existing lint findings, so repository-wide lint is not represented as clean. The isolated earning/health HTTP suite passed **8/8** with cleanup. The [guarded staging deployment](2026-09-28-followup-staging-deploy.json) passed actual hosted RPC/mint/finalized-proof checks, zero unsettled payments, current migrations and login/save/market smoke on candidate `729e54c`. Game Worker: `fce6ed88-0bff-4246-8678-2e6c4de28d32`; recovery Worker: `addd4dfe-9c77-4dce-8b1a-cd194e2e42ca`. Production and the room Worker were unchanged. [Public health](2026-09-28-followup-public-health.json) passed separately.
+
+The [exact-candidate CI](https://github.com/ak-1080/noobius/actions/runs/36497125542) passed all three jobs: **567/567 tests** on both Node 22 and 24, TypeScript, tooling and builds, plus **all twelve isolated integration suites**. [Redacted CI evidence](2026-09-28-readiness-followup-ci.json) qualifies the directly visible logs versus unpublished scratch cleanup. [PR #7](https://github.com/ak-1080/noobius/pull/7) merged as `3db2221`; application/library/service/script/test/package source matches tested candidate `729e54c`.
+
+The [hosted returning-cohort trial](2026-09-28-returning-cohort-staging.json) reused the same five ordinarily registered generated saves for a requested six-minute movement workload plus final-save verification. All five renewed with **654 ms** maximum recovery and **650 ms** maximum sampled observer gap, no unexpected interruptions, no unresolved gaps, exact durable positions and clean logout/release. Of 10,442 moves, 10,435 were accepted, two corrected by movement validation and five unacknowledged during planned renewal. The report retains these counts and safe correlated events. This was one neighborhood from one network, two home visitors/three plaza players, without rendered graphics, repair jobs, trading or cost measurement. It does not establish near-fifty capacity or resolve the historical larger mixed-workload failure.
+
 ## Still required before release
 
 1. Sustained near-capacity mixed gameplay with current code, correlated renewal/recovery traces and measured provider/Cloudflare cost. A smaller renewal trial does not establish fifty players or thousands.
