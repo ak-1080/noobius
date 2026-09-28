@@ -21,6 +21,7 @@ Only these exact origins are allowed:
 ```sh
 NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 npm run smoke:gameplay
 NOOBIUS_TEST_ORIGIN=http://127.0.0.1:3003 NOOBIUS_TEST_RESTART_ROOM=1 npm run smoke:gameplay
+NOOBIUS_TEST_ORIGIN=https://noobius-game-staging.rinkydooonso.workers.dev NOOBIUS_GAMEPLAY_ROUNDS=3 npm run smoke:gameplay
 NOOBIUS_TEST_ORIGIN=https://play.noobius.io npm run smoke:gameplay
 NOOBIUS_TEST_ORIGIN=https://play.noobius.io NOOBIUS_GAMEPLAY_ROUNDS=5 npm run smoke:gameplay
 ```
@@ -34,6 +35,8 @@ The hosted run first checks database health and does not create accounts if that
 The report is written to `/tmp/noobius-gameplay-acceptance.json`. Console output identifies each completed check. Requests have a 20-second timeout; the harness also has a ten-minute work deadline. Failure is a nonzero exit, including cleanup failures.
 
 ## Evidence and limits
+
+The September 28 active-play staging build passed three repair rounds per generated player, supplied-batch/replay checks, visitor privacy, a competing item purchase, reconnect, relogin and cleanup in 195 seconds. See `verification/2026-09-28-staging-three-round-gameplay.json`. The staging report is written to `/tmp/noobius-staging-gameplay-acceptance.json`. This run did not perform a token payment or prove sustained player capacity.
 
 The local September 22 run passed using the real Worker/D1/room processes and current production game logic. See the committed report in `verification/2026-09-22-local-gameplay.json`. This extends coverage beyond movement-only testing but does **not** prove the hosted path, physical phones, rendered browser concurrency, real wallet extensions, mainnet settlement, sustained capacity or uncoached retention. Those remain separate launch gates.
 

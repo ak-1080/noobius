@@ -2,9 +2,9 @@
 
 A browser data-center tycoon with a cinematic title screen, a fullscreen 3D world, and a customizable Noobius. The playable alpha is hosted at https://play.noobius.io; https://noobius.io remains the separate coming-soon site. Player-to-player Compute checkout is implemented, but real-token trading is disabled pending token configuration and acceptance testing. **Opening this repository on another device? Read [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) first.**
 
-## Handoff for a new device or Codex session (September 25, 2026)
+## Handoff for a new device or Codex session (September 28, 2026)
 
-The production source of truth is [`ak-1080/noobius` on `main`](https://github.com/ak-1080/noobius/tree/main). `main` includes the September 25 active-play and presentation pass. Most of that pass is deployed to isolated staging for review, though the final two guide illustrations may need redeployment; production has not changed. The game code, committed art and videos, coming-soon site, migrations, tests, and deployment configuration are on GitHub. Clone `main`, use Node 24 (`.nvmrc`), and run `npm ci`. To start a **new local** game database, follow [Run locally](#run-locally); do not initialize over an existing save. Pushing to GitHub does **not** automatically deploy either hosted site; the GitHub deployment workflows are manual.
+The production source of truth is [`ak-1080/noobius` on `main`](https://github.com/ak-1080/noobius/tree/main). `main` includes the September 25 active-play and presentation pass, deployed to isolated staging including the final guide illustrations on September 28; production has not changed. The game code, committed art and videos, coming-soon site, migrations, tests, and deployment configuration are on GitHub. Clone `main`, use Node 24 (`.nvmrc`), and run `npm ci`. To start a **new local** game database, follow [Run locally](#run-locally); do not initialize over an existing save. Pushing to GitHub does **not** automatically deploy either hosted site; the GitHub deployment workflows are manual.
 
 The existing hosted services keep running independently of the development computer:
 
@@ -29,6 +29,7 @@ Connected accounts keep one personal center and join five-player neighborhoods. 
 Fully upgraded centers can choose between three competing client requests with changing demand. Bookings reserve machines and freeze their supply costs, time and payment. Three certification branches change speed, resource use and capacity. Repeatable facility distinctions require fresh client work, different specialties, two realm recoveries and crafted supplies; each lights a permanent monument without resetting the center. Compute remains game currency, with no connected real-token payouts. This supports ongoing play, while human retention testing remains outstanding.
 
 - [September 25 owner review: font previews, visual polish, realm art and active-play economy plan](docs/design/2026-09-25/README.md).
+- [September 28 economy audit and save verification](docs/verification/2026-09-28-active-economy.md). Run `npm run audit:economy` for reproducible local results; NPC-supplied client work still has repeatable profit, so bot resistance and long-term balance remain open.
 - `/how-to-play`: illustrated instructions and game captures.
 - `/docs`: saving, currencies, multiplayer and help.
 - [Current Cloudflare deployment and remaining launch gates](docs/cloudflare-launch-2026-09-22.md).
