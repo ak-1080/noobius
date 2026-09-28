@@ -9,8 +9,11 @@ import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
 import {
   assertFreshCapacityAccounts,
+  assertReturningCapacityServer,
   authenticateCapacityActor,
 } from './capacity-auth.mjs';
+import { openCapacityCohort } from './capacity-cohort.mjs';
+import { CapacityTimeline } from './capacity-timeline.mjs';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
 const destinations = {
   'https://play.noobius.io': {
@@ -42,9 +45,23 @@ assert.ok(
     durationSeconds >= 30 &&
     durationSeconds <= 360,
 );
-// This harness only creates fresh accounts. Refuse impossible signup plans
-// before health requests, actor/key allocation or authentication.
-assertFreshCapacityAccounts(roomCount * 5);
+const cohortPath = process.env.NOOBIUS_CAPACITY_COHORT_FILE;
+const cohortMode = process.env.NOOBIUS_CAPACITY_COHORT_MODE;
+if (Boolean(cohortPath) !== Boolean(cohortMode))
+  throw Error(
+    'An explicit cohort file and create/returning mode must be supplied together.',
+  );
+// All cohort validation/key import finishes before requests or actor allocation.
+// Returning records require their exact existing save; they never create accounts.
+if (!cohortPath) assertFreshCapacityAccounts(roomCount * 5);
+const cohort = cohortPath
+  ? await openCapacityCohort({
+      path: cohortPath,
+      origin,
+      count: roomCount * 5,
+      mode: cohortMode,
+    })
+  : null;
 const correctionReasons = {};
 const { Client } = await import('../tests/api-client.mjs');
 const actors = [],
@@ -57,6 +74,7 @@ const runId = crypto.randomUUID(),
 let stopped = false,
   measuring = false,
   phase = 0;
+const timeline = new CapacityTimeline({ beganAt: began });
 const counters = {
   unacknowledged: 0,
   sent: 0,
@@ -104,6 +122,9 @@ async function request(a, action, body) {
 async function authenticate(a) {
   a.profile = await authenticateCapacityActor({
     address: a.address,
+    ...(a.returningProfileId
+      ? { returningProfileId: a.returningProfileId }
+      : {}),
     request: (action, body) => request(a, action, body),
     sign: async (message) =>
       '0x' +
@@ -123,6 +144,13 @@ async function authenticate(a) {
         'seconds',
       ),
   });
+  if (a.returningProfileId)
+    assert.equal(
+      a.profile?.id,
+      a.returningProfileId,
+      'Returning saved profile must match the registered QA record',
+    );
+  if (cohort?.mode === 'create') cohort.register(a.index, a.profile.id);
 }
 async function connect(a, fastRenew = false) {
   if (stopped) return;
@@ -166,6 +194,7 @@ async function connect(a, fastRenew = false) {
     ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
   }
   const ticket = ok(ticketResponse);
+  timeline.record(a.index, 'ticket');
   assert.equal(ticket.coordinatorOrigin, destination.rooms);
   const transport = new RoomClient({
     ...ticket,
@@ -182,6 +211,14 @@ async function connect(a, fastRenew = false) {
     onPeople: (people) => {
       a.peers = ids(people);
       a.lastPeers = Date.now();
+      if (measuring && a.expected.length) {
+        const numericIds = (values) =>
+          values.flatMap((id) => {
+            const known = actors.find((actor) => actor.profile?.id === id);
+            return known ? [known.index] : [];
+          });
+        timeline.peers(a.index, numericIds(a.expected), numericIds(a.peers));
+      }
       if (!measuring) return;
       counters.peerFrames++;
       if (
@@ -213,6 +250,12 @@ async function connect(a, fastRenew = false) {
         counters.interruptions++;
         a.recoveryStartedAt ||= Date.now();
       }
+      timeline.record(a.index, 'disconnect', {
+        reason: reason === 'renew' ? 'renew' : 'interrupted',
+        authorityAgeMs: a.lastAuthority
+          ? Date.now() - a.lastAuthority
+          : undefined,
+      });
       console.log(
         'Connection recovery',
         JSON.stringify({
@@ -252,6 +295,19 @@ async function connect(a, fastRenew = false) {
       );
       const socket = new WebSocket(url, { origin });
       a.socket = socket;
+      const socketOrdinal = (a.socketOrdinal = (a.socketOrdinal ?? 0) + 1);
+      socket.on('open', () =>
+        timeline.record(a.index, 'open', { socket: socketOrdinal }),
+      );
+      socket.on('unexpected-response', (_request, response) =>
+        timeline.record(a.index, 'handshake-rejected', {
+          socket: socketOrdinal,
+          status: response.statusCode,
+        }),
+      );
+      socket.on('error', () =>
+        timeline.record(a.index, 'socket-error', { socket: socketOrdinal }),
+      );
       if (diagnoseSocket) {
         socket.on('open', () =>
           console.log(
@@ -283,6 +339,8 @@ async function connect(a, fastRenew = false) {
       const send = socket.send.bind(socket);
       socket.send = (data, ...rest) => {
         const f = JSON.parse(String(data));
+        if (f.type === 'join')
+          timeline.record(a.index, 'join-sent', { socket: socketOrdinal });
         if (diagnoseSocket && f.type === 'join')
           console.log(
             'Socket diagnostic',
@@ -303,6 +361,8 @@ async function connect(a, fastRenew = false) {
       socket.on('message', (raw) => {
         if (measuring) counters.inboundBytes += raw.length;
         const f = JSON.parse(String(raw));
+        if (['joined', 'rebase', 'renew'].includes(f.type))
+          timeline.record(a.index, f.type, { socket: socketOrdinal });
         if (diagnoseSocket && ['joined', 'rebase', 'renew'].includes(f.type))
           console.log(
             'Socket diagnostic',
@@ -328,6 +388,15 @@ async function connect(a, fastRenew = false) {
         }
       });
       socket.on('close', (code, reason) => {
+        timeline.record(a.index, 'close', {
+          socket: socketOrdinal,
+          code,
+          reason: stopped
+            ? 'shutdown'
+            : a.transitioning
+              ? 'transition'
+              : 'interrupted',
+        });
         if (!stopped && !a.transitioning)
           console.log(
             'Socket closed',
@@ -348,6 +417,10 @@ async function connect(a, fastRenew = false) {
       'Your room connection is recovering. Please retry when you are back.',
     );
   if (a.recoveryStartedAt) {
+    timeline.record(a.index, 'recovered', {
+      reason: 'interrupted',
+      durationMs: Date.now() - a.recoveryStartedAt,
+    });
     counters.maxRecoveryMs = Math.max(
       counters.maxRecoveryMs,
       Date.now() - a.recoveryStartedAt,
@@ -355,6 +428,10 @@ async function connect(a, fastRenew = false) {
     a.recoveryStartedAt = 0;
   }
   if (a.renewalStartedAt) {
+    timeline.record(a.index, 'recovered', {
+      reason: 'renew',
+      durationMs: Date.now() - a.renewalStartedAt,
+    });
     counters.maxRenewRecoveryMs = Math.max(
       counters.maxRenewRecoveryMs,
       Date.now() - a.renewalStartedAt,
@@ -481,20 +558,27 @@ const deadline = setTimeout(() => {
 }, 900000);
 let report;
 try {
-  assert.equal((await fetch(origin + '/api/health')).status, 200);
+  const healthResponse = await fetch(origin + '/api/health', {
+    signal: AbortSignal.timeout(20000),
+  });
+  assert.equal(healthResponse.status, 200);
+  if (cohort?.mode === 'returning')
+    assertReturningCapacityServer(await healthResponse.json());
   for (let group = 0; group < roomCount; group++) {
     const members = [];
     let target;
     for (let lane = 0; lane < 5; lane++) {
       assert.ok(!stopped);
       assert.equal(issues.length, 0, issues.join('; '));
-      const keys = await crypto.subtle.generateKey('Ed25519', true, [
-        'sign',
-        'verify',
-      ]);
-      const address = base58.encode(
-        new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey)),
-      );
+      const prepared = cohort?.actors[group * 5 + lane];
+      const keys =
+        prepared?.keys ??
+        (await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']));
+      const address =
+        prepared?.address ??
+        base58.encode(
+          new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey)),
+        );
       const c = new Client({ address });
       c.body = (body) => ({
         expectedWallet: 'solana:' + address,
@@ -504,6 +588,7 @@ try {
         c,
         address,
         keys,
+        returningProfileId: prepared?.returningProfileId ?? undefined,
         index: group * 5 + lane,
         group,
         controller: { clientId: crypto.randomUUID(), generation: 0 },
@@ -622,6 +707,7 @@ try {
   }
   const measurementMs = Date.now() - measuredAt;
   measuring = false;
+  timeline.freezePeers();
   await sleep(2000);
   assert.equal(actors.length, roomCount * 5);
   assert.equal(
@@ -675,6 +761,8 @@ try {
     runId,
     status: 'passed',
     motionMode,
+    identityMode: cohort?.mode ?? 'fresh-ephemeral',
+    cohortId: cohort?.cohortId ?? null,
     beganAt: new Date(began).toISOString(),
     measuredAt: new Date(measuredAt).toISOString(),
     completedAt: new Date().toISOString(),
@@ -694,12 +782,22 @@ try {
       p95: quantile(httpRtts, 0.95),
     },
     issues,
+    timeline: timeline.snapshot(),
   };
+  assert.equal(
+    report.timeline.droppedEvents,
+    0,
+    'Capacity evidence must not drop timeline events',
+  );
 } catch (e) {
+  measuring = false;
+  timeline.freezePeers();
   report = {
     runId,
     status: 'failed',
     motionMode,
+    identityMode: cohort?.mode ?? 'fresh-ephemeral',
+    cohortId: cohort?.cohortId ?? null,
     at: new Date().toISOString(),
     error: e.message,
     ...counters,
@@ -711,6 +809,7 @@ try {
     },
     perActorAccepted: actors.map((a) => a.accepted),
     issues,
+    timeline: timeline.snapshot(),
   };
   throw e;
 } finally {
@@ -737,12 +836,16 @@ try {
         }
       }),
     );
-  if (report) {
-    report.cleanupRetries = counters.cleanupRetries;
-    report.cleanupErrors = cleanup;
-    if (cleanup.length) report.status = 'failed';
-    writeFileSync(destination.report, JSON.stringify(report, null, 2));
-    console.log(JSON.stringify(report, null, 2));
+  try {
+    if (report) {
+      report.cleanupRetries = counters.cleanupRetries;
+      report.cleanupErrors = cleanup;
+      if (cleanup.length) report.status = 'failed';
+      writeFileSync(destination.report, JSON.stringify(report, null, 2));
+      console.log(JSON.stringify(report, null, 2));
+    }
+  } finally {
+    cohort?.close();
   }
   assert.equal(
     cleanup.length,

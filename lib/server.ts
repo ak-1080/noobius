@@ -75,6 +75,7 @@ import {
   EarningError,
 } from './earning-server';
 import { solanaSignInMessage, verifySolanaMessage } from './solana-auth';
+import { issueReturningSession } from './returning-login';
 import {
   activateJob,
   answerJob,
@@ -785,6 +786,18 @@ export async function handleGame(request: Request, action: string) {
     return result({ message }, 200, headers);
   }
   if (action === 'verify') {
+    // A generated returning QA cohort must never recreate a deleted save.
+    // This opt-in fence does not relax ordinary wallet sign-in or signup caps.
+    const returningProfileId = body.returningProfileId;
+    if (
+      returningProfileId !== undefined &&
+      (typeof returningProfileId !== 'string' ||
+        !/^[a-f0-9]{32}$/.test(returningProfileId))
+    )
+      throw new ApiError(
+        400,
+        'A valid saved returning profile ID is required.',
+      );
     const secret = cookieValue(request, CHALLENGE_COOKIE);
     if (
       !secret ||
@@ -845,15 +858,24 @@ export async function handleGame(request: Request, action: string) {
       );
     const session = token(),
       now = Date.now();
+    const existing = await db()
+      .prepare('SELECT wallet,public_id FROM players WHERE wallet=?')
+      .bind(challenge.wallet)
+      .first<{ wallet: string; public_id: string | null }>();
+    if (
+      returningProfileId !== undefined &&
+      (!challenge.wallet.startsWith('solana:') ||
+        existing?.public_id !== returningProfileId)
+    )
+      throw new ApiError(
+        409,
+        'The registered returning test save is missing or changed. No new center was created.',
+      );
     const browser = await earningBrowser(
       db(),
       cookieValue(request, EARNING_BROWSER_COOKIE),
       now,
     );
-    const existing = await db()
-      .prepare('SELECT wallet FROM players WHERE wallet=?')
-      .bind(challenge.wallet)
-      .first();
     const hosted = !['localhost', '127.0.0.1', '[::1]'].includes(
       new URL(request.url).hostname,
     );
@@ -864,55 +886,73 @@ export async function handleGame(request: Request, action: string) {
         'Sign-in protection is temporarily unavailable. Please try again.',
       );
     const network = await earningNetwork(db(), ip);
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await db().batch([
-          db()
-            .prepare(
-              'INSERT INTO players (wallet,name,created_at,public_id) VALUES (?,?,?,?) ON CONFLICT(wallet) DO NOTHING',
-            )
-            .bind(
-              challenge.wallet,
-              'Noob ' + challenge.wallet.slice(-5).toUpperCase(),
-              now,
-              challenge.wallet.startsWith('solana:')
-                ? crypto.randomUUID().replaceAll('-', '')
-                : null,
-            ),
-          db()
-            .prepare(
-              'INSERT OR IGNORE INTO earning_accounts(wallet,browser_key,network_key,new_account,created_at) VALUES (?,?,?,?,?)',
-            )
-            .bind(
-              challenge.wallet,
-              browser.key,
-              network,
-              existing ? 0 : 1,
-              now,
-            ),
-          db()
-            .prepare(
-              'UPDATE earning_events SET browser_key=(SELECT browser_key FROM earning_accounts WHERE wallet=?) WHERE wallet=? AND browser_key IS NULL',
-            )
-            .bind(challenge.wallet, challenge.wallet),
-          db()
-            .prepare(
-              'INSERT INTO sessions (token_hash,wallet,expires_at) VALUES (?,?,?)',
-            )
-            .bind(await hash(session), challenge.wallet, now + 7 * 86400000),
-        ]);
-        break;
-      } catch (error) {
-        earningFailure(error);
-        // Retry only an opaque public-ID collision, never swallow other failures.
-        if (
-          attempt >= 2 ||
-          !(error instanceof Error) ||
-          !error.message.includes('players.public_id')
-        )
-          throw error;
+    if (returningProfileId !== undefined) {
+      // Conditional insertion also fences deletion/replacement between the
+      // signed lookup and this write. Returning mode has no player or earning
+      // account INSERT, so a stale cohort cannot accidentally create accounts.
+      if (
+        !(await issueReturningSession(
+          db(),
+          challenge.wallet,
+          returningProfileId,
+          await hash(session),
+          now + 7 * 86400000,
+        ))
+      )
+        throw new ApiError(
+          409,
+          'The returning test save changed or needs ordinary wallet sign-in for earning enrollment. No new center was created.',
+        );
+    } else
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await db().batch([
+            db()
+              .prepare(
+                'INSERT INTO players (wallet,name,created_at,public_id) VALUES (?,?,?,?) ON CONFLICT(wallet) DO NOTHING',
+              )
+              .bind(
+                challenge.wallet,
+                'Noob ' + challenge.wallet.slice(-5).toUpperCase(),
+                now,
+                challenge.wallet.startsWith('solana:')
+                  ? crypto.randomUUID().replaceAll('-', '')
+                  : null,
+              ),
+            db()
+              .prepare(
+                'INSERT OR IGNORE INTO earning_accounts(wallet,browser_key,network_key,new_account,created_at) VALUES (?,?,?,?,?)',
+              )
+              .bind(
+                challenge.wallet,
+                browser.key,
+                network,
+                existing ? 0 : 1,
+                now,
+              ),
+            db()
+              .prepare(
+                'UPDATE earning_events SET browser_key=(SELECT browser_key FROM earning_accounts WHERE wallet=?) WHERE wallet=? AND browser_key IS NULL',
+              )
+              .bind(challenge.wallet, challenge.wallet),
+            db()
+              .prepare(
+                'INSERT INTO sessions (token_hash,wallet,expires_at) VALUES (?,?,?)',
+              )
+              .bind(await hash(session), challenge.wallet, now + 7 * 86400000),
+          ]);
+          break;
+        } catch (error) {
+          earningFailure(error);
+          // Retry only an opaque public-ID collision, never swallow other failures.
+          if (
+            attempt >= 2 ||
+            !(error instanceof Error) ||
+            !error.message.includes('players.public_id')
+          )
+            throw error;
+        }
       }
-    }
     const headers = new Headers({ 'Cache-Control': 'no-store' });
     headers.append(
       'Set-Cookie',

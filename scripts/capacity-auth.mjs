@@ -1,18 +1,31 @@
 import { EARNING_POLICY } from '../lib/earning-policy.ts';
+import { RETURNING_LOGIN_VERSION } from '../lib/returning-login.ts';
 
 const MINUTE_THROTTLE = 'A little too fast. Please try again in a minute.';
+
+export function assertReturningCapacityServer(health) {
+  if (
+    health?.status !== 'ok' ||
+    health?.service !== 'noobius-game' ||
+    health?.returningLoginVersion !== RETURNING_LOGIN_VERSION
+  )
+    throw new Error(
+      'The hosted Worker does not support fenced returning QA sign-in. Deploy the tested returning-login version before running this cohort; no authentication was attempted.',
+    );
+}
 
 export function assertFreshCapacityAccounts(count) {
   if (!Number.isSafeInteger(count) || count < 1)
     throw new Error('Fresh-account capacity count must be a positive integer.');
   if (count > EARNING_POLICY.newNetworkAccounts)
     throw new Error(
-      `Fresh capacity probe requests ${count} accounts, exceeding the ${EARNING_POLICY.newNetworkAccounts} new centers per network per rolling 24 hours. Use at most ${Math.floor(EARNING_POLICY.newNetworkAccounts / 5)} rooms; larger tests require returning-cohort support. Earlier signups may further reduce the available allowance.`,
+      `Fresh capacity probe requests ${count} accounts, exceeding the ${EARNING_POLICY.newNetworkAccounts} new centers per network per rolling 24 hours. Use at most ${Math.floor(EARNING_POLICY.newNetworkAccounts / 5)} rooms or an explicitly registered returning QA cohort. Earlier signups may further reduce the available allowance.`,
     );
 }
 
 export async function authenticateCapacityActor({
   address,
+  returningProfileId,
   request,
   sign,
   sleep,
@@ -50,7 +63,10 @@ export async function authenticateCapacityActor({
     if (typeof nonce.data?.message !== 'string')
       throw new Error('Capacity nonce response has no sign-in message.');
     const signature = await sign(nonce.data.message);
-    const verification = await request('verify', { signature });
+    const verification = await request('verify', {
+      signature,
+      ...(returningProfileId === undefined ? {} : { returningProfileId }),
+    });
     if (throttled(verification)) {
       await wait(attempt);
       // Always obtain/sign a new challenge; never replay a verification body.

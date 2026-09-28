@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { Client } from './api-client.mjs';
 import { ACTIVE_COMPUTE_JOBS } from '../lib/facility.ts';
+import { base58 } from '@scure/base';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
 if (origin !== 'http://127.0.0.1:3003')
   throw Error('Earning fixtures require isolated local port 3003.');
@@ -73,6 +74,124 @@ const action = (c, type, fields = {}) =>
     'facility',
     c.body({ action: { type, requestId: crypto.randomUUID(), ...fields } }),
   );
+
+void test('health advertises returning sign-in only with the active earning migration installed', async () => {
+  const response = () =>
+    fetch(origin + '/api/health', {
+      signal: AbortSignal.timeout(5000),
+    });
+  const initial = await response();
+  assert.equal(initial.status, 200);
+  assert.equal((await initial.json()).returningLoginVersion, 1);
+  const latest = rows(
+    "SELECT id,name,applied_at FROM d1_migrations WHERE name LIKE '0013_%'",
+  )[0];
+  assert.ok(latest, 'Isolated fixture must contain migration 0013.');
+  try {
+    sql(`DELETE FROM d1_migrations WHERE id=${latest.id}`);
+    const missing = await response();
+    assert.equal(missing.status, 503);
+    assert.deepEqual(await missing.json(), {
+      status: 'unavailable',
+      service: 'noobius-game',
+    });
+  } finally {
+    sql(
+      `INSERT INTO d1_migrations(id,name,applied_at) VALUES (${latest.id},${quote(latest.name)},${quote(latest.applied_at)})`,
+    );
+  }
+  assert.equal((await response()).status, 200);
+});
+
+void test('signed returning QA login requires its exact enrolled saved profile and cannot create or adopt another save', async () => {
+  const keys = await crypto.subtle.generateKey('Ed25519', true, [
+    'sign',
+    'verify',
+  ]);
+  const address = base58.encode(
+    new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey)),
+  );
+  const c = new Client({ address });
+  c.body = (body) => ({ expectedWallet: 'solana:' + address, ...body });
+  const request = c.request.bind(c);
+  c.request = (name, body) =>
+    request(name, body, { 'cf-connecting-ip': '192.0.2.55' });
+  const signInGenerated = async (returningProfileId, signingKeys = keys) => {
+    const nonce = ok(
+      await c.request('nonce', { address, ecosystem: 'solana' }),
+    );
+    const signature =
+      '0x' +
+      Buffer.from(
+        await crypto.subtle.sign(
+          'Ed25519',
+          signingKeys.privateKey,
+          new TextEncoder().encode(nonce.message),
+        ),
+      ).toString('hex');
+    return c.request('verify', {
+      signature,
+      ...(returningProfileId === undefined ? {} : { returningProfileId }),
+    });
+  };
+  const key = quote('solana:' + address);
+  const counts = () =>
+    rows(
+      `SELECT (SELECT COUNT(*) FROM players WHERE wallet=${key}) players,(SELECT COUNT(*) FROM sessions WHERE wallet=${key}) sessions,(SELECT COUNT(*) FROM earning_accounts WHERE wallet=${key}) enrollment`,
+    )[0];
+  const missing = await signInGenerated('a'.repeat(32));
+  assert.equal(missing.status, 409, JSON.stringify(missing));
+  assert.deepEqual(counts(), { players: 0, sessions: 0, enrollment: 0 });
+  const malformed = await signInGenerated('not-a-public-id');
+  assert.equal(malformed.status, 400);
+  assert.deepEqual(counts(), { players: 0, sessions: 0, enrollment: 0 });
+  const ordinary = ok(await signInGenerated());
+  assert.deepEqual(counts(), { players: 1, sessions: 1, enrollment: 1 });
+  const savedId = ordinary.profile.id;
+  const firstEnrollment = rows(
+    `SELECT browser_key,network_key,new_account,created_at FROM earning_accounts WHERE wallet=${key}`,
+  )[0];
+  ok(await c.request('logout', c.body()));
+  const mismatch = await signInGenerated(
+    savedId === 'a'.repeat(32) ? 'b'.repeat(32) : 'a'.repeat(32),
+  );
+  assert.equal(mismatch.status, 409);
+  assert.deepEqual(counts(), { players: 1, sessions: 0, enrollment: 1 });
+  const unrelatedKeys = await crypto.subtle.generateKey('Ed25519', true, [
+    'sign',
+    'verify',
+  ]);
+  assert.equal(
+    (await signInGenerated(savedId, unrelatedKeys)).status,
+    401,
+    'Saved ID alone never authenticates a wallet',
+  );
+  assert.deepEqual(counts(), { players: 1, sessions: 0, enrollment: 1 });
+  const returning = ok(await signInGenerated(savedId));
+  assert.equal(returning.profile.id, savedId);
+  assert.deepEqual(counts(), { players: 1, sessions: 1, enrollment: 1 });
+  assert.deepEqual(
+    rows(
+      `SELECT browser_key,network_key,new_account,created_at FROM earning_accounts WHERE wallet=${key}`,
+    )[0],
+    firstEnrollment,
+    'Returning login retains the original earning pool and signup history',
+  );
+  ok(await c.request('logout', c.body()));
+  sql(`DELETE FROM earning_accounts WHERE wallet=${key}`);
+  const unenrolled = await signInGenerated(savedId);
+  assert.equal(unenrolled.status, 409);
+  assert.match(unenrolled.data.error, /ordinary wallet sign-in/);
+  assert.deepEqual(
+    counts(),
+    { players: 1, sessions: 0, enrollment: 0 },
+    'No implicit enrollment or session in returning mode',
+  );
+  // Ordinary login continues to perform its usual enrollment; no cap exception.
+  ok(await signInGenerated());
+  assert.deepEqual(counts(), { players: 1, sessions: 1, enrollment: 1 });
+  ok(await c.request('logout', c.body()));
+});
 
 void test('two wallets in one browser race for the last earning allowance and cannot shed it through logout, new devices or forged request fields', async () => {
   const a = client('192.0.2.51');
