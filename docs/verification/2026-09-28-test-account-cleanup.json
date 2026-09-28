@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-09-28T20:25:35.684Z",
+  "scope": "three verified human staging test saves",
+  "removedSaves": 3,
+  "removedComputeOffers": 2,
+  "removedCheckoutRecords": 9,
+  "remainingTargetRecords": 0,
+  "foreignKeys": "valid",
+  "otherSaveCountPreserved": true,
+  "realWalletOrOnchainChanges": false,
+  "productionChanges": false
+}
