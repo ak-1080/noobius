@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-09-28T23:04:21.276Z",
+  "status": "passed after recovery-worker repair",
+  "scope": {
+    "environment": "Cloudflare staging, Solana devnet",
+    "actors": "Two existing generated-owned QA roles only",
+    "purchase": {
+      "compute": 250,
+      "valuelessTestTokens": "1"
+    },
+    "productionChanged": false,
+    "userWalletsOrRealFundsUsed": false,
+    "paymentsSubmitted": 1,
+    "resetOrResubmissionAfterPayment": false
+  },
+  "initialPreflight": {
+    "failure": "First prepare failed at the read-only unsettled query before any fixture reset, listing, quote or payment was created. Original Wrangler diagnostics were not retained; error code unknown.",
+    "generatedSessionCleanup": "Both current-attempt sessions logged out in finally.",
+    "retry": "A later authorized read-only preflight returned zero unsettled obligations and zero reserved listings. Prepare was retried only because the first failed before any fixture or payment mutation.",
+    "originalErrorCode": "unknown; initial raw diagnostics were not retained"
+  },
+  "initialSubmission": {
+    "acknowledgedDurableStatus": "submitted",
+    "departedAt": "2026-09-28T22:46:28.301Z",
+    "departure": "Both generated sessions logged out; prepare process exited. Immutable checkpoint was retained."
+  },
+  "initialFailure": {
+    "observedAt": "2026-09-28T22:49:13.564Z",
+    "elapsedSeconds": 165,
+    "databaseStatus": "submitted",
+    "buyerStatusApiCalled": false,
+    "chainFinalizedObservedAt": "2026-09-28T22:49:13.564Z",
+    "chainFinalizedSlot": 505315767,
+    "chainResult": "Successful exact finalized receipt",
+    "timestampMeaning": "This is when finality was observed, not the exact time the chain finalized.",
+    "recoveryWorkerVersion": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+    "scheduledErrorEvents": [
+      {
+        "at": "2026-09-28T22:50:21.743Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:51:21.668Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:52:21.674Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:53:21.671Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:54:21.670Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:55:21.679Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:56:21.671Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:57:21.672Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:58:21.671Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T22:59:21.671Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T23:00:23.236Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      },
+      {
+        "at": "2026-09-28T23:01:21.673Z",
+        "version": "c1995b7a-7fff-4d62-b9c7-13304d3b9522",
+        "checked": 1,
+        "settled": 0,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 1
+      }
+    ],
+    "safety": "No new checkout, reset, payment resubmission or buyer reconciliation followed the failed verifier."
+  },
+  "diagnosis": {
+    "cause": "Standalone Workers native fetch was called with the ComputePaymentRpc instance as receiver. Binding the configured fetcher to globalThis fixes both single and batched RPC paths.",
+    "proof": "Actual local workerd confirmed native fetch fails with an RPC instance receiver and succeeds when bound to globalThis. Actual standalone Wrangler bundle and scheduled-entry regression cover single and batch RPC paths.",
+    "rejectedHypothesis": "Wrangler dry-run selected Node Solana SDK exports; the browser secure-context hypothesis did not explain this failure."
+  },
+  "patchedRemoteReadOnlyProbe": {
+    "testedAt": "2026-09-28T22:57:34.573Z",
+    "runtime": "Cloudflare remote preview, standalone Wrangler bundling",
+    "configuration": "passed",
+    "nativeFetchHttpStatus": 200,
+    "verifiedNetwork": "devnet",
+    "exactReceiptObservation": "settled",
+    "wroteDatabaseOrSubmittedTransaction": false,
+    "limitation": "Root constructor bind was already present when this read-only standalone preview bundled. Both configured and arrow-bound observe validated the exact real finalized receipt; this is candidate validation, not comparative old-source proof."
+  },
+  "boundedRepair": {
+    "scope": "Recovery Worker code only, preserving exact original deployed network/mint/authorization signer, existing secret bindings and staging D1; no migration, game/room/production deployment, reset or payment resubmission.",
+    "recoveryWorkerVersion": "2ff816a2-4206-481e-bcad-34da4dfe0e2f",
+    "scheduledEvents": [
+      {
+        "at": "2026-09-28T23:02:21.672Z",
+        "version": "2ff816a2-4206-481e-bcad-34da4dfe0e2f",
+        "checked": 1,
+        "settled": 1,
+        "expired": 0,
+        "failed": 0,
+        "pending": 0,
+        "errors": 0
+      }
+    ],
+    "durableSettledAt": "2026-09-28T23:02:21.713Z",
+    "afterGeneratedClientDeparture": true,
+    "settledBeforeAnyBuyerStatusApi": true
+  },
+  "finalVerifier": {
+    "testedAt": "2026-09-28T23:03:15.375Z",
+    "freshSignedSessions": true,
+    "finalizedSlot": 505315767,
+    "buyerTestTokenDelta": "-1",
+    "sellerTestTokenDelta": "+1",
+    "buyerCompute": 250,
+    "sellerCompute": 250,
+    "repeatedReceiptDelivery": "Exact same settled receipt; no second credit or token transfer",
+    "sessionsLoggedOut": true
+  },
+  "cleanup": {
+    "generatedSessionLogout": "Both modes attempt bounded logout for both generated roles, including failure paths; logout does not reconcile payments.",
+    "previewStopped": true,
+    "temporaryPreviewSecretFileRemoved": true,
+    "ownedTailStopped": true,
+    "settledReceiptAndImmutableCheckpointPreserved": true
+  },
+  "localRegressions": {
+    "controlledProviderOutage": "HTTP 503 with actual ComputePaymentRpc and real generated signed payment modules/local D1-compatible SQLite; retained approval and reservation, later recovered exactly once without buyer.",
+    "ambiguousBroadcast": "Durable authorized bytes retained after controlled lost response; subsequent exact finalized receipt settled without a replacement transfer.",
+    "actualStandaloneRecoveryRuntime": "Three actual Wrangler-bundle + native workerd scheduled-entry + canonical local D1 fixtures; all external network mocked or disabled."
+  },
+  "limitations": [
+    "Client departure and unattended scheduled recovery were tested after an actual recovery-worker code repair.",
+    "No Worker crash or hosted RPC provider outage was injected.",
+    "No real-value token, mainnet transaction, user wallet or browser-extension signing was exercised.",
+    "A real hosted database/application cutover and mainnet recovery acceptance remain separate launch gates."
+  ]
+}

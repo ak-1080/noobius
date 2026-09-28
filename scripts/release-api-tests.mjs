@@ -517,6 +517,16 @@ syncBuiltinESMExports();
     ))
       tables.add(match[1]);
   }
+  // The consolidated local schema install also records Wrangler's migration
+  // metadata. Keep this outside resetFixtures: health must see the same
+  // completed migration history as a normally migrated hosted database.
+  migrationSql += `CREATE TABLE IF NOT EXISTS d1_migrations(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+  );\n`;
+  for (const entry of journal.entries)
+    migrationSql += `INSERT INTO d1_migrations(name) VALUES ('${entry.tag}.sql');\n`;
   writeFileSync(path.join(migrationDir, 'release-schema.sql'), migrationSql);
   report.migrations = journal.entries.map((entry) => entry.tag);
   writeReport();

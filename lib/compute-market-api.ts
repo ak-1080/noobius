@@ -22,7 +22,7 @@ import {
   expireUnsignedComputeQuote,
   type ComputePayment,
 } from './compute-market.ts';
-export async function paymentConfiguration(
+function paymentNetworkConfiguration(
   values: Record<string, unknown>,
   quote?: ComputePaymentQuote,
 ) {
@@ -43,8 +43,22 @@ export async function paymentConfiguration(
       503,
       'This payment needs its original network configuration to finish. Your reservation is saved.',
     );
-  let keyPair: CryptoKeyPair | undefined;
   const address = quote?.authorizationSigner ?? values.NOOBIUS_PAYMENT_SIGNER;
+  return {
+    policy,
+    rpc: new ComputePaymentRpc(
+      policy,
+      fetch,
+      tokenSetting(values.NOOBIUS_TOKEN_RPC_FALLBACK_URL) || undefined,
+    ),
+    address,
+  };
+}
+async function paymentAuthorizationKeyPair(
+  values: Record<string, unknown>,
+  address: unknown,
+) {
+  let keyPair: CryptoKeyPair | undefined;
   try {
     const keys = JSON.parse(
       tokenSetting(values.NOOBIUS_PAYMENT_KEYS, '{}'),
@@ -64,15 +78,32 @@ export async function paymentConfiguration(
       'Payment authorization is unavailable. Your reservation is saved.',
     );
   }
+  return keyPair;
+}
+// New sales keep strict, eager signer validation before any reservation.
+export async function paymentConfiguration(
+  values: Record<string, unknown>,
+  quote?: ComputePaymentQuote,
+) {
+  const config = paymentNetworkConfiguration(values, quote);
   return {
-    policy,
-    rpc: new ComputePaymentRpc(
-      policy,
-      fetch,
-      tokenSetting(values.NOOBIUS_TOKEN_RPC_FALLBACK_URL) || undefined,
-    ),
-    keyPair,
-    address,
+    ...config,
+    keyPair: await paymentAuthorizationKeyPair(values, config.address),
+  };
+}
+// Existing immutable checkouts can observe finality or rebroadcast their saved
+// authorized bytes without an old signing key. Network and quote policy stay
+// strict; reconciliation requests this key only for a pending buyer approval
+// that still lacks durable authorization.
+export async function paymentRecoveryConfiguration(
+  values: Record<string, unknown>,
+  quote: ComputePaymentQuote,
+) {
+  const config = paymentNetworkConfiguration(values, quote);
+  return {
+    ...config,
+    getAuthorizationKeyPair: () =>
+      paymentAuthorizationKeyPair(values, config.address),
   };
 }
 async function receipt(db: D1Database, p: ComputePayment) {
@@ -151,7 +182,9 @@ export async function computeMarketSnapshot(
     : { results: [] };
   const settledSales = wallet
     ? await db
-        .prepare("SELECT p.* FROM compute_payments p JOIN compute_listings l ON l.id=p.listing_id WHERE l.seller=? AND l.status='sold' AND p.status='settled' ORDER BY p.updated_at DESC,p.id DESC LIMIT 5")
+        .prepare(
+          "SELECT p.* FROM compute_payments p JOIN compute_listings l ON l.id=p.listing_id WHERE l.seller=? AND l.status='sold' AND p.status='settled' ORDER BY p.updated_at DESC,p.id DESC LIMIT 5",
+        )
         .bind(wallet)
         .all<ComputePayment & { updated_at: number }>()
     : { results: [] };
@@ -240,7 +273,7 @@ export async function handleComputeMarketAction(
     }
     let payment = (await getComputePayment(db, id))!;
     try {
-      const config = await paymentConfiguration(
+      const config = await paymentRecoveryConfiguration(
         values,
         JSON.parse(payment.quote_json),
       );
@@ -248,7 +281,7 @@ export async function handleComputeMarketAction(
         db,
         id,
         config.rpc,
-        config.keyPair,
+        config.getAuthorizationKeyPair,
       );
     } catch {
       // Never tell the player to pay again after an uncertain broadcast.

@@ -88,7 +88,11 @@ export class ComputePaymentRpc {
       this.fallbackUrl = fallback.href;
     }
     this.policy = policy;
-    this.fetcher = fetcher;
+    // Native Workers fetch requires the global receiver. Calling an unbound
+    // function as this.fetcher(...) gives it this RPC instance instead and
+    // throws before any request. The game's fetch wrapper hid this from HTTP
+    // acceptance; the standalone scheduled recovery Worker uses native fetch.
+    this.fetcher = fetcher.bind(globalThis);
   }
   private async call(
     method: string,

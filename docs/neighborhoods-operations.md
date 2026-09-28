@@ -1,6 +1,6 @@
 # Neighborhoods operations notes
 
-Updated September 9, 2026. These notes describe the current implementation and the remaining operator work. Version 47 is deployed owner-private; the [implementation checkpoint](neighborhoods-implementation-status.md) records the source and deployment. No hosted recovery drill or public launch is claimed.
+Historical snapshot from September 9, 2026. The deployment, wallet, entitlement and test-status descriptions below describe that revision. For the current public/staging split, enabled WebSocket rooms, Solana wallet policy, earning limits and release gates, start with [PROJECT_HANDOFF.md](../PROJECT_HANDOFF.md), [Cloudflare operations](cloudflare-operations.md) and the [September 28 readiness audit](verification/2026-09-28-production-readiness.md). Retain this document as implementation history rather than current release instructions.
 
 ## Hosting and identity
 
