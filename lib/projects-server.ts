@@ -1,4 +1,5 @@
 import { roomWorkGuard, type RoomWorkProof } from './room-writer.ts';
+import { earningBatch } from './earning-server.ts';
 import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
 import {
   decodeDispatchBenefit,
@@ -707,7 +708,7 @@ export async function claimProject(
   f.stats.computeEarned = (f.stats.computeEarned ?? 0) + compute;
   f.daily.computeEarned = (f.daily.computeEarned ?? 0) + compute;
   f.version++;
-  const result = await db.batch([
+  const result = await earningBatch(db, wallet, { source: 'project-claim', compute, materials: 0 }, [
     db
       .prepare(
         `INSERT OR IGNORE INTO cluster_claims(id,project_id,wallet,compute,reputation,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM players WHERE wallet=? AND facility_version=?)`,
@@ -727,7 +728,7 @@ export async function claimProject(
         'UPDATE players SET credits=credits+?,xp=xp+?,facility_state=?,facility_version=? WHERE wallet=? AND changes()=1',
       )
       .bind(compute, reputation, JSON.stringify(f), f.version, wallet),
-  ]);
+  ], now);
   if (result[0].meta.changes !== 1)
     return fail(
       'This reward was already collected or your center changed. Refresh to check.',

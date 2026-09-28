@@ -232,6 +232,24 @@ void test('a solo cluster consumes earned work and parts; completed rewards surv
   );
 });
 
+void test('an exhausted earning allowance preserves a completed project reward until it can be collected once', async () => {
+  const { db, crew: [p] } = await fixture();
+  const id = (await startProject(db, p.wallet, p.controller, 'balanced', 3100)).project.id;
+  for (const family of ['service', 'supply', 'workload'])
+    await contribution(db, p, id, family);
+  const before = facility(db, p);
+  db.sqlite.prepare('INSERT INTO earning_events(id,wallet,source,compute,materials,created_at) VALUES (?,?,?,6000,0,?)')
+    .run(crypto.randomUUID(), p.wallet, 'fixture', 4000);
+  await assert.rejects(claimProject(db, p.wallet, id, 4200), /6,000 Compute/);
+  assert.equal(db.sqlite.prepare('SELECT COUNT(*) n FROM cluster_claims WHERE project_id=?').get(id).n, 0);
+  assert.deepEqual(facility(db, p), before, 'No reputation, license or claim state changes when the entire D1 batch rolls back');
+  assert.equal(db.sqlite.prepare('SELECT credits FROM players WHERE wallet=?').get(p.wallet).credits, 0);
+  const later = 4000 + 86400000;
+  assert.deepEqual(await claimProject(db, p.wallet, id, later), { compute: 300, reputation: 60 });
+  await assert.rejects(claimProject(db, p.wallet, id, later + 1), /already collected/);
+  assert.equal(db.sqlite.prepare("SELECT SUM(compute) n FROM earning_events WHERE source='project-claim'").get().n, 300);
+});
+
 void test('five-person work is fixed; a racing last contribution cannot consume two players parts', async () => {
   const { db, crew } = await fixture(5),
     p = crew[0];

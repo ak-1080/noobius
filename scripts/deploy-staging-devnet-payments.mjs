@@ -119,6 +119,10 @@ if (
   built.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false'
 ) throw Error('The generated game Worker does not target disabled staging.');
 assertPaymentDrain('deploy/cloudflare/staging-game.json', 'Staging');
+run('./node_modules/.bin/wrangler', [
+  'd1', 'migrations', 'apply', 'DB', '--remote',
+  '--config', 'deploy/cloudflare/staging-game.json',
+]);
 
 // The generated files are ignored or removed. The application key never enters
 // committed configuration or a command-line argument.

@@ -63,6 +63,17 @@ import { getAddress, isAddress, verifyMessage } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
 import { accountKey, walletAddress } from './wallet-identity';
 import { rateCountWithRetry } from './rate-limit-db';
+import { facilityEarningCharge } from './earning-policy';
+import {
+  EARNING_BROWSER_COOKIE,
+  earningBrowser,
+  earningNetwork,
+  signupNetworkIp,
+  earningBatch,
+  earningFailure,
+  earningAllowance,
+  EarningError,
+} from './earning-server';
 import { solanaSignInMessage, verifySolanaMessage } from './solana-auth';
 import {
   activateJob,
@@ -187,6 +198,19 @@ async function rate(
       db().prepare('DELETE FROM rate_limits WHERE resets_at < ?').bind(now),
       db().prepare('DELETE FROM challenges WHERE expires_at < ?').bind(now),
       db().prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
+      db()
+        .prepare('DELETE FROM earning_events WHERE created_at < ?')
+        .bind(now - 30 * 86400000),
+      db()
+        .prepare(
+          'UPDATE earning_accounts SET network_key=NULL WHERE network_key IS NOT NULL AND created_at < ?',
+        )
+        .bind(now - 30 * 86400000),
+      db()
+        .prepare(
+          'DELETE FROM earning_browsers WHERE expires_at < ? AND NOT EXISTS(SELECT 1 FROM earning_accounts a WHERE a.browser_key=earning_browsers.key)',
+        )
+        .bind(now),
     ]);
 }
 type PlayerRow = {
@@ -266,6 +290,7 @@ async function player(wallet: string): Promise<Profile> {
     shifts: p.shifts,
     bestScore: p.best_score,
     equipment: { scanner: !!p.scanner, visor: !!p.visor, tracer: !!p.tracer },
+    earningAllowance: await earningAllowance(db(), wallet),
     facility: normalizeFacility({
       ...JSON.parse(p.facility_state!),
       version: p.facility_version,
@@ -703,6 +728,11 @@ export async function handleGame(request: Request, action: string) {
     const secret = token(),
       now = Date.now(),
       siteOrigin = origin(request);
+    const browser = await earningBrowser(
+      db(),
+      cookieValue(request, EARNING_BROWSER_COOKIE),
+      now,
+    );
     const message =
       ecosystem === 'solana'
         ? solanaSignInMessage(
@@ -738,9 +768,16 @@ export async function handleGame(request: Request, action: string) {
       )
       .bind(await hash(secret), wallet, message, now + 300000)
       .run();
-    return result({ message }, 200, {
-      'Set-Cookie': cookie(request, CHALLENGE_COOKIE, secret, 300),
-    });
+    const headers = new Headers();
+    headers.append(
+      'Set-Cookie',
+      cookie(request, CHALLENGE_COOKIE, secret, 300),
+    );
+    headers.append(
+      'Set-Cookie',
+      cookie(request, EARNING_BROWSER_COOKIE, browser.token, 30 * 86400),
+    );
+    return result({ message }, 200, headers);
   }
   if (action === 'verify') {
     const secret = cookieValue(request, CHALLENGE_COOKIE);
@@ -803,6 +840,25 @@ export async function handleGame(request: Request, action: string) {
       );
     const session = token(),
       now = Date.now();
+    const browser = await earningBrowser(
+      db(),
+      cookieValue(request, EARNING_BROWSER_COOKIE),
+      now,
+    );
+    const existing = await db()
+      .prepare('SELECT wallet FROM players WHERE wallet=?')
+      .bind(challenge.wallet)
+      .first();
+    const hosted = !['localhost', '127.0.0.1', '[::1]'].includes(
+      new URL(request.url).hostname,
+    );
+    const ip = signupNetworkIp(request.headers);
+    if (hosted && !ip)
+      throw new EarningError(
+        503,
+        'Sign-in protection is temporarily unavailable. Please try again.',
+      );
+    const network = await earningNetwork(db(), ip);
     for (let attempt = 0; ; attempt++) {
       try {
         await db().batch([
@@ -820,12 +876,29 @@ export async function handleGame(request: Request, action: string) {
             ),
           db()
             .prepare(
+              'INSERT OR IGNORE INTO earning_accounts(wallet,browser_key,network_key,new_account,created_at) VALUES (?,?,?,?,?)',
+            )
+            .bind(
+              challenge.wallet,
+              browser.key,
+              network,
+              existing ? 0 : 1,
+              now,
+            ),
+          db()
+            .prepare(
+              'UPDATE earning_events SET browser_key=(SELECT browser_key FROM earning_accounts WHERE wallet=?) WHERE wallet=? AND browser_key IS NULL',
+            )
+            .bind(challenge.wallet, challenge.wallet),
+          db()
+            .prepare(
               'INSERT INTO sessions (token_hash,wallet,expires_at) VALUES (?,?,?)',
             )
             .bind(await hash(session), challenge.wallet, now + 7 * 86400000),
         ]);
         break;
       } catch (error) {
+        earningFailure(error);
         // Retry only an opaque public-ID collision, never swallow other failures.
         if (
           attempt >= 2 ||
@@ -841,6 +914,10 @@ export async function handleGame(request: Request, action: string) {
       cookie(request, SESSION_COOKIE, session, 604800),
     );
     headers.append('Set-Cookie', cookie(request, CHALLENGE_COOKIE, '', 0));
+    headers.append(
+      'Set-Cookie',
+      cookie(request, EARNING_BROWSER_COOKIE, browser.token, 30 * 86400),
+    );
     return Response.json(await responseFor(challenge.wallet), { headers });
   }
   if (action === 'logout') {
@@ -1257,7 +1334,13 @@ export async function handleGame(request: Request, action: string) {
             ),
         );
       }
-      const results = await db().batch(statements);
+      const results = await earningBatch(
+        db(),
+        wallet,
+        facilityEarningCharge(previous, updated.facility, a, updated.credits),
+        statements,
+        now,
+      );
       if (results[0].meta.changes !== 1)
         throw new ApiError(
           409,
@@ -1317,21 +1400,30 @@ export async function handleGame(request: Request, action: string) {
         station.z,
       ];
       if (body.finish !== true) {
-        const r = await db()
-          .prepare(
-            `INSERT INTO campus_work (id,room,event,station,wallet,started_at) SELECT ?,?,?,?,?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET wallet=excluded.wallet,started_at=excluded.started_at WHERE campus_work.completed_at IS NULL AND campus_work.started_at<?`,
-          )
-          .bind(
-            id,
-            room,
-            event,
-            station.id,
+        const r = (
+          await earningBatch(
+            db(),
             wallet,
+            { source: 'crew-start', compute: 20, materials: 0 },
+            [
+              db()
+                .prepare(
+                  `INSERT INTO campus_work (id,room,event,station,wallet,started_at) SELECT ?,?,?,?,?,? WHERE ${guard} ON CONFLICT(id) DO UPDATE SET wallet=excluded.wallet,started_at=excluded.started_at WHERE campus_work.completed_at IS NULL AND campus_work.started_at<?`,
+                )
+                .bind(
+                  id,
+                  room,
+                  event,
+                  station.id,
+                  wallet,
+                  now,
+                  ...guardArgs,
+                  now - 30000,
+                ),
+            ],
             now,
-            ...guardArgs,
-            now - 30000,
           )
-          .run();
+        )[0];
         if (!r.meta.changes)
           throw new ApiError(
             409,
@@ -1357,27 +1449,33 @@ export async function handleGame(request: Request, action: string) {
           );
       }
     } else {
-      const r = await db().batch([
-        db()
-          .prepare(
-            'INSERT OR IGNORE INTO campus_rewards (id,wallet,created_at) SELECT ?,?,? WHERE (SELECT COUNT(*) FROM campus_work WHERE room=? AND event=? AND completed_at IS NOT NULL)=3 AND EXISTS(SELECT 1 FROM campus_work WHERE room=? AND event=? AND wallet=? AND completed_at IS NOT NULL)',
-          )
-          .bind(
-            `${room}:${event}:${wallet}`,
-            wallet,
-            now,
-            room,
-            event,
-            room,
-            event,
-            wallet,
-          ),
-        db()
-          .prepare(
-            'UPDATE players SET credits=credits+30,xp=xp+20 WHERE wallet=? AND changes()=1',
-          )
-          .bind(wallet),
-      ]);
+      const r = await earningBatch(
+        db(),
+        wallet,
+        { source: 'crew-bonus', compute: 30, materials: 0 },
+        [
+          db()
+            .prepare(
+              'INSERT OR IGNORE INTO campus_rewards (id,wallet,created_at) SELECT ?,?,? WHERE (SELECT COUNT(*) FROM campus_work WHERE room=? AND event=? AND completed_at IS NOT NULL)=3 AND EXISTS(SELECT 1 FROM campus_work WHERE room=? AND event=? AND wallet=? AND completed_at IS NOT NULL)',
+            )
+            .bind(
+              `${room}:${event}:${wallet}`,
+              wallet,
+              now,
+              room,
+              event,
+              room,
+              event,
+              wallet,
+            ),
+          db()
+            .prepare(
+              'UPDATE players SET credits=credits+30,xp=xp+20 WHERE wallet=? AND changes()=1',
+            )
+            .bind(wallet),
+        ],
+        now,
+      );
       if (!r[0].meta.changes)
         throw new ApiError(
           409,
@@ -1591,12 +1689,19 @@ export async function handleGame(request: Request, action: string) {
     }
     const p = await player(wallet),
       next = newShift(p.equipment);
-    await db()
-      .prepare(
-        'INSERT OR IGNORE INTO shifts (id,wallet,state,version,mutation,started_at) VALUES (?,?,?,0,?,?)',
-      )
-      .bind(next.id, wallet, JSON.stringify(next), token(), next.startedAt)
-      .run();
+    await earningBatch(
+      db(),
+      wallet,
+      { source: 'shift-start', compute: 145, materials: 14 },
+      [
+        db()
+          .prepare(
+            'INSERT OR IGNORE INTO shifts (id,wallet,state,version,mutation,started_at) VALUES (?,?,?,0,?,?)',
+          )
+          .bind(next.id, wallet, JSON.stringify(next), token(), next.startedAt),
+      ],
+      next.startedAt,
+    );
     return result(await responseFor(wallet));
   }
   if (action === 'upgrade') {
