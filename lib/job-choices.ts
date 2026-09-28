@@ -11,6 +11,7 @@ import {
 import { reportsAvailable } from './projects.ts';
 import type { Facility, ItemId } from './facility.ts';
 import type { Objective } from './objectives.ts';
+import { clientDemandQuote } from './client-demand.ts';
 
 export function jobSetup(
   f: Facility,
@@ -87,6 +88,7 @@ export function careerSuggestions(
   f: Facility,
   credits: number,
   connected = false,
+  now = Date.now(),
 ): Objective[] {
   const c = careerFor(f),
     count = completedContracts(c);
@@ -145,6 +147,14 @@ export function careerSuggestions(
     });
   for (const offer of offers) {
     const t = contractFor(offer);
+    if (
+      !clientDemandQuote(
+        f,
+        contractQuote(f, t, 'standard', undefined, now).reward,
+        now,
+      ).allowed
+    )
+      continue;
     const style = usefulStyles(f, t).find(
       (s) => c.modules.includes(s) && !c.mastery?.[t.id]?.[s],
     );
@@ -167,5 +177,16 @@ export function careerSuggestions(
       }),
     );
   }
+  if (!result.length)
+    result.push(
+      wrap({
+        title: 'Prepare supplies between client orders',
+        detail:
+          'Client demand is used for now. Recover realm materials, craft parts or trade while earlier bookings leave the last 24 hours.',
+        cta: 'Open realm recovery',
+        panel: 'field',
+        reward: 'Useful supplies for your next project',
+      }),
+    );
   return result.slice(0, 3);
 }

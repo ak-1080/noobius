@@ -1,3 +1,43 @@
+.demand {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  margin: 12px 0;
+  border: 1px solid #456653;
+  border-radius: 10px;
+  background: #19352e;
+  color: #e6efe9;
+}
+
+.demand > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.demand progress {
+  width: 100%;
+  height: 7px;
+  accent-color: #bce58d;
+}
+
+.demand small,
+.demand summary,
+.demand p {
+  color: #adbec3;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.demand p {
+  margin: 8px 0 0;
+}
+.demand summary {
+  cursor: pointer;
+}
+
 .rules {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

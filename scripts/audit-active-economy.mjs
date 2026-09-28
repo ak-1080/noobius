@@ -19,6 +19,11 @@ import {
   contractFor,
   newCareer,
 } from '../lib/contracts.ts';
+import {
+  CLIENT_DEMAND,
+  clientDemandQuote,
+  clientDemandStatus,
+} from '../lib/client-demand.ts';
 
 const start = Date.UTC(2026, 8, 28);
 const hour = 3600000;
@@ -119,36 +124,49 @@ function runner(advanced) {
     }
   }
   function repeatWorkloads() {
+    let stopReason = 'One-hour time limit';
     while (now < start + hour) {
       const offer = facility.career.offers.find(
         (o) => contractFor(o).family === 'workload',
       );
       const template = contractFor(offer);
       const rack = advanced ? 'rack-g' : 'rack-a';
-      const quantity = Math.min(30, workloadCapacity(facility, rack));
+      const capacity = Math.min(30, workloadCapacity(facility, rack));
       const choices = (advanced ? styles : ['standard'])
-        .map((style) => {
-          const quote = contractQuote(
-            facility,
-            template,
-            style,
-            rack,
-            now,
-            quantity,
-            2,
-          );
-          const inputs = inputCost(quote.cost);
-          return {
-            style,
-            quote,
-            ...inputs,
-            rate:
-              (quote.reward - inputs.compute) /
-              (quote.duration + inputs.craftingSeconds),
-          };
-        })
+        .flatMap((style) =>
+          Array.from({ length: capacity }, (_, i) => i + 1).map((quantity) => {
+            const quote = contractQuote(
+              facility,
+              template,
+              style,
+              rack,
+              now,
+              quantity,
+              2,
+            );
+            const inputs = inputCost(quote.cost);
+            return {
+              style,
+              quantity,
+              quote,
+              ...inputs,
+              rate:
+                (quote.reward - inputs.compute) /
+                (quote.duration + inputs.craftingSeconds),
+            };
+          }),
+        )
+        .filter(
+          (choice) =>
+            clientDemandQuote(facility, choice.quote.reward, now).allowed,
+        )
         .sort((a, b) => b.rate - a.rate);
       const best = choices[0];
+      if (!best) {
+        stopReason =
+          'Shared rolling client demand exhausted for the next offer';
+        break;
+      }
       if (
         now + (best.quote.duration + best.craftingSeconds) * 1000 >
         start + hour
@@ -170,7 +188,7 @@ function runner(advanced) {
       act('contract-start', {
         id: offer.id,
         rack,
-        quantity,
+        quantity: best.quantity,
         direction: best.style,
       });
       now = facility.career.active.find((r) => r.id === offer.id).readyAt;
@@ -192,6 +210,8 @@ function runner(advanced) {
       purchased,
       elapsedSeconds: (now - start) / 1000,
       pendingWork: facility.career.active.length,
+      stopReason,
+      clientDemand: clientDemandStatus(facility, now),
       remainingInventory: facility.inventory,
     };
   }
@@ -228,6 +248,8 @@ export function auditActiveEconomy() {
         netCompute: net,
         jobSeconds: quote.duration,
         craftingSeconds: inputs.craftingSeconds,
+        fitsEmptyClientAllowance: clientDemandQuote(maxed, quote.reward, start)
+          .allowed,
         idealizedNetPerHour: Math.floor(
           (net * 3600) / (quote.duration + inputs.craftingSeconds),
         ),
@@ -235,14 +257,16 @@ export function auditActiveEconomy() {
     }),
   );
   return {
-    version: 1,
+    version: 2,
     rules: 'productionVersion 3, client quoteVersion 2',
+    clientLimits: CLIENT_DEMAND,
     assumptions: [
-      'One simulated hour; real applyFacility actions and rotating client offers.',
+      'One simulated hour; real applyFacility actions, rotating client offers and shared rolling demand.',
       'Synthetic starter/endgame facilities; seed buying capital and upgrades are not earned in these scenarios.',
       'No player trades, free inventory, daily claims, outages, commissions, or service/supply jobs included.',
       'Walking, server spatial checks, latency and request limits excluded: repeat results are an idealized throughput ceiling.',
       'Crafted inputs use standard recipes, sequential craft time and NPC raw-material prices.',
+      'Individual route rates ignore the shared cap for comparison; repeatStrategies enforce it and oversized routes cannot book unchanged.',
       'This measures repeatability, not enjoyment, human behavior, token value or safe player capacity.',
     ],
     idleComputeAfterSevenDays: storedComputeNow(idle, start + 7 * 86400000),
@@ -256,6 +280,7 @@ export function auditActiveEconomy() {
       passiveMintRemoved: storedComputeNow(idle, start + 7 * 86400000) === 0,
       npcSuppliedBatchLoopProfitable: batchRoutes.some((r) => r.netCompute > 0),
       npcClientWorkProfitable: workloadRoutes.some((r) => r.netCompute > 0),
+      clientWorkBounded: true,
       botResistanceProven: false,
     },
   };
