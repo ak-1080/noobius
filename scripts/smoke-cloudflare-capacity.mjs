@@ -7,6 +7,10 @@ import { writeFileSync } from 'node:fs';
 import { base58 } from '@scure/base';
 import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
+import {
+  assertFreshCapacityAccounts,
+  authenticateCapacityActor,
+} from './capacity-auth.mjs';
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
 const destinations = {
   'https://play.noobius.io': {
@@ -38,6 +42,9 @@ assert.ok(
     durationSeconds >= 30 &&
     durationSeconds <= 360,
 );
+// This harness only creates fresh accounts. Refuse impossible signup plans
+// before health requests, actor/key allocation or authentication.
+assertFreshCapacityAccounts(roomCount * 5);
 const correctionReasons = {};
 const { Client } = await import('../tests/api-client.mjs');
 const actors = [],
@@ -95,37 +102,27 @@ async function request(a, action, body) {
   return r;
 }
 async function authenticate(a) {
-  const auth = async (action, body) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await request(a, action, body);
-      if (r.status !== 429) return ok(r);
-      const delay = 60200 - (Date.now() % 60000);
+  a.profile = await authenticateCapacityActor({
+    address: a.address,
+    request: (action, body) => request(a, action, body),
+    sign: async (message) =>
+      '0x' +
+      Buffer.from(
+        await crypto.subtle.sign(
+          'Ed25519',
+          a.keys.privateKey,
+          new TextEncoder().encode(message),
+        ),
+      ).toString('hex'),
+    sleep,
+    isStopped: () => stopped,
+    onThrottle: (delay) =>
       console.log(
-        'Auth rate limit respected; waiting',
+        'Minute auth rate limit respected; waiting',
         Math.ceil(delay / 1000),
         'seconds',
-      );
-      for (let remaining = delay; remaining > 0; remaining -= 10000) {
-        await sleep(Math.min(remaining, 10000));
-        assert.ok(!stopped);
-      }
-    }
-    throw Error('Authentication remained throttled');
-  };
-  const nonce = await auth('nonce', {
-    address: a.address,
-    ecosystem: 'solana',
-  });
-  const signature =
-    '0x' +
-    Buffer.from(
-      await crypto.subtle.sign(
-        'Ed25519',
-        a.keys.privateKey,
-        new TextEncoder().encode(nonce.message),
       ),
-    ).toString('hex');
-  a.profile = (await auth('verify', { signature })).profile;
+  });
 }
 async function connect(a, fastRenew = false) {
   if (stopped) return;

@@ -33,7 +33,7 @@ const ok = (r) => {
   return r.data;
 };
 
-test('wallet migration races preserve overflow; batch starts commit supplies and frozen terms once', async () => {
+void test('wallet migration races preserve overflow; batch starts commit supplies and frozen terms once', async () => {
   const c = new Client();
   const original = ok(await c.login()).profile;
   const wallet = c.account.address.toLowerCase();
@@ -61,7 +61,7 @@ test('wallet migration races preserve overflow; batch starts commit supplies and
   for (const response of profiles) {
     const p = ok(response).profile;
     assert.equal(p.credits, 1000);
-    assert.equal(p.facility.productionVersion, 2);
+    assert.equal(p.facility.productionVersion, 3);
     assert.equal(p.facility.storedCompute, 408240);
     assert.deepEqual(p.facility.inventory, f.inventory);
     assert.deepEqual(p.facility.bank, f.bank);
@@ -123,13 +123,13 @@ test('wallet migration races preserve overflow; batch starts commit supplies and
     action('contract-start', {
       id: offer.id,
       rack: 'rack-g',
-      quantity: 30,
+      quantity: 10,
       direction: 'fast',
     }),
     action('contract-start', {
       id: offer.id,
       rack: 'rack-g',
-      quantity: 30,
+      quantity: 10,
       direction: 'fast',
     }),
   ]);
@@ -139,11 +139,15 @@ test('wallet migration races preserve overflow; batch starts commit supplies and
     JSON.stringify(starts),
   );
   p = ok(await c.request('profile')).profile;
-  assert.deepEqual(p.facility.inventory, { board: 0, silicon: 0, copper: 0 });
+  assert.deepEqual(p.facility.inventory, {
+    board: 20,
+    silicon: 60,
+    copper: 20,
+  });
   const run = p.facility.career.active[0];
-  assert.equal(run.quantity, 30);
+  assert.equal(run.quantity, 10);
   assert.equal(run.quoteVersion, 2);
-  assert.equal(run.reward, 6696);
+  assert.equal(run.reward, 2296);
   assert.equal(p.credits, 409240);
   assert.equal((await action('contract-claim', { id: offer.id })).status, 400);
   // Advance only this isolated fixture's frozen clock to test real claim CAS.
@@ -161,7 +165,7 @@ test('wallet migration races preserve overflow; batch starts commit supplies and
   assert.equal(claims.filter((r) => r.status === 200).length, 1);
   assert.ok(claims.every((r) => [200, 400, 409].includes(r.status)));
   p = ok(await c.request('profile')).profile;
-  assert.equal(p.credits, 415936);
+  assert.equal(p.credits, 411536);
   assert.equal(p.facility.career.completed.workload, 21);
   assert.equal(p.facility.career.reportStyles.workload.fast, 1);
   assert.deepEqual(p.facility.bank, { kit: 4 });
@@ -201,5 +205,5 @@ test('wallet migration races preserve overflow; batch starts commit supplies and
   assert.equal(p.facility.craft, null);
   assert.deepEqual(p.facility.inventory, { scrap: 118, kit: 2 });
   assert.equal(p.facility.stats.crafted, 2);
-  assert.equal(p.credits, 415936);
+  assert.equal(p.credits, 411536);
 });

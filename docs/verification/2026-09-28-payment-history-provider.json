@@ -1,0 +1,25 @@
+{
+  "at": "2026-09-28T21:32:39.277Z",
+  "provider": "devnet.helius-rpc.com",
+  "network": "devnet",
+  "mode": "read-only synthetic expiry proof; no transaction, no wallet, no game ledger",
+  "status": "passed",
+  "observation": "expired",
+  "httpCalls": 21,
+  "rpcOperations": 201,
+  "batchSizes": [
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16,
+    16
+  ],
+  "durationMs": 1873
+}

@@ -97,14 +97,16 @@ const roles = [buyers.buyer.address, buyers.seller.address].map((address) =>
   "'solana:" + address + "'",
 );
 assert.deepEqual(d1(
-  `SELECT COUNT(*) AS count FROM compute_payments WHERE status NOT IN ('expired','failed') AND (buyer IN (${roles.join(',')}) OR listing_id IN (SELECT id FROM compute_listings WHERE seller IN (${roles.join(',')})))`,
-), [{ count: 0 }], 'Test accounts must have no active or settled hosted payment.');
+  `SELECT COUNT(*) AS count FROM compute_payments WHERE status IN ('quoted','recorded','submitted') AND (buyer IN (${roles.join(',')}) OR listing_id IN (SELECT id FROM compute_listings WHERE seller IN (${roles.join(',')})))`,
+), [{ count: 0 }], 'Test accounts must have no unsettled hosted payment.');
 assert.deepEqual(d1(
   `SELECT COUNT(*) AS count FROM compute_listings WHERE status='reserved' AND seller IN (${roles.join(',')})`,
 ), [{ count: 0 }], 'Test accounts must have no reserved hosted listing.');
 
 // Qualify two dedicated test identities for trading and give the seller an
 // isolated fixture balance. Ordinary gameplay/earning has separate acceptance.
+// Prior settled receipts are retained. Only an outstanding obligation blocks
+// fixture reset; a successful earlier trial must not require deleting history.
 for (const [role, amount] of [['buyer', 0], ['seller', 500]]) {
   const address = buyers[role].address;
   const result = d1(

@@ -14,7 +14,7 @@ The existing hosted services keep running independently of the development compu
 
 Do not use the ordinary `npm run deploy:staging` workflow to update the **payment-enabled** staging game: that workflow intentionally deploys with test-token trading disabled. The guarded `deploy:staging:devnet-payments` script is the path for that isolated configuration, subject to its private prerequisites and checks. Production deployment is separate and must not enable devnet or real-token trading by accident.
 
-The staging update adds an in-game completed-sale receipt for sellers. Remaining work includes new-build human wallet checkout, real-browser/mobile and uncoached endgame playtests, sustained multiplayer capacity and operating costs, and a separate reviewed mainnet-token launch plan. The successful devnet trade does not establish funded real-value rewards or safe production token trading.
+The staging update adds an in-game completed-sale receipt for sellers. The latest [engineering audit](docs/verification/2026-09-28-production-readiness.md) also fixes checkout recovery, stationary-player presence and plain invitations, and adds isolated release acceptance to CI. Three generated players passed hosted gameplay, and a separate generated-account devnet purchase delivered 250 Compute once. Remaining work includes new-build human wallet checkout, real-browser/mobile and uncoached endgame playtests, sustained multiplayer capacity and operating costs, and a separate reviewed mainnet-token launch plan. The successful devnet trade does not establish funded real-value rewards or safe production token trading.
 
 ## Current game
 
@@ -50,6 +50,8 @@ Fully upgraded centers can choose between three competing client requests with c
 
 Requires Node 22.18 or newer (the `.nvmrc` selects Node 24). Run `npm ci`, then `npm run db:local` **once on a fresh local database**. This applies the fourteen canonical migrations in journal order. Existing databases must apply only their unapplied migrations; do not rerun the fresh setup over saved data. Start `npm run dev`. Local D1 data lives in `.wrangler/state`.
 
+For a clean-clone release check, use **Node 24.14 or newer** and run **`npm run test:release-api`**. The runner requires a native SQLite authorizer to prevent fixture SQL from opening another database file. It creates its own disposable local D1 database, applies all fourteen migrations, and starts authenticated game/room servers on loopback ports 3003/3004. It checks actual HTTP saves, concurrent economy actions and WebSocket lifecycle/renewal without Cloudflare credentials, hosted services or real wallets. Allow about eight minutes for the twelve suites, including the full grant-renewal check. Results and logs live under an ignored `.wrangler/release-qa/<run-id>/` directory; the runner removes its temporary secrets and stops its own servers. Do not run a second server on those ports. `node scripts/release-api-tests.mjs --serve` keeps an isolated QA game available for browser review; Ctrl-C closes it.
+
 - `npm test`: game rules, wallet handshake, navigation, progression, migration preservation, purchase clocks, daily rewards and retry protection.
 - `npm run typecheck` and `npm run build`: TypeScript and the production Worker/browser build.
 - `npm run test:api`: authentication, account isolation and concurrent rewards.
@@ -70,7 +72,7 @@ API suites create random test-wallet identities on the local server. Do not poin
 
 [Noobius checks](https://github.com/ak-1080/noobius/actions/workflows/checks.yml) installs the committed lockfile on clean Ubuntu runners with Node 22 and 24. It runs game/persistence tests, TypeScript, tooling compatibility and the production build on main pushes and pull requests; it can also be started manually. Documentation-only main pushes are skipped.
 
-These checks have read-only repository permissions and no deployment or production database credentials. They do not start the mutation/API/load suites or deploy the game. A passing run is build/rules evidence, not hosted multiplayer, wallet-extension or human playtest acceptance. Repository-wide lint is separate from these checks. Release-specific dependency and lint evidence must be checked against the current deployment record.
+An additional integration job runs `npm run test:release-api` against generated local D1 and Durable Object fixtures, including a full five-minute room-grant renewal. These checks have read-only repository permissions and no deployment or production database credentials. They never mutate a hosted game or deploy it. Passing CI supplies build, rule and isolated integration evidence; it does not certify hosted capacity, wallet-extension compatibility or human playtests. Repository-wide lint is separate from these checks. See the [September 28 production-readiness audit](docs/verification/2026-09-28-production-readiness.md) for current results and release gates.
 
 Node 22.18 is the minimum because the test suite imports TypeScript directly using [Node’s default type stripping](https://nodejs.org/en/blog/release/v22.18.0). Earlier Node 22 versions require additional flags that these scripts do not supply.
 

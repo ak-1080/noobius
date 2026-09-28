@@ -1,6 +1,6 @@
 'use client';
 import RealmDirectory from './RealmDirectory';
-import { realmExists } from '@/lib/realm-catalog';
+import { parseNeighborhoodInvitation } from '@/lib/neighborhood-invitation';
 import { useEffect, useState } from 'react';
 import {
   Check,
@@ -297,22 +297,12 @@ export function WorldPanel({
     }
   };
   const joinFriend = () => {
-    let code = invite.trim();
-    try {
-      const url = new URL(code);
-      code =
-        (url.searchParams.get('realm') ?? 'commons') +
-        ':' +
-        url.searchParams.get('neighborhood');
-    } catch {
-      /* A plain invitation code is also accepted. */
-    }
-    const match = /^([a-z]+):([a-f0-9]{32})$/.exec(code);
-    if (!match || !realmExists(match[1])) {
+    const invitation = parseNeighborhoodInvitation(invite);
+    if (!invitation) {
       setInviteNotice('Paste a Noobius invitation link or neighborhood code.');
       return;
     }
-    void travel(match[1] as RealmId, match[2]);
+    void travel(invitation.realm, invitation.target);
   };
   const copyInvite = async () => {
     if (!snapshot) return;

@@ -21,7 +21,7 @@ const facility = async (
     c.body({ ...c.world, action: { type, ...extras, requestId } }),
   );
 };
-test('D1 campus progression, escrow, competing buyers, cancellation, and claim idempotency', async () => {
+void test('D1 campus progression, escrow, competing buyers, cancellation, and claim idempotency', async () => {
   const seller = new Client(),
     a = new Client(),
     b = new Client();
@@ -126,7 +126,10 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
     a.request('listing-buy', a.body({ id })),
     b.request('listing-buy', b.body({ id })),
   ]);
-  assert.deepEqual(race.map((r) => r.status).sort(), [200, 409]);
+  assert.deepEqual(
+    race.map((r) => r.status).sort((left, right) => left - right),
+    [200, 409],
+  );
   const sa = ok(await a.request('profile')).profile,
     sb = ok(await b.request('profile')).profile,
     sp = ok(await seller.request('profile')).profile;
@@ -166,8 +169,12 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
   ]);
   assert.ok(craft.every((r) => [200, 409].includes(r.status)));
   ok(await facility(seller, 'craft', { id: 'kit' }, craftId));
-  const craftBatch = ok(await seller.request('profile')).profile.facility.craft.id;
-  assert.equal((await facility(seller, 'collect', { id: craftBatch })).status, 400);
+  const craftBatch = ok(await seller.request('profile')).profile.facility.craft
+    .id;
+  assert.equal(
+    (await facility(seller, 'collect', { id: craftBatch })).status,
+    400,
+  );
   await delay(5100);
   ok(await facility(seller, 'collect', { id: craftBatch }));
   const claimId = crypto.randomUUID(),
@@ -250,6 +257,8 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
   );
   ok(await facility(seller, 'buy', { item: 'copper', quantity: 3 }));
   ok(await facility(seller, 'build', { id: 'rack-a' }));
+  // Active production consumes supplies instead of granting a free boost.
+  ok(await facility(seller, 'buy', { item: 'scrap', quantity: 2 }));
   const batchStartingBalance = ok(await seller.request('profile')).profile
     .credits;
   const batchId = crypto.randomUUID();
@@ -257,29 +266,37 @@ test('D1 campus progression, escrow, competing buyers, cancellation, and claim i
     facility(seller, 'compute-start', { id: 'quick' }, batchId),
     facility(seller, 'compute-start', { id: 'quick' }, batchId),
   ]);
-  assert.ok(starts.every((r) => [200, 409].includes(r.status)));
+  assert.ok(
+    starts.every((r) => [200, 409].includes(r.status)),
+    JSON.stringify(starts),
+  );
   ok(await facility(seller, 'compute-start', { id: 'quick' }, batchId));
   assert.equal((await facility(seller, 'compute-collect')).status, 400);
-  await delay(15100);
+  await delay(20100);
   const payouts = await Promise.all(
     Array.from({ length: 4 }, () => facility(seller, 'compute-collect')),
   );
   assert.equal(payouts.filter((r) => r.status === 200).length, 1);
   assert.ok(payouts.every((r) => [200, 400, 409].includes(r.status)));
   const computed = ok(await seller.request('profile')).profile.facility;
-  assert.equal(computed.compute, batchStartingBalance + 10);
+  assert.equal(computed.productionVersion, 3);
+  assert.equal(computed.compute, batchStartingBalance + 8);
   assert.equal(computed.stats.computeJobs, 1);
   assert.equal(computed.workload, null);
   assert.ok(computed.incident.at > Date.now());
   const harvestId = crypto.randomUUID();
-  const firstHarvest = ok(
-    await facility(seller, 'compute-harvest', {}, harvestId),
-  ).profile.facility.compute;
-  assert.ok(firstHarvest > 35);
+  assert.equal(computed.storedCompute, 0);
   assert.equal(
-    ok(await facility(seller, 'compute-harvest', {}, harvestId)).profile
-      .facility.compute,
-    firstHarvest,
+    (await facility(seller, 'compute-harvest', {}, harvestId)).status,
+    400,
+  );
+  assert.equal(
+    (await facility(seller, 'compute-harvest', {}, harvestId)).status,
+    400,
+  );
+  assert.equal(
+    ok(await seller.request('profile')).profile.facility.compute,
+    computed.compute,
   );
   assert.equal((await facility(seller, 'compute-exchange')).status, 400);
   assert.equal(

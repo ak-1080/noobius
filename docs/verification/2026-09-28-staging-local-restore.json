@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-28",
+  "source": "fresh Cloudflare staging SQL export",
+  "destination": "new private local SQLite file",
+  "schemaMigrations": 14,
+  "tableCount": 30,
+  "triggerCount": 2,
+  "integrity": "ok",
+  "foreignKeyViolations": 0,
+  "unsettledPayments": 0,
+  "exportSha256": "459a74d48a4b97931b5c9a5bf9b66944f5f63631df7ef471ba4b6b4b97a3e3c7",
+  "limitations": [
+    "Local SQL restore; no application cutover or hosted failover",
+    "Snapshot has no in-flight payments; not restore-to-chain reconciliation",
+    "Production database unchanged"
+  ]
+}
