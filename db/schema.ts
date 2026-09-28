@@ -7,6 +7,49 @@ import {
   check,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+export const earningBrowsers = sqliteTable('earning_browsers', {
+  key: text('key').primaryKey(),
+  expiresAt: integer('expires_at').notNull(),
+});
+export const earningSecrets = sqliteTable('earning_secrets', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});
+export const earningAccounts = sqliteTable(
+  'earning_accounts',
+  {
+    wallet: text('wallet').primaryKey(),
+    browserKey: text('browser_key').notNull(),
+    networkKey: text('network_key'),
+    newAccount: integer('new_account').notNull().default(1),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_earning_accounts_browser').on(t.browserKey, t.createdAt),
+    index('idx_earning_accounts_network').on(t.networkKey, t.createdAt),
+  ],
+);
+export const earningEvents = sqliteTable(
+  'earning_events',
+  {
+    id: text('id').primaryKey(),
+    wallet: text('wallet').notNull(),
+    browserKey: text('browser_key'),
+    source: text('source').notNull(),
+    compute: integer('compute').notNull(),
+    materials: integer('materials').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_earning_events_wallet').on(t.wallet, t.createdAt),
+    index('idx_earning_events_browser').on(t.browserKey, t.createdAt),
+    index('idx_earning_events_expiry').on(t.createdAt),
+    check(
+      'earning_event_values',
+      sql`${t.compute} >= 0 AND ${t.materials} >= 0`,
+    ),
+  ],
+);
 // Hashes only. Session IDs deliberately have no FK: logout and ordinary
 // expired-session cleanup must immediately invalidate, not be blocked by, grants.
 export const roomServiceNonces = sqliteTable(

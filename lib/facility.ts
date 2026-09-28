@@ -15,6 +15,7 @@ import {
 } from './realm-operations.ts';
 import { machinePerTick } from './production.ts';
 import {
+  bookClientDemand,
   newClientDemand,
   validClientDemand,
   type ClientDemand,
@@ -1664,6 +1665,16 @@ export function applyFacility(
           throw new FacilityError('That order is not available.');
         if ((f.cooldowns['order-' + order.id] ?? 0) > now)
           throw new FacilityError('Dispatch is processing the last delivery.');
+        bookClientDemand(
+          f,
+          {
+            kind: 'delivery',
+            id: action.requestId,
+            at: now,
+            reward: order.reward,
+          },
+          now,
+        );
         spend(order.cost);
         delta += order.reward;
         xp = 10;

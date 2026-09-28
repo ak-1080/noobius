@@ -1,0 +1,14 @@
+{
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "beganAt": "2026-09-28T19:18:56.559Z",
+  "checks": [
+    "Three new Solana centers in one browser share the server allowance pool",
+    "A fourth new wallet is refused before creating a new center",
+    "An existing center can sign back in; clearing cookies keeps its original shared pool",
+    "Independent browsers on the same network retain separate allowances (also demonstrates the fresh-browser limitation)"
+  ],
+  "ok": true,
+  "cleanupFailures": [],
+  "elapsedMs": 5138,
+  "completedAt": "2026-09-28T19:19:01.697Z"
+}

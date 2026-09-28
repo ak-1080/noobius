@@ -660,7 +660,7 @@ test('frozen action proofs permit only the matching live intent and do not reope
   const body = f.checkpoint(grant, { intent });
   const saved = await f.service(body, NOW + 1000);
   const proof = { id: body.id, intent };
-  assert.equal(saved.checkpoint.frozenUntil, NOW + 4000);
+  assert.equal(saved.checkpoint.frozenUntil, NOW + 9000);
   assert.equal(f.allowed(roomWorkGuard('c', NOW + 2000)), false);
   assert.equal(f.allowed(roomWorkGuard('c', NOW + 2000, proof)), true);
   assert.equal(
@@ -689,20 +689,44 @@ test('frozen action proofs permit only the matching live intent and do not reope
   );
   const retried = await f.service(body, NOW + 2500);
   assert.deepEqual(retried.checkpoint, saved.checkpoint);
-  assert.equal(f.grantRow().frozen_until, NOW + 4000);
-  assert.equal(f.allowed(roomWorkGuard('c', NOW + 4000, proof)), false);
+  assert.equal(f.grantRow().frozen_until, NOW + 9000);
+  assert.equal(f.allowed(roomWorkGuard('c', NOW + 9000, proof)), false);
   // A proof checked by SQL after its freeze expires cannot rely on the
   // request's earlier timestamp to authorize economic work.
-  f.setDbTime(NOW + 4000);
+  f.setDbTime(NOW + 9000);
   assert.equal(f.allowed(roomWorkGuard('c', NOW + 2000, proof)), false);
-  // Expiry of the three-second action barrier does not expire the writer.
-  assert.equal(f.allowed(httpMovementGuard('c', NOW + 4000)), false);
+  // Expiry of the bounded action barrier does not expire the writer.
+  assert.equal(f.allowed(httpMovementGuard('c', NOW + 9000)), false);
   const next = await f.service(
     f.checkpoint(grant, { baseSequence: f.base(grant) + 1, x: 3 }),
-    NOW + 4000,
+    NOW + 9000,
   );
   assert.equal(next.checkpoint.sequence, f.base(grant) + 2);
-  assert.equal(f.allowed(roomWorkGuard('c', NOW + 4000, proof)), false);
+  assert.equal(f.allowed(roomWorkGuard('c', NOW + 9000, proof)), false);
+});
+
+test('a slow work response retains its exact proof while movement stays fenced, then expires at eight seconds', async (t) => {
+  const f = await fixture(t),
+    { grant } = await f.connect();
+  const body = f.checkpoint(grant, { intent: 'd'.repeat(64) });
+  const saved = await f.service(body, NOW + 1000);
+  const proof = { id: body.id, intent: body.intent };
+  f.setDbTime(NOW + 5000);
+  assert.equal(f.allowed(roomWorkGuard('c', NOW + 5000, proof)), true);
+  assert.equal(f.allowed(httpMovementGuard('c', NOW + 5000)), false);
+  assert.equal(
+    f.allowed(
+      roomWorkGuard('c', NOW + 5000, { ...proof, intent: 'e'.repeat(64) }),
+    ),
+    false,
+  );
+  assert.deepEqual(
+    (await f.service(body, NOW + 5000)).checkpoint,
+    saved.checkpoint,
+  );
+  f.setDbTime(NOW + 9000);
+  assert.equal(f.allowed(roomWorkGuard('c', NOW + 5000, proof)), false);
+  assert.equal(f.allowed(httpMovementGuard('c', NOW + 9000)), false);
 });
 
 test('action completion clears only its own barrier and a delayed completion cannot clear a new one', async (t) => {

@@ -1,0 +1,2 @@
+# Remote D1's trigger parser requires LF, including on Windows checkouts.
+drizzle/*.sql text eol=lf

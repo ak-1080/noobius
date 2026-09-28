@@ -10,7 +10,7 @@ export const CLIENT_DEMAND = {
 } as const;
 
 export type ClientBooking = {
-  kind: 'job' | 'commission';
+  kind: 'job' | 'commission' | 'delivery';
   id: string;
   at: number;
   reward: number;
@@ -31,7 +31,7 @@ export function validClientDemand(value: unknown): value is ClientDemand {
     ledger.bookings.every(
       (entry) =>
         entry &&
-        ['job', 'commission'].includes(entry.kind) &&
+        ['job', 'commission', 'delivery'].includes(entry.kind) &&
         typeof entry.id === 'string' &&
         /^[a-zA-Z0-9-]{8,80}$/.test(entry.id) &&
         Number.isSafeInteger(entry.at) &&

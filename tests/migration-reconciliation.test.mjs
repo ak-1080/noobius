@@ -235,6 +235,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0010_red_piledriver',
       '0011_curly_chameleon',
       '0012_military_invisible_woman',
+      '0013_amazing_ozymandias',
     ],
   );
   assert.ok(
@@ -257,6 +258,10 @@ test('the canonical journal installs a fresh database in deployed migration orde
     'room_grants',
     'room_service_nonces',
     'room_checkpoints',
+    'earning_accounts',
+    'earning_browsers',
+    'earning_events',
+    'earning_secrets',
   ]) {
     assert.ok(
       sqlite

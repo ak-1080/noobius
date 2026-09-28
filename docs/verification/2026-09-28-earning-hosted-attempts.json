@@ -1,0 +1,77 @@
+{
+  "note": "Failures are retained alongside the later passing sessions. Generated unfunded identities only; no blockchain transfer. Worker timings exclude browser/network time.",
+  "attempts": [
+    {
+      "name": "Initial hosted browser-pool acceptance",
+      "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+      "beganAt": "2026-09-28T19:14:27.122Z",
+      "checks": [
+        "Three new Solana centers in one browser share the server allowance pool"
+      ],
+      "ok": false,
+      "failure": "The operation was aborted due to timeout",
+      "cleanupFailures": [
+        "logout",
+        "logout"
+      ],
+      "elapsedMs": 85004,
+      "completedAt": "2026-09-28T19:15:52.126Z"
+    },
+    {
+      "name": "Initial normal gameplay with 3-second checkpoint window",
+      "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+      "beganAt": "2026-09-28T19:19:58.998Z",
+      "checks": [],
+      "actors": 3,
+      "repairRoundsPerActor": 3,
+      "clientDemandChecked": true,
+      "earningPolicyChecked": true,
+      "roomInterruption": "none",
+      "ok": false,
+      "failure": "{\"error\":\"Your center or connection changed. Reconnect and try again.\"}\n\n409 !== 200\n; {\"error\":\"Your center or connection changed. Reconnect and try again.\"}\n\n409 !== 200\n\n\n2 !== 0\n",
+      "cleanupFailures": [],
+      "elapsedMs": 149811,
+      "completedAt": "2026-09-28T19:22:28.809Z"
+    },
+    {
+      "name": "Normal-gameplay retry canceled during nonce before gameplay",
+      "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+      "beganAt": "2026-09-28T19:30:42.907Z",
+      "checks": [],
+      "actors": 3,
+      "repairRoundsPerActor": 3,
+      "clientDemandChecked": true,
+      "earningPolicyChecked": true,
+      "roomInterruption": "none",
+      "ok": false,
+      "failure": "The operation was aborted due to timeout",
+      "cleanupFailures": [
+        "neighborhood-leave",
+        "logout"
+      ],
+      "elapsedMs": 26822,
+      "completedAt": "2026-09-28T19:31:09.729Z"
+    }
+  ],
+  "observations": [
+    {
+      "time": "2026-09-28T19:30:43.110Z",
+      "path": "/api/health",
+      "status": 200,
+      "outcome": "ok",
+      "workerWallMs": 6394
+    },
+    {
+      "time": "2026-09-28T19:30:49.776Z",
+      "path": "/api/noobius/nonce",
+      "outcome": "canceled",
+      "workerWallMs": 20045
+    }
+  ],
+  "mitigations": [
+    "Preferred IPv4 DNS in subsequent hosted harness invocations; this does not prove all delays were client-side.",
+    "Work freeze increased to a bounded 8 seconds without extending replayed receipts; redundant pre-action allowance read removed.",
+    "Harness skips cleanup for challenges that never authenticated."
+  ],
+  "limits": "A successful functional session is not a sustained capacity/cost test, a human wallet test, or proof that intermittent hosted latency is resolved."
+}

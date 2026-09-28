@@ -3,6 +3,7 @@ import { NeighborhoodError } from '@/lib/neighborhoods-server';
 import { RoomAuthError } from '@/lib/room-auth';
 import { FacilityError } from '@/lib/facility';
 import { ApiError, handleGame } from '@/lib/server';
+import { EarningError } from '@/lib/earning-server';
 import { databaseQuotaResponse } from '@/lib/service-unavailable';
 export const dynamic = 'force-dynamic';
 async function respond(
@@ -19,6 +20,7 @@ async function respond(
     }
     if (
       error instanceof ApiError ||
+      error instanceof EarningError ||
       error instanceof ComputeMarketError ||
       error instanceof NeighborhoodError ||
       error instanceof RoomAuthError

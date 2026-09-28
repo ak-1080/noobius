@@ -3,6 +3,7 @@ export type JobType = 'cooling' | 'boot' | 'network';
 export type Upgrade = 'scanner' | 'visor' | 'tracer';
 export type Equipment = Record<Upgrade, boolean>;
 export type Profile = {
+  earningAllowance?: import('./earning-policy.ts').EarningAllowance;
   id?: string;
   wallet: string;
   publicId?: string;

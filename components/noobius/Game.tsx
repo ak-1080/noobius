@@ -2,6 +2,7 @@
 import { fieldSite } from '@/lib/realm-worlds';
 import RealmMiniMap from './RealmMiniMap';
 import CommissionDesk from './CommissionDesk';
+import EarningAllowance from './EarningAllowance';
 import RealmOperations from './RealmOperations';
 import { playerProgress } from '@/lib/progression';
 import {
@@ -1509,6 +1510,18 @@ export default function NoobiusGame() {
                   {game.notice}
                 </p>
               )}
+              {mode !== 'practice' &&
+                profile?.earningAllowance &&
+                [
+                  'operations',
+                  'contracts',
+                  'compute',
+                  'field',
+                  'inventory',
+                  'market',
+                ].includes(panel ?? '') && (
+                  <EarningAllowance allowance={profile.earningAllowance} />
+                )}
               {panel === 'welcome-back' && (
                 <ReturnBriefing
                   summary={returning}
@@ -1774,7 +1787,12 @@ export default function NoobiusGame() {
                   onAction={act}
                   onStarted={() => setPanel(null)}
                   onFindParts={(item) => {
-                    const node = OBJECTS.find((o) => o.kind === 'node' && o.item === item && facility.unlocked.includes(o.zone));
+                    const node = OBJECTS.find(
+                      (o) =>
+                        o.kind === 'node' &&
+                        o.item === item &&
+                        facility.unlocked.includes(o.zone),
+                    );
                     executeStep({
                       title: `Collect ${item}`,
                       detail: '',

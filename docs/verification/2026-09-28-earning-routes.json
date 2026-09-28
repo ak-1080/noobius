@@ -1,0 +1,835 @@
+{
+  "version": 1,
+  "policy": {
+    "windowMs": 86400000,
+    "compute": 6000,
+    "materials": 600,
+    "shifts": 4,
+    "newBrowserAccounts": 3,
+    "newNetworkAccounts": 20,
+    "retentionMs": 2592000000
+  },
+  "clientDemand": {
+    "version": 1,
+    "windowMs": 86400000,
+    "bookings": 12,
+    "compute": 4000
+  },
+  "note": "Budgets govern new commitments and extraction in a rolling window, not a maximum existing balance or daily collection amount. Delayed and grandfathered promises remain payable. This is not a financial forecast or evidence of human identity.",
+  "routes": [
+    {
+      "route": "NPC jobs / specialist commissions / legacy deliveries",
+      "guard": "per-account 12-start/4,000 client demand plus linked-pool 6,000 aggregate issuance; payments reserved at start"
+    },
+    {
+      "route": "supplied machine batches",
+      "guard": "finite inputs and 6,000 issuance; full reward reserved at start"
+    },
+    {
+      "route": "salvage nodes / realm recoveries",
+      "guard": "600 recovery-value points; nodes charged before item grant, field returns reserved at start"
+    },
+    {
+      "route": "legacy repair shifts",
+      "guard": "four starts; reserve 145 Compute and 14 recovery points per shift"
+    },
+    {
+      "route": "outage repair / NPC item sales",
+      "guard": "6,000 shared issuance before credit"
+    },
+    {
+      "route": "crew station / crew completion / project claims",
+      "guard": "station payment reserved at start; other rewards atomically budgeted before collection, pending entitlement preserved"
+    },
+    {
+      "route": "story / daily tasks / workday bonus",
+      "guard": "existing once-only checks plus shared issuance; no reset through midnight"
+    },
+    {
+      "route": "item marketplace / Compute-token settlement / listing refunds",
+      "guard": "existing escrow conservation and once-only settlement; these transfers do not create new Compute or recovery"
+    },
+    {
+      "route": "old currency migration / frozen passive output / already-started promises",
+      "guard": "one-time migration and existing claim state; preserve earned value, no fresh v3 passive accrual"
+    }
+  ],
+  "npcCycles": [
+    {
+      "route": "buy/sell scrap",
+      "input": 5,
+      "output": 1,
+      "net": -4
+    },
+    {
+      "route": "buy/sell copper",
+      "input": 7,
+      "output": 2,
+      "net": -5
+    },
+    {
+      "route": "buy/sell silicon",
+      "input": 12,
+      "output": 3,
+      "net": -9
+    },
+    {
+      "route": "buy/sell coolant",
+      "input": 8,
+      "output": 2,
+      "net": -6
+    },
+    {
+      "route": "buy/sell fiber",
+      "input": 12,
+      "output": 3,
+      "net": -9
+    },
+    {
+      "route": "buy/sell coffee",
+      "input": 15,
+      "output": 3,
+      "net": -12
+    },
+    {
+      "route": "buy/craft/sell kit",
+      "input": 51,
+      "output": 12,
+      "net": -39
+    },
+    {
+      "route": "buy/craft/sell board",
+      "input": 77,
+      "output": 18,
+      "net": -59
+    },
+    {
+      "route": "buy/craft/sell pump",
+      "input": 91,
+      "output": 22,
+      "net": -69
+    },
+    {
+      "route": "buy/craft/sell battery",
+      "input": 77,
+      "output": 22,
+      "net": -55
+    },
+    {
+      "route": "buy/craft/sell coffee",
+      "input": 21,
+      "output": 3,
+      "net": -18
+    },
+    {
+      "route": "buy/batch quick",
+      "input": 10,
+      "output": 8,
+      "net": -2
+    },
+    {
+      "route": "buy/batch heavy",
+      "input": 22,
+      "output": 18,
+      "net": -4
+    },
+    {
+      "route": "buy/batch model",
+      "input": 36,
+      "output": 30,
+      "net": -6
+    },
+    {
+      "route": "buy/deliver cables",
+      "input": 84,
+      "output": 30,
+      "net": -54
+    },
+    {
+      "route": "buy/deliver boards",
+      "input": 154,
+      "output": 90,
+      "net": -64
+    },
+    {
+      "route": "buy/deliver cooling",
+      "input": 131,
+      "output": 80,
+      "net": -51
+    },
+    {
+      "route": "buy/deliver optics",
+      "input": 195,
+      "output": 100,
+      "net": -95
+    },
+    {
+      "route": "buy/deliver archive",
+      "input": null,
+      "output": 180,
+      "net": null
+    },
+    {
+      "route": "buy/recovered-board/sell",
+      "input": null,
+      "output": 18,
+      "net": null
+    }
+  ],
+  "salvage": [
+    {
+      "id": "scrap-a",
+      "item": "scrap",
+      "baseAmount": 5,
+      "maxSkillAmount": 7,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 7
+    },
+    {
+      "id": "scrap-b",
+      "item": "silicon",
+      "baseAmount": 2,
+      "maxSkillAmount": 4,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 12
+    },
+    {
+      "id": "copper-a",
+      "item": "copper",
+      "baseAmount": 4,
+      "maxSkillAmount": 6,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 12
+    },
+    {
+      "id": "scrap-c",
+      "item": "scrap",
+      "baseAmount": 5,
+      "maxSkillAmount": 7,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 7
+    },
+    {
+      "id": "coolant-a",
+      "item": "coolant",
+      "baseAmount": 5,
+      "maxSkillAmount": 7,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 14
+    },
+    {
+      "id": "coolant-b",
+      "item": "coolant",
+      "baseAmount": 5,
+      "maxSkillAmount": 7,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 14
+    },
+    {
+      "id": "silicon-a",
+      "item": "silicon",
+      "baseAmount": 4,
+      "maxSkillAmount": 6,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 18
+    },
+    {
+      "id": "fiber-a",
+      "item": "fiber",
+      "baseAmount": 4,
+      "maxSkillAmount": 6,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 18
+    },
+    {
+      "id": "fiber-b",
+      "item": "copper",
+      "baseAmount": 5,
+      "maxSkillAmount": 7,
+      "cooldownMs": 15000,
+      "recoveryPointsAtMaxSkill": 14
+    },
+    {
+      "id": "core-a",
+      "item": "core",
+      "baseAmount": 1,
+      "maxSkillAmount": 3,
+      "cooldownMs": 45000,
+      "recoveryPointsAtMaxSkill": 30
+    },
+    {
+      "id": "core-b",
+      "item": "core",
+      "baseAmount": 1,
+      "maxSkillAmount": 3,
+      "cooldownMs": 45000,
+      "recoveryPointsAtMaxSkill": 30
+    }
+  ],
+  "field": [
+    {
+      "realm": "commons",
+      "approach": "standard",
+      "site": 0,
+      "seconds": 35,
+      "computeCost": 0,
+      "inputs": {},
+      "output": {
+        "scrap": 4,
+        "copper": 2
+      },
+      "recoveryPoints": 8,
+      "directNpcNet": 8
+    },
+    {
+      "realm": "commons",
+      "approach": "standard",
+      "site": 1,
+      "seconds": 50,
+      "computeCost": 20,
+      "inputs": {},
+      "output": {
+        "copper": 8
+      },
+      "recoveryPoints": 16,
+      "directNpcNet": -4
+    },
+    {
+      "realm": "commons",
+      "approach": "standard",
+      "site": 2,
+      "seconds": 65,
+      "computeCost": 45,
+      "inputs": {},
+      "output": {
+        "kit": 1
+      },
+      "recoveryPoints": 12,
+      "directNpcNet": -33
+    },
+    {
+      "realm": "commons",
+      "approach": "careful",
+      "site": 0,
+      "seconds": 58,
+      "computeCost": 10,
+      "inputs": {},
+      "output": {
+        "scrap": 8,
+        "copper": 4
+      },
+      "recoveryPoints": 16,
+      "directNpcNet": 6
+    },
+    {
+      "realm": "commons",
+      "approach": "careful",
+      "site": 1,
+      "seconds": 83,
+      "computeCost": 30,
+      "inputs": {},
+      "output": {
+        "copper": 16
+      },
+      "recoveryPoints": 32,
+      "directNpcNet": 2
+    },
+    {
+      "realm": "commons",
+      "approach": "careful",
+      "site": 2,
+      "seconds": 108,
+      "computeCost": 68,
+      "inputs": {},
+      "output": {
+        "kit": 2
+      },
+      "recoveryPoints": 24,
+      "directNpcNet": -44
+    },
+    {
+      "realm": "commons",
+      "approach": "express",
+      "site": 0,
+      "seconds": 23,
+      "computeCost": 0,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "scrap": 4,
+        "copper": 2
+      },
+      "recoveryPoints": 8,
+      "directNpcNet": -6
+    },
+    {
+      "realm": "commons",
+      "approach": "express",
+      "site": 1,
+      "seconds": 33,
+      "computeCost": 20,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "copper": 8
+      },
+      "recoveryPoints": 16,
+      "directNpcNet": -18
+    },
+    {
+      "realm": "commons",
+      "approach": "express",
+      "site": 2,
+      "seconds": 43,
+      "computeCost": 45,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "kit": 1
+      },
+      "recoveryPoints": 12,
+      "directNpcNet": -47
+    },
+    {
+      "realm": "thermal",
+      "approach": "standard",
+      "site": 0,
+      "seconds": 50,
+      "computeCost": 20,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "coolant": 8
+      },
+      "recoveryPoints": 16,
+      "directNpcNet": -14
+    },
+    {
+      "realm": "thermal",
+      "approach": "standard",
+      "site": 1,
+      "seconds": 65,
+      "computeCost": 40,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "coolant": 14
+      },
+      "recoveryPoints": 28,
+      "directNpcNet": -22
+    },
+    {
+      "realm": "thermal",
+      "approach": "standard",
+      "site": 2,
+      "seconds": 80,
+      "computeCost": 65,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "pump": 1
+      },
+      "recoveryPoints": 22,
+      "directNpcNet": -53
+    },
+    {
+      "realm": "thermal",
+      "approach": "careful",
+      "site": 0,
+      "seconds": 83,
+      "computeCost": 30,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "coolant": 16
+      },
+      "recoveryPoints": 32,
+      "directNpcNet": -8
+    },
+    {
+      "realm": "thermal",
+      "approach": "careful",
+      "site": 1,
+      "seconds": 108,
+      "computeCost": 60,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "coolant": 28
+      },
+      "recoveryPoints": 56,
+      "directNpcNet": -14
+    },
+    {
+      "realm": "thermal",
+      "approach": "careful",
+      "site": 2,
+      "seconds": 132,
+      "computeCost": 98,
+      "inputs": {
+        "scrap": 2
+      },
+      "output": {
+        "pump": 2
+      },
+      "recoveryPoints": 44,
+      "directNpcNet": -64
+    },
+    {
+      "realm": "thermal",
+      "approach": "express",
+      "site": 0,
+      "seconds": 33,
+      "computeCost": 20,
+      "inputs": {
+        "scrap": 2,
+        "copper": 2
+      },
+      "output": {
+        "coolant": 8
+      },
+      "recoveryPoints": 16,
+      "directNpcNet": -28
+    },
+    {
+      "realm": "thermal",
+      "approach": "express",
+      "site": 1,
+      "seconds": 43,
+      "computeCost": 40,
+      "inputs": {
+        "scrap": 2,
+        "copper": 2
+      },
+      "output": {
+        "coolant": 14
+      },
+      "recoveryPoints": 28,
+      "directNpcNet": -36
+    },
+    {
+      "realm": "thermal",
+      "approach": "express",
+      "site": 2,
+      "seconds": 52,
+      "computeCost": 65,
+      "inputs": {
+        "scrap": 2,
+        "copper": 2
+      },
+      "output": {
+        "pump": 1
+      },
+      "recoveryPoints": 22,
+      "directNpcNet": -67
+    },
+    {
+      "realm": "gpu",
+      "approach": "standard",
+      "site": 0,
+      "seconds": 65,
+      "computeCost": 45,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "silicon": 6,
+        "fiber": 2
+      },
+      "recoveryPoints": 24,
+      "directNpcNet": -35
+    },
+    {
+      "realm": "gpu",
+      "approach": "standard",
+      "site": 1,
+      "seconds": 80,
+      "computeCost": 65,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "fiber": 8
+      },
+      "recoveryPoints": 24,
+      "directNpcNet": -55
+    },
+    {
+      "realm": "gpu",
+      "approach": "standard",
+      "site": 2,
+      "seconds": 95,
+      "computeCost": 90,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "silicon": 12
+      },
+      "recoveryPoints": 36,
+      "directNpcNet": -68
+    },
+    {
+      "realm": "gpu",
+      "approach": "careful",
+      "site": 0,
+      "seconds": 108,
+      "computeCost": 68,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "silicon": 12,
+        "fiber": 4
+      },
+      "recoveryPoints": 48,
+      "directNpcNet": -34
+    },
+    {
+      "realm": "gpu",
+      "approach": "careful",
+      "site": 1,
+      "seconds": 132,
+      "computeCost": 98,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "fiber": 16
+      },
+      "recoveryPoints": 48,
+      "directNpcNet": -64
+    },
+    {
+      "realm": "gpu",
+      "approach": "careful",
+      "site": 2,
+      "seconds": 157,
+      "computeCost": 135,
+      "inputs": {
+        "copper": 2
+      },
+      "output": {
+        "silicon": 24
+      },
+      "recoveryPoints": 72,
+      "directNpcNet": -77
+    },
+    {
+      "realm": "gpu",
+      "approach": "express",
+      "site": 0,
+      "seconds": 43,
+      "computeCost": 45,
+      "inputs": {
+        "copper": 4
+      },
+      "output": {
+        "silicon": 6,
+        "fiber": 2
+      },
+      "recoveryPoints": 24,
+      "directNpcNet": -49
+    },
+    {
+      "realm": "gpu",
+      "approach": "express",
+      "site": 1,
+      "seconds": 52,
+      "computeCost": 65,
+      "inputs": {
+        "copper": 4
+      },
+      "output": {
+        "fiber": 8
+      },
+      "recoveryPoints": 24,
+      "directNpcNet": -69
+    },
+    {
+      "realm": "gpu",
+      "approach": "express",
+      "site": 2,
+      "seconds": 62,
+      "computeCost": 90,
+      "inputs": {
+        "copper": 4
+      },
+      "output": {
+        "silicon": 12
+      },
+      "recoveryPoints": 36,
+      "directNpcNet": -82
+    },
+    {
+      "realm": "core",
+      "approach": "standard",
+      "site": 0,
+      "seconds": 80,
+      "computeCost": 80,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "core": 2,
+        "board": 1
+      },
+      "recoveryPoints": 38,
+      "directNpcNet": -90
+    },
+    {
+      "realm": "core",
+      "approach": "standard",
+      "site": 1,
+      "seconds": 95,
+      "computeCost": 100,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "board": 2
+      },
+      "recoveryPoints": 36,
+      "directNpcNet": -112
+    },
+    {
+      "realm": "core",
+      "approach": "standard",
+      "site": 2,
+      "seconds": 110,
+      "computeCost": 125,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "core": 4
+      },
+      "recoveryPoints": 40,
+      "directNpcNet": -133
+    },
+    {
+      "realm": "core",
+      "approach": "careful",
+      "site": 0,
+      "seconds": 132,
+      "computeCost": 120,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "core": 4,
+        "board": 2
+      },
+      "recoveryPoints": 76,
+      "directNpcNet": -92
+    },
+    {
+      "realm": "core",
+      "approach": "careful",
+      "site": 1,
+      "seconds": 157,
+      "computeCost": 150,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "board": 4
+      },
+      "recoveryPoints": 72,
+      "directNpcNet": -126
+    },
+    {
+      "realm": "core",
+      "approach": "careful",
+      "site": 2,
+      "seconds": 182,
+      "computeCost": 188,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2
+      },
+      "output": {
+        "core": 8
+      },
+      "recoveryPoints": 80,
+      "directNpcNet": -156
+    },
+    {
+      "realm": "core",
+      "approach": "express",
+      "site": 0,
+      "seconds": 52,
+      "computeCost": 80,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2,
+        "copper": 2
+      },
+      "output": {
+        "core": 2,
+        "board": 1
+      },
+      "recoveryPoints": 38,
+      "directNpcNet": -104
+    },
+    {
+      "realm": "core",
+      "approach": "express",
+      "site": 1,
+      "seconds": 62,
+      "computeCost": 100,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2,
+        "copper": 2
+      },
+      "output": {
+        "board": 2
+      },
+      "recoveryPoints": 36,
+      "directNpcNet": -126
+    },
+    {
+      "realm": "core",
+      "approach": "express",
+      "site": 2,
+      "seconds": 72,
+      "computeCost": 125,
+      "inputs": {
+        "silicon": 2,
+        "fiber": 2,
+        "copper": 2
+      },
+      "output": {
+        "core": 4
+      },
+      "recoveryPoints": 40,
+      "directNpcNet": -147
+    }
+  ],
+  "fixedRewards": {
+    "storyTotal": 990,
+    "dailyTasksTotal": 120,
+    "diagnosticShiftMax": 145,
+    "diagnosticShiftsPerWindow": 4,
+    "diagnosticShiftMaxComputePerPool": 580
+  },
+  "abuseControls": {
+    "browser": "Server-issued opaque cookie; first wallet enrollment persists its pool. Linked wallets share every earning/extraction/shift counter. New device does not detach an enrolled wallet.",
+    "network": "Salted IPv4 or IPv6 /64 signup throttle only; independent browser budgets stay separate. Twenty new accounts per network and three per browser per rolling day.",
+    "limits": "Fresh browsers plus other networks, pre-existing independent wallets, automated play inside limits, coordinated market abuse and human identity remain unresolved. Turnstile is documented as a later layer and is not enabled by this change."
+  }
+}

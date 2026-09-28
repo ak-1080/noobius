@@ -11,6 +11,7 @@ import { actionWorksite } from '../lib/action-authority.ts';
 import { OBJECTS } from '../lib/facility.ts';
 import { contractFor, serviceChallenge } from '../lib/contracts.ts';
 import { CLIENT_DEMAND, clientDemandStatus } from '../lib/client-demand.ts';
+import { EARNING_POLICY, materialValue } from '../lib/earning-policy.ts';
 import { planPath } from '../lib/navigation.ts';
 import { floorClear } from '../lib/world-navigation.ts';
 
@@ -20,6 +21,9 @@ const staging =
   origin === 'https://noobius-game-staging.rinkydooonso.workers.dev';
 const hosted = production || staging;
 const checkClientDemand = process.env.NOOBIUS_TEST_CLIENT_DEMAND === '1';
+const checkEarningPolicy = process.env.NOOBIUS_TEST_EARNING_POLICY === '1';
+if (checkEarningPolicy && !staging)
+  throw Error('Earning-policy acceptance targets isolated staging only');
 if (!hosted && origin !== 'http://127.0.0.1:3003')
   throw Error(
     'Explicit production, staging, or isolated local port 3003 required',
@@ -72,6 +76,7 @@ const report = {
   actors: 3,
   repairRoundsPerActor: rounds,
   clientDemandChecked: checkClientDemand,
+  earningPolicyChecked: checkEarningPolicy,
   roomInterruption: redeployRoom
     ? 'hosted-room-worker-redeploy'
     : restartRoom
@@ -99,6 +104,24 @@ async function actor(i, target) {
     new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey)),
   );
   const c = new Client({ address });
+  const request = c.request.bind(c);
+  c.request = async (...args) => {
+    const started = Date.now();
+    try {
+      return await request(...args);
+    } catch (error) {
+      console.error(
+        'HTTP request failed',
+        JSON.stringify({
+          player: i,
+          action: args[0],
+          durationMs: Date.now() - started,
+          error: error.message,
+        }),
+      );
+      throw error;
+    }
+  };
   c.body = (body) => ({ expectedWallet: 'solana:' + address, ...body });
   const p = {
     c,
@@ -124,9 +147,19 @@ async function actor(i, target) {
         ),
       ).toString('hex');
     p.profile = ok(await c.request('verify', { signature })).profile;
+    p.authenticated = true;
     return p.profile;
   };
   await p.login();
+  if (checkEarningPolicy) {
+    assert.deepEqual(p.profile.earningAllowance, {
+      compute: EARNING_POLICY.compute,
+      materials: EARNING_POLICY.materials,
+      shifts: EARNING_POLICY.shifts,
+      nextAt: null,
+      shared: false,
+    });
+  }
   ok(await c.request('name', c.body({ name: 'Gameplay QA ' + i })));
   p.command = (action, extra = {}) =>
     c.request(action, c.body({ ...p.controller, ...extra }));
@@ -244,6 +277,17 @@ async function actor(i, target) {
       ? await p.transport.prepare('facility', payload)
       : null;
     try {
+      // Deliberately exercise network delay longer than the former 3s freeze.
+      // Keep this isolated staging check separate from ordinary repair timing.
+      if (
+        checkEarningPolicy &&
+        i === 1 &&
+        type === 'contract-start' &&
+        !p.delayedWorkChecked
+      ) {
+        await sleep(4000);
+        p.delayedWorkChecked = true;
+      }
       const response = await c.request('facility', {
         ...payload,
         ...(lease ? { roomCheckpoint: lease.checkpoint } : {}),
@@ -297,10 +341,33 @@ async function work(p) {
       );
       assert.ok(node, 'Starter materials must be accessible');
       await p.walk(node.id);
+      const allowance = p.profile.earningAllowance;
+      const inventory = p.profile.facility.inventory;
       ok(await p.field('gather', { id: node.id }));
+      if (checkEarningPolicy) {
+        const recovered = Object.fromEntries(
+          Object.entries(p.profile.facility.inventory).map(([id, n]) => [
+            id,
+            Math.max(0, n - (inventory[id] ?? 0)),
+          ]),
+        );
+        assert.equal(
+          p.profile.earningAllowance.materials,
+          allowance.materials - materialValue(recovered),
+        );
+        assert.equal(p.profile.earningAllowance.compute, allowance.compute);
+      }
     }
     await p.walk(terms.target);
+    const computeAllowance = p.profile.earningAllowance?.compute;
     ok(await p.field('contract-start', { id: offer.id }));
+    if (checkEarningPolicy)
+      assert.equal(
+        p.profile.earningAllowance.compute,
+        computeAllowance -
+          p.profile.facility.career.active.find((r) => r.id === offer.id)
+            .reward,
+      );
     if (checkClientDemand) {
       const ledger = p.profile.facility.clientDemand;
       const entry = ledger.bookings.find(
@@ -332,10 +399,17 @@ async function work(p) {
     }
     const run = p.profile.facility.career.active.find((r) => r.id === offer.id);
     const before = p.profile.credits;
+    const bookedAllowance = p.profile.earningAllowance;
     const requestId = crypto.randomUUID();
     ok(await p.field('contract-claim', { id: offer.id }, requestId));
     ok(await p.field('contract-claim', { id: offer.id }, requestId));
     await p.refresh();
+    if (checkEarningPolicy)
+      assert.deepEqual(
+        p.profile.earningAllowance,
+        bookedAllowance,
+        'Claim and replay do not consume allowance again',
+      );
     assert.equal(
       p.profile.credits,
       before + run.reward,
@@ -438,6 +512,10 @@ try {
   pass(
     `Three independent players completed ${rounds} repair round(s) each; replayed claims paid once and new jobs appeared`,
   );
+  if (checkEarningPolicy)
+    pass(
+      'An exact work checkpoint tolerates four seconds of transport delay without dropping movement authority',
+    );
   const [seller, buyer, rival] = actors;
   const stockSellerScrap = async (needed) => {
     while ((seller.profile.facility.inventory.scrap ?? 0) < needed) {
@@ -468,17 +546,26 @@ try {
     await stockSellerScrap(2);
     const beforeBatch = seller.profile.credits;
     const beforeScrap = seller.profile.facility.inventory.scrap;
+    const beforeAllowance = seller.profile.earningAllowance?.compute;
     ok(await seller.field('compute-start', { id: 'quick' }));
+    if (checkEarningPolicy)
+      assert.equal(
+        seller.profile.earningAllowance.compute,
+        beforeAllowance - 8,
+      );
     const pending = seller.profile.facility.workload;
     assert.equal(pending.reward, 8);
     assert.equal(seller.profile.facility.inventory.scrap, beforeScrap - 2);
     assert.equal(seller.profile.credits, beforeBatch);
     await sleep(Math.max(0, pending.readyAt - Date.now()) + 150);
     const requestId = crypto.randomUUID();
+    const batchAllowance = seller.profile.earningAllowance;
     ok(await seller.field('compute-collect', {}, requestId));
     ok(await seller.field('compute-collect', {}, requestId));
     assert.equal(seller.profile.credits, beforeBatch + 8);
     assert.equal(seller.profile.facility.workload, null);
+    if (checkEarningPolicy)
+      assert.deepEqual(seller.profile.earningAllowance, batchAllowance);
     const stored = seller.profile.facility.storedCompute;
     await sleep(16000);
     await seller.refresh();
@@ -540,6 +627,7 @@ try {
     credits: p.profile.credits,
     inventory: p.profile.facility.inventory,
     clientDemand: p.profile.facility.clientDemand,
+    earningAllowance: p.profile.earningAllowance,
     id: p.profile.id,
   }));
   buyer.socket.terminate();
@@ -553,6 +641,11 @@ try {
     assert.equal(p.profile.id, expected[i].id);
     assert.equal(p.profile.credits, expected[i].credits);
     assert.deepEqual(p.profile.facility.inventory, expected[i].inventory);
+    if (checkEarningPolicy)
+      assert.deepEqual(
+        p.profile.earningAllowance,
+        expected[i].earningAllowance,
+      );
     if (checkClientDemand) {
       assert.deepEqual(
         p.profile.facility.clientDemand,
@@ -571,6 +664,10 @@ try {
   if (checkClientDemand)
     pass(
       'Client bookings and payments survive claim retries, item trades and fresh logins within the shared cap',
+    );
+  if (checkEarningPolicy)
+    pass(
+      'Server earning reservations and recovery usage persist through claims, retries, trade and fresh login',
     );
   pass(
     'Dropped socket recovers and fresh signed logins retain earned balances and traded items',
@@ -597,6 +694,8 @@ try {
     }
   }
   for (const p of actors) {
+    // A timed-out challenge has no authenticated session to release.
+    if (!p.authenticated) continue;
     for (const action of ['neighborhood-leave', 'logout']) {
       try {
         const response = await p.command(action);
