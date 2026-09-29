@@ -236,6 +236,7 @@ test('the canonical journal installs a fresh database in deployed migration orde
       '0011_curly_chameleon',
       '0012_military_invisible_woman',
       '0013_amazing_ozymandias',
+      '0014_burly_firedrake',
     ],
   );
   assert.ok(

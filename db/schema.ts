@@ -128,6 +128,7 @@ export const players = sqliteTable(
     name: text('name').notNull(),
     credits: integer('credits').notNull().default(0),
     xp: integer('xp').notNull().default(0),
+    skillXp: text('skill_xp'),
     shifts: integer('shifts').notNull().default(0),
     bestScore: integer('best_score').notNull().default(0),
     scanner: integer('scanner').notNull().default(0),
@@ -387,6 +388,7 @@ export const realmEntitlements = sqliteTable('realm_entitlements', {
   checkedAt: integer('checked_at').notNull(),
   nextCheckAt: integer('next_check_at').notNull(),
   graceUntil: integer('grace_until').notNull(),
+  eligibleSince: integer('eligible_since').notNull().default(0),
 });
 
 export const socialPreferences = sqliteTable(

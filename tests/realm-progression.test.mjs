@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { realmAnswer } from './realm-answer.mjs';
 import assert from 'node:assert/strict';
-import { playerProgress, playerLevel, xpForLevel } from '../lib/progression.ts';
+import { playerProgress, playerLevel, xpForLevel, awardSkillXp, seedSkillXp, skillXpForLevel, totalLevel, LEVEL_SKILLS } from '../lib/progression.ts';
 import { REALMS, realmRequirement } from '../lib/realm-catalog.ts';
 import { fieldQuote, validFieldWork } from '../lib/realm-operations.ts';
 import {
@@ -75,8 +75,30 @@ test('earned levels have stable boundaries and keep progressing beyond the last 
   for (const bad of [-1, NaN, Infinity, '1000', 3.5])
     assert.equal(playerLevel(bad), 1);
   assert.match(realmRequirement('gpu', 799, true), /level 5/);
-  assert.match(realmRequirement('gpu', 800, false), /license/);
+  assert.equal(realmRequirement('gpu', 800, false), null);
   assert.equal(realmRequirement('thermal', 200, false), null);
+});
+
+test('five earned skills set total level; free progress stops at 10 and resumes for verified holders', () => {
+  const legacy = xpForLevel(9);
+  const seeded = seedSkillXp(legacy);
+  assert.equal(totalLevel(seeded), 9);
+  assert.equal(LEVEL_SKILLS.length, 5);
+  assert.ok(LEVEL_SKILLS.every((skill) => seeded[skill] === skillXpForLevel(9)));
+  assert.equal(totalLevel(seedSkillXp(xpForLevel(100))), 100);
+  let state = { skills: seeded, xp: legacy };
+  for (let i = 0; i < 5; i++) {
+    const result = awardSkillXp(state.skills, state.xp, LEVEL_SKILLS[i], 4000, false);
+    state = { skills: result.skills, xp: result.xp };
+  }
+  assert.equal(totalLevel(state.skills), 10);
+  assert.equal(playerLevel(state.xp), 10);
+  const stopped = awardSkillXp(state.skills, state.xp, 'engineering', 2000, false);
+  assert.equal(stopped.awarded, 0);
+  assert.deepEqual(stopped.skills, state.skills);
+  const resumed = awardSkillXp(state.skills, state.xp, 'engineering', 2000, true);
+  assert.equal(resumed.awarded, 2000);
+  assert.ok(resumed.xp >= state.xp);
 });
 
 for (const realm of REALMS)
@@ -219,14 +241,6 @@ test('access, invalid input and insufficient resources cannot start field work',
         },
       ),
     /level 3/,
-  );
-  assert.throws(
-    () =>
-      call(action('field-start', { realm: 'gpu', direction: 'standard' }), {
-        realm: 'gpu',
-        xp: 800,
-      }),
-    /license/,
   );
   assert.throws(
     () =>

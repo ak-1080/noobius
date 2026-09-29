@@ -7,6 +7,7 @@ import {
 } from './market.ts';
 import { NeighborhoodError } from './neighborhoods-server.ts';
 import { noBlockSql } from './social.ts';
+import { holderTradeGuard, type RealmPermit } from './realm-authority.ts';
 
 // The recipient can leave or block the seller after the form was opened.
 // Check that relationship in the same transaction that escrows the items.
@@ -22,6 +23,7 @@ export async function escrowListing(
   },
   before: Facility,
   now = Date.now(),
+  permit?: RealmPermit,
 ) {
   const after = structuredClone(before);
   if ((after.inventory[listing.item] ?? 0) < listing.quantity)
@@ -32,6 +34,7 @@ export async function escrowListing(
     db
       .prepare(`INSERT OR IGNORE INTO market_listings (id,wallet,item,quantity,price,status,created_at,recipient_wallet)
       SELECT ?,?,?,?,?,'open',?,? WHERE EXISTS(SELECT 1 FROM players seller WHERE seller.wallet=? AND seller.facility_version=?
+      AND ${permit ? holderTradeGuard('seller.wallet', permit) : '1'}
       AND (? IS NULL OR EXISTS(SELECT 1 FROM crew_presence self JOIN crew_presence peer ON peer.neighborhood_id=self.neighborhood_id
         WHERE self.wallet=seller.wallet AND peer.wallet=? AND peer.wallet<>self.wallet
         AND self.lease_until>unixepoch('now')*1000 AND peer.lease_until>unixepoch('now')*1000
@@ -69,6 +72,8 @@ export async function listingsPage(
   facility: Facility | null,
   params: URLSearchParams,
   now = Date.now(),
+  sellerEligible = false,
+  threshold = '1000',
 ): Promise<MarketPage> {
   const search = (params.get('q') ?? '').trim().slice(0, 64).toLowerCase();
   const item = params.get('item'),
@@ -149,8 +154,10 @@ export async function listingsPage(
     listings,
     nextCursor:
       rows.results.length > 25 && last ? last.createdAt + ':' + last.id : null,
-    canTrade: !!facility && canTrade(facility),
-    qualification: TRADE_QUALIFICATION,
+    canTrade: sellerEligible && !!facility && canTrade(facility),
+    qualification: facility && !canTrade(facility)
+      ? TRADE_QUALIFICATION
+      : `Hold ${Number(threshold).toLocaleString()} $NOOBIUS for 24 hours before selling or trading.`,
     recipients: peers.results,
   };
 }

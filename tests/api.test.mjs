@@ -128,7 +128,8 @@ test('wallet authentication, isolation, persistence, concurrent rewards and purc
   }
   let current = await a.request('profile');
   assert.equal(current.data.profile.credits, 145);
-  assert.equal(current.data.profile.xp, 100);
+  assert.equal(current.data.profile.skillXp.operations, 100);
+  assert.ok(current.data.profile.xp > 0);
   assert.equal(current.data.profile.shifts, 1);
   assert.equal(current.data.profile.facility.stats.repairs, 3);
   assert.equal(current.data.profile.facility.compute, 145);

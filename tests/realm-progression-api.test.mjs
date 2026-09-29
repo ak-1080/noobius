@@ -134,7 +134,8 @@ test('HTTP fieldwork: trusted levels, exact realm/worksite, malformed input, fro
   );
   ok(await field('field-claim', { id: run.id }, claimId));
   const final = ok(await c.request('profile')).profile;
-  assert.equal(final.xp, 212);
+  assert.equal(final.xp, 200);
+  assert.ok(final.skillXp.fieldwork > p.skillXp.fieldwork);
   assert.equal(final.facility.bank.scrap, 4);
   assert.equal(final.facility.bank.copper, 2);
   assert.equal(final.facility.fieldWork.active, null);

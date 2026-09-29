@@ -3,7 +3,7 @@ import {
   handleComputeMarketAction,
 } from './compute-market-api';
 import { realmFor, realmRequirement } from './realm-catalog';
-import { playerBand, playerLevel } from './progression';
+import { playerBand, playerLevel, awardSkillXp, skillForFacilityAction, validSkillXp, type SkillXp, type LevelSkill } from './progression';
 import {
   httpMovementGuard,
   roomActionIntent,
@@ -227,6 +227,7 @@ type PlayerRow = {
   tracer: number;
   facility_state: string | null;
   facility_version: number;
+  skill_xp: string | null;
 };
 async function player(
   wallet: string,
@@ -284,6 +285,15 @@ async function player(
     return player(wallet, includeAllowance);
   }
   const publicId = await ensurePublicId(db(), wallet);
+  let skillXp: SkillXp | undefined;
+  if (p.skill_xp) {
+    try {
+      const parsed: unknown = JSON.parse(p.skill_xp);
+      if (validSkillXp(parsed)) skillXp = parsed;
+    } catch {
+      // Keep older and damaged skill rows playable using their legacy XP.
+    }
+  }
   return {
     id: publicId,
     wallet: p.wallet,
@@ -291,6 +301,7 @@ async function player(
     name: p.name,
     credits: p.credits,
     xp: p.xp,
+    skillXp,
     shifts: p.shifts,
     bestScore: p.best_score,
     equipment: { scanner: !!p.scanner, visor: !!p.visor, tracer: !!p.tracer },
@@ -346,6 +357,14 @@ async function responseFor(wallet: string, shift?: Shift | null) {
     shift: shift === undefined ? await getRun(wallet) : shift,
   };
 }
+async function skillAwardFor(p: Profile, skill: LevelSkill, amount: number) {
+  const free = awardSkillXp(p.skillXp ?? null, p.xp, skill, amount, false);
+  if (free.awarded === amount) return free;
+  const access = await realmAccess(db(), p.wallet, realmValues(), false);
+  return access.status === 'eligible' && access.allowed
+    ? awardSkillXp(p.skillXp ?? null, p.xp, skill, amount, true)
+    : free;
+}
 async function saveRun(wallet: string, previous: Shift, next: Shift) {
   const mutation = token(),
     deltaCredits =
@@ -366,6 +385,7 @@ async function saveRun(wallet: string, previous: Shift, next: Shift) {
   );
   const p = await player(wallet),
     oldFacility = p.facility!;
+  const progression = await skillAwardFor(p, 'operations', deltaXp);
   let facility = oldFacility;
   for (const job of repaired) facility = repairLoot(facility, job.id);
   const results = await db().batch([
@@ -386,11 +406,12 @@ async function saveRun(wallet: string, previous: Shift, next: Shift) {
       ),
     db()
       .prepare(
-        'UPDATE players SET credits=credits+?,xp=xp+?,shifts=shifts+?,best_score=MAX(best_score,?),facility_state=?,facility_version=? WHERE wallet=? AND EXISTS(SELECT 1 FROM shifts WHERE id=? AND mutation=?)',
+        'UPDATE players SET credits=credits+?,xp=?,skill_xp=?,shifts=shifts+?,best_score=MAX(best_score,?),facility_state=?,facility_version=? WHERE wallet=? AND EXISTS(SELECT 1 FROM shifts WHERE id=? AND mutation=?)',
       )
       .bind(
         deltaCredits,
-        deltaXp,
+        progression.xp,
+        JSON.stringify(progression.skills),
         finished ? 1 : 0,
         finished ? next.score : 0,
         JSON.stringify(facility),
@@ -601,7 +622,9 @@ export async function handleGame(request: Request, action: string) {
           401,
           'Your wallet session changed. Reconnect to view your trades.',
         );
-      return result(await computeMarketSnapshot(db(), viewer, realmValues()));
+      const snapshot = await computeMarketSnapshot(db(), viewer, realmValues());
+      const access = viewer ? await accessFor(request, viewer) : null;
+      return result({ ...snapshot, sellerEligible: !!access?.tradeAllowed, tradeUnlockAt: access?.tradeUnlockAt ?? null, holdingThreshold: access?.threshold ?? '1000' });
     }
     if (action === 'moderation-reports') {
       const wallet = await identity(request);
@@ -682,13 +705,17 @@ export async function handleGame(request: Request, action: string) {
     }
     if (action === 'listings') {
       const wallet = await identity(request),
-        p = wallet ? await player(wallet) : null;
+        p = wallet ? await player(wallet) : null,
+        access = wallet ? await accessFor(request, wallet) : null;
       return result(
         await listingsPage(
           db(),
           wallet,
           p?.facility ?? null,
           new URL(request.url).searchParams,
+          Date.now(),
+          !!access?.tradeAllowed,
+          access?.threshold ?? '1000',
         ),
       );
     }
@@ -1016,6 +1043,9 @@ export async function handleGame(request: Request, action: string) {
   ) {
     await rate(request, 'compute-trading', 30, wallet);
     const p = await player(wallet);
+    const access = action === 'compute-listing-create' ? await accessFor(request, wallet) : null;
+    if (action === 'compute-listing-create' && !access?.tradeAllowed)
+      throw new ApiError(403, `Hold ${access?.threshold ?? '1,000'} $NOOBIUS for 24 hours before selling Compute.`);
     return result(
       await handleComputeMarketAction(
         db(),
@@ -1024,6 +1054,7 @@ export async function handleGame(request: Request, action: string) {
         body,
         realmValues(),
         canTrade(p.facility!),
+        permitFor(request),
       ),
     );
   }
@@ -1171,7 +1202,11 @@ export async function handleGame(request: Request, action: string) {
     });
   }
   if (action === 'project-claim') {
-    const reward = await claimProject(db(), wallet, String(body.projectId));
+    const access = await accessFor(request, wallet);
+    const reward = await claimProject(
+      db(), wallet, String(body.projectId), Date.now(),
+      access.status === 'eligible' && access.allowed,
+    );
     return result({
       ...(await responseFor(wallet)),
       message: `Cluster commissioned! +${reward.compute} Compute · +${reward.reputation} reputation.${reward.dispatch ? ` +${reward.dispatch.granted} ${reward.dispatch.family} job choices (${reward.dispatch.stored}/2 stored).` : ''}`,
@@ -1200,11 +1235,6 @@ export async function handleGame(request: Request, action: string) {
     );
     if (needed) throw new ApiError(403, needed);
     if (realmFor(body.realm).holderOnly) {
-      if (!operatorLicense(careerFor(p.facility!)))
-        throw new ApiError(
-          403,
-          'Earn your Operator license in Crew Commons first.',
-        );
       const access = await accessFor(request, wallet);
       if (!access.allowed)
         throw new ApiError(
@@ -1330,6 +1360,7 @@ export async function handleGame(request: Request, action: string) {
       presence?.realm ? { xp: p.xp, realm: presence.realm } : undefined,
     );
     if (updated.facility.version !== previous.version) {
+      const progression = await skillAwardFor(p, skillForFacilityAction(a.type), updated.xp);
       const authority = controller
         ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room=?
         AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16 AND ${roomWorkGuard('c', now, roomProof)})))`
@@ -1338,7 +1369,8 @@ export async function handleGame(request: Request, action: string) {
         JSON.stringify(updated.facility),
         updated.facility.version,
         updated.credits,
-        updated.xp,
+        progression.xp,
+        JSON.stringify(progression.skills),
         wallet,
         previous.version,
         p.credits,
@@ -1359,7 +1391,7 @@ export async function handleGame(request: Request, action: string) {
       const statements = [
         db()
           .prepare(
-            'UPDATE players SET facility_state=?,facility_version=?,credits=credits+?,xp=xp+? WHERE wallet=? AND facility_version=? AND credits=?' +
+            'UPDATE players SET facility_state=?,facility_version=?,credits=credits+?,xp=?,skill_xp=? WHERE wallet=? AND facility_version=? AND credits=?' +
               authority,
           )
           .bind(...bindings),
@@ -1485,7 +1517,7 @@ export async function handleGame(request: Request, action: string) {
             .bind(now, id, wallet, now - 6000, now - 30000, ...guardArgs),
           db()
             .prepare(
-              'UPDATE players SET credits=credits+20,xp=xp+10 WHERE wallet=? AND changes()=1',
+              'UPDATE players SET credits=credits+20 WHERE wallet=? AND changes()=1',
             )
             .bind(wallet),
         ]);
@@ -1517,7 +1549,7 @@ export async function handleGame(request: Request, action: string) {
             ),
           db()
             .prepare(
-              'UPDATE players SET credits=credits+30,xp=xp+20 WHERE wallet=? AND changes()=1',
+              'UPDATE players SET credits=credits+30 WHERE wallet=? AND changes()=1',
             )
             .bind(wallet),
         ],
@@ -1579,6 +1611,9 @@ export async function handleGame(request: Request, action: string) {
     const p = await player(wallet),
       f = structuredClone(p.facility!);
     if (!canTrade(f)) throw new ApiError(403, TRADE_QUALIFICATION);
+    const access = await accessFor(request, wallet);
+    if (!access.tradeAllowed)
+      throw new ApiError(403, `Hold ${access.threshold} $NOOBIUS for 24 hours before listing items.`);
     let recipient: string | null = null;
     if (body.recipient !== undefined && body.recipient !== '') {
       if (
@@ -1613,6 +1648,8 @@ export async function handleGame(request: Request, action: string) {
       db(),
       { id, wallet, item, quantity: n, price, recipient },
       f,
+      Date.now(),
+      permitFor(request),
     );
     return result(await responseFor(wallet));
   }
@@ -1659,7 +1696,6 @@ export async function handleGame(request: Request, action: string) {
       throw new ApiError(409, 'Choose another available listing.');
     const p = await player(wallet),
       f = structuredClone(p.facility!);
-    if (!canTrade(f)) throw new ApiError(403, TRADE_QUALIFICATION);
     if (row.recipient_wallet && row.recipient_wallet !== wallet)
       throw new ApiError(403, 'This offer is for another neighbor.');
     if (p.credits < row.price)

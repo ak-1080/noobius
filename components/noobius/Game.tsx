@@ -4,7 +4,7 @@ import RealmMiniMap from './RealmMiniMap';
 import CommissionDesk from './CommissionDesk';
 import EarningAllowance from './EarningAllowance';
 import RealmOperations from './RealmOperations';
-import { playerProgress } from '@/lib/progression';
+import { playerProgress, LEVEL_SKILLS, seedSkillXp, skillLevelFromXp } from '@/lib/progression';
 import {
   realmFor,
   realmRequirement,
@@ -2180,9 +2180,18 @@ export default function NoobiusGame() {
                     aria-label="Progress to next player level"
                   />
                   <p className="muted-small">
-                    {playerProgress(profile.xp).remaining} XP to player level{' '}
-                    {playerProgress(profile.xp).level + 1}.
+                    {playerProgress(profile.xp).level >= 10
+                      ? 'Free progression pauses at level 10. Holding 1,000 $NOOBIUS unlocks further skill levels.'
+                      : `${playerProgress(profile.xp).remaining} XP to player level ${playerProgress(profile.xp).level + 1}.`}
                   </p>
+                  <div className="profile-skill-list" aria-label="Career skill levels">
+                    {LEVEL_SKILLS.map((skill) => (
+                      <span key={skill}>
+                        {skill.charAt(0).toUpperCase() + skill.slice(1)} · Level{' '}
+                        {skillLevelFromXp((profile.skillXp ?? seedSkillXp(profile.xp))[skill])}
+                      </span>
+                    ))}
+                  </div>
 
                   <Button
                     className="primary-action"

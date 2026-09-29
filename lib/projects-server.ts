@@ -1,5 +1,6 @@
 import { roomWorkGuard, type RoomWorkProof } from './room-writer.ts';
 import { earningBatch } from './earning-server.ts';
+import { awardSkillXp, validSkillXp, type SkillXp } from './progression.ts';
 import { realmWriteGuard, type RealmPermit } from './realm-authority.ts';
 import {
   decodeDispatchBenefit,
@@ -73,13 +74,15 @@ const fail = (message: string, status = 409): never => {
 async function account(db: D1Database, wallet: string, now: number) {
   const p = await db
     .prepare(
-      'SELECT facility_state,facility_version,credits FROM players WHERE wallet=?',
+      'SELECT facility_state,facility_version,credits,xp,skill_xp FROM players WHERE wallet=?',
     )
     .bind(wallet)
     .first<{
       facility_state: string;
       facility_version: number;
       credits: number;
+      xp: number;
+      skill_xp: string | null;
     }>();
   if (!p) return fail('Reconnect your wallet.', 401);
   const f = normalizeFacility(
@@ -664,6 +667,7 @@ export async function claimProject(
   wallet: string,
   id: string,
   now = Date.now(),
+  holder = false,
 ) {
   if (!uuid(id)) return fail('Choose a completed cluster.', 400);
   await finalizeProjectWork(db, id, now);
@@ -708,6 +712,14 @@ export async function claimProject(
   f.stats.computeEarned = (f.stats.computeEarned ?? 0) + compute;
   f.daily.computeEarned = (f.daily.computeEarned ?? 0) + compute;
   f.version++;
+  let skillXp: SkillXp | null = null;
+  try {
+    const parsed: unknown = p.skill_xp ? JSON.parse(p.skill_xp) : null;
+    if (validSkillXp(parsed)) skillXp = parsed;
+  } catch {
+    // Legacy XP remains the migration starting point for an invalid skill row.
+  }
+  const progression = awardSkillXp(skillXp, p.xp, 'operations', reputation, holder);
   const result = await earningBatch(db, wallet, { source: 'project-claim', compute, materials: 0 }, [
     db
       .prepare(
@@ -725,9 +737,9 @@ export async function claimProject(
       ),
     db
       .prepare(
-        'UPDATE players SET credits=credits+?,xp=xp+?,facility_state=?,facility_version=? WHERE wallet=? AND changes()=1',
+        'UPDATE players SET credits=credits+?,xp=?,skill_xp=?,facility_state=?,facility_version=? WHERE wallet=? AND changes()=1',
       )
-      .bind(compute, reputation, JSON.stringify(f), f.version, wallet),
+      .bind(compute, progression.xp, JSON.stringify(progression.skills), JSON.stringify(f), f.version, wallet),
   ], now);
   if (result[0].meta.changes !== 1)
     return fail(

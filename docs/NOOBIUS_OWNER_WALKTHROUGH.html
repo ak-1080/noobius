@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Noobius — illustrated owner walkthrough</title>
+  <style>
+    :root { color-scheme: dark; --ink:#edf4eb; --muted:#afc9c7; --line:#36555d; --panel:#122b36; --panel2:#183744; --bg:#081820; --mint:#c6f18f; --aqua:#77e4d5; --orange:#f7b974; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:radial-gradient(circle at 80% 0%,#1d3b45 0,transparent 35%),var(--bg); color:var(--ink); font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:var(--mint); }
+    img { max-width:100%; display:block; }
+    .layout { display:grid; grid-template-columns:235px minmax(0,1fr); max-width:1590px; margin:auto; }
+    aside { position:sticky; top:0; height:100vh; overflow:auto; padding:28px 19px; border-right:1px solid var(--line); background:#091c25; }
+    .mark { font-size:28px; font-weight:950; letter-spacing:-.075em; line-height:1; margin-bottom:6px; }
+    .mark i { color:var(--mint); font-style:normal; }
+    .side-label, .eyebrow { display:block; color:var(--aqua); font-size:11px; letter-spacing:.17em; font-weight:800; text-transform:uppercase; }
+    aside nav { display:grid; gap:3px; margin-top:28px; }
+    aside nav a { display:block; padding:10px 12px; color:#c4d9d4; text-decoration:none; border-radius:8px; font-size:13px; }
+    aside nav a:hover,aside nav a:focus-visible { color:var(--mint); background:#193742; outline:none; }
+    aside nav span { color:#7aa69f; margin-right:9px; font-variant-numeric:tabular-nums; }
+    .side-footer { margin-top:30px; border-top:1px solid var(--line); padding-top:18px; font-size:12px; color:#8fb0af; }
+    main { min-width:0; padding:0 clamp(20px,4vw,68px) 100px; }
+    section { scroll-margin-top:25px; margin:0 auto; max-width:1120px; padding:55px 0; border-bottom:1px solid var(--line); }
+    header { padding:75px 0 52px; max-width:1120px; margin:auto; border-bottom:1px solid var(--line); }
+    h1,h2,h3 { line-height:1.07; letter-spacing:-.045em; }
+    h1 { font-size:clamp(49px,6vw,94px); margin:18px 0 20px; max-width:950px; }
+    h2 { font-size:clamp(36px,4.2vw,57px); margin:10px 0 16px; }
+    h3 { font-size:23px; margin:0 0 8px; }
+    p { max-width:78ch; margin:10px 0; color:var(--muted); }
+    strong { color:var(--ink); }
+    .lead { font-size:21px; line-height:1.55; color:#d9ebe4; max-width:72ch; }
+    .pill-row { display:flex; flex-wrap:wrap; gap:9px; margin:25px 0; }
+    .pill { border:1px solid #5e8375; color:#dff3d0; border-radius:100px; padding:6px 12px; font-size:12px; font-weight:700; }
+    .pill.warn { border-color:#9a6946; color:#ffe0b8; }
+    .callout { background:#253b36; border:1px solid #8daa69; border-left:5px solid var(--mint); border-radius:10px; padding:18px 21px; margin:23px 0; color:#e0efce; }
+    .callout.warning { background:#392c25; border-color:#a0784e; border-left-color:var(--orange); color:#ffe8c8; }
+    .callout p { margin:4px 0; color:inherit; }
+    .flow { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin:25px 0; }
+    .flow div { min-height:128px; background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:17px; position:relative; }
+    .flow div:not(:last-child):after { content:'→'; color:var(--mint); position:absolute; right:-15px; top:43%; z-index:1; font-size:24px; font-weight:900; }
+    .flow b { color:var(--mint); font-size:13px; display:block; margin-bottom:7px; }
+    .flow small { display:block; color:var(--muted); line-height:1.45; }
+    .two,.three,.realm-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:17px; margin:22px 0; }
+    .three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .card { border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; }
+    .card-content { padding:20px; }
+    .card p { font-size:14px; }
+    .card img { width:100%; aspect-ratio:16/10; object-fit:cover; background:#102732; }
+    .card img.icon-art { object-fit:contain; padding:30px; aspect-ratio:16/9; }
+    .num { color:var(--mint); letter-spacing:.1em; font-size:12px; font-weight:800; }
+    .step { display:grid; grid-template-columns:60px 1fr; gap:20px; padding:20px 0; border-top:1px solid var(--line); }
+    .step-number { color:#0e2831; background:var(--mint); width:46px; height:46px; border-radius:12px; display:grid; place-items:center; font-size:19px; font-weight:900; }
+    .step h3 { margin-top:4px; }
+    .step p { margin-bottom:0; }
+    .wide-art { width:100%; max-height:475px; object-fit:cover; border:1px solid var(--line); border-radius:15px; margin:20px 0 8px; }
+    .caption { color:#8fb1b0; font-size:12px; margin-top:6px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; margin:21px 0; }
+    th,td { padding:13px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--aqua); font-size:11px; text-transform:uppercase; letter-spacing:.1em; }
+    td:first-child { color:var(--ink); font-weight:700; }
+    .table-wrap { overflow:auto; }
+    details { border:1px solid var(--line); border-radius:10px; background:#102a34; margin:9px 0; }
+    summary { cursor:pointer; padding:14px 18px; font-weight:700; color:#e4f1df; }
+    details p { padding:0 18px 16px; margin:0; }
+    .status-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; margin:22px 0; }
+    .status-grid div { padding:18px; border-radius:11px; border:1px solid var(--line); background:var(--panel); }
+    .status-grid b { display:block; color:var(--mint); margin-bottom:5px; }
+    .status-grid span { display:block; color:var(--muted); font-size:14px; }
+    .cheat { display:flex; flex-wrap:wrap; gap:10px; }
+    .cheat span { background:#203d46; border:1px solid #47717a; padding:9px 12px; border-radius:8px; color:#ddede9; font-size:13px; }
+    @media(max-width:990px) { .layout { grid-template-columns:1fr; } aside { height:auto; position:static; border-right:0; border-bottom:1px solid var(--line); padding:17px 20px; } aside nav { display:flex; overflow:auto; gap:2px; margin-top:12px; } aside nav a { white-space:nowrap; } .side-footer { display:none; } .flow { grid-template-columns:repeat(2,1fr); } .flow div:after { display:none; } }
+    @media(max-width:640px) { header { padding-top:44px; } section { padding:42px 0; } .two,.three,.realm-grid,.status-grid { grid-template-columns:1fr; } .flow { grid-template-columns:1fr; } .step { grid-template-columns:42px 1fr; gap:12px; } .step-number { width:38px; height:38px; font-size:16px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="mark">noobius<i>•</i></div>
+    <span class="side-label">Owner’s field manual</span>
+    <nav aria-label="Guide sections">
+      <a href="#map"><span>01</span>The whole game</a>
+      <a href="#first-shift"><span>02</span>Your first shift</a>
+      <a href="#economy"><span>03</span>How Compute is earned</a>
+      <a href="#levels"><span>04</span>Levels and token rules</a>
+      <a href="#realms"><span>05</span>The four realms</a>
+      <a href="#friends"><span>06</span>Playing with friends</a>
+      <a href="#exchange"><span>07</span>Player exchange</a>
+      <a href="#saving"><span>08</span>Saving and wallets</a>
+      <a href="#status"><span>09</span>What is live today</a>
+      <a href="#reference"><span>10</span>Quick reference</a>
+    </nav>
+    <div class="side-footer">Source-code edition · 29 September 2026<br>Personal owner walkthrough; not published in the game.</div>
+  </aside>
+  <main>
+    <header>
+      <span class="eyebrow">A complete illustrated tour of the game</span>
+      <h1>Build a center.<br>Do useful work.<br>Find your crew.</h1>
+      <p class="lead">This is the owner’s walkthrough of Noobius: what a player actually does, how the two currencies differ, why levels matter, and where other people enter the picture.</p>
+      <div class="pill-row"><span class="pill">Solana wallet accounts</span><span class="pill">Compute = game resource</span><span class="pill">$NOOBIUS = future token</span><span class="pill warn">Real-token launch is not live</span></div>
+      <div class="callout warning"><strong>Read this as the new source design.</strong><p>The 1,000-token progression and 24-hour seller rules are implemented in this branch. The public production game still runs an older build; the real $NOOBIUS mint has not launched. Existing devnet staging uses valueless test assets and must be redeployed and rechecked before this exact version can be played there.</p></div>
+    </header>
+
+    <section id="map">
+      <span class="eyebrow">01 / The whole game</span><h2>What am I trying to do?</h2>
+      <p>Noobius owns a small data center. You turn recovered parts and your machine capacity into completed work. The game rewards choosing what to build, supply, repair and deliver. You then use Compute to improve your center or trade with other players. Skills and worlds give that work a longer arc.</p>
+      <div class="flow" role="list" aria-label="The Noobius play loop">
+        <div role="listitem"><b>01 · Recover</b><small>Walk, salvage parts and solve worksite tasks.</small></div>
+        <div role="listitem"><b>02 · Prepare</b><small>Build a rack, craft supplies or choose a client.</small></div>
+        <div role="listitem"><b>03 · Run</b><small>Commit a supplied batch or repair; let it finish.</small></div>
+        <div role="listitem"><b>04 · Collect</b><small>Claim Compute, materials and earned skill XP.</small></div>
+        <div role="listitem"><b>05 · Decide</b><small>Upgrade, open a room, help a crew or trade.</small></div>
+      </div>
+      <img class="wide-art" src="../public/assets/guide/welcome.png" alt="Noobius game screenshot showing the world and interface">
+      <p class="caption">The core is a playable world, your private center, and shared work with other players.</p>
+      <div class="callout"><strong>Two different things to track:</strong><p><b>Compute</b> is the in-game resource you earn and spend on your center. <b>$NOOBIUS</b> will be a Solana token held in your wallet. Holding it will grant access; it does not automatically turn into Compute or give XP.</p></div>
+    </section>
+
+    <section id="first-shift">
+      <span class="eyebrow">02 / A first-session walkthrough</span><h2>From empty floor to working center</h2>
+      <div class="two"><article class="card"><img class="icon-art" src="../public/assets/guide/build.svg" alt="Starter rack being placed"><div class="card-content"><span class="num">BUILD</span><h3>Your first machine is free</h3><p>Margo points you toward your center. Place the starter rack on its pad; no Compute or parts are needed for that first one.</p></div></article><article class="card"><img class="icon-art" src="../public/assets/guide/batch.svg" alt="Supplies entering a machine batch"><div class="card-content"><span class="num">WORK</span><h3>Give the machine a job</h3><p>Recover supplies, choose a machine batch, and load it. When it finishes, collect its one promised reward.</p></div></article></div>
+      <div class="step"><div class="step-number">1</div><div><h3>Connect or enter practice</h3><p>A supported Solana wallet signs a login message; signing in alone does not spend tokens or SOL. Browser-only practice still exists in the current build and remains separate from wallet progress. The owner intends to retire that option later, after a migration decision.</p></div></div>
+      <div class="step"><div class="step-number">2</div><div><h3>Walk to your starter and build it</h3><p>Click or tap the floor to move. Press <strong>E</strong> near an object on desktop or tap the object. Margo can mark a destination, but she does not automatically complete a task.</p></div></div>
+      <div class="step"><div class="step-number">3</div><div><h3>Find inputs, then start one batch</h3><p>Salvage parts in the world or make needed parts in the Workshop. Choose a batch at a rack, inspect its cost and output, and commit it. The timer represents work you already supplied. It will finish if you leave, but it will not start another batch while idle.</p></div></div>
+      <div class="step"><div class="step-number">4</div><div><h3>Collect and make a choice</h3><p>Claim the completed Compute. Spend it on a speed boost, stronger rack or new room; save it for a different build; or take a client order. A completed job pays once. Repeated clicking cannot claim it twice.</p></div></div>
+      <div class="step"><div class="step-number">5</div><div><h3>Explore beyond your center</h3><p>Open Travel to visit a worksite, plaza or another player’s center. Each realm has a distinct diagnostic and materials. The first two realms are available through earned levels; later ones also use verified token access.</p></div></div>
+    </section>
+
+    <section id="economy">
+      <span class="eyebrow">03 / The game economy</span><h2>How people earn Compute now</h2>
+      <p>The important design change is that <strong>time alone is not a printing press</strong>. The player must supply a batch, complete a job or take another meaningful action. Work may finish in the background, but a finished rack stops until the player chooses another run.</p>
+      <div class="three"><article class="card"><div class="card-content"><span class="num">MACHINE WORK</span><h3>Supplied batches</h3><p>Recover or buy inputs, choose a batch, run it, then collect. A machine does not endlessly repeat the batch.</p></div></article><article class="card"><div class="card-content"><span class="num">CLIENT WORK</span><h3>Customer orders</h3><p>Compare customers, assign a machine and supplies, then deliver. Shared demand limits each account to 12 bookings and up to 4,000 Compute in client payments per rolling 24 hours.</p></div></article><article class="card"><div class="card-content"><span class="num">ACTIVE WORK</span><h3>Repair and field tasks</h3><p>Diagnose broken systems, salvage, solve realm workstations, craft and join cluster projects. These require interaction and have their own costs and rewards.</p></div></article></div>
+      <img class="wide-art" src="../public/assets/guide/growth-goals.png" alt="Game guide image showing long-term growth goals">
+      <p>Compute can buy buildings, speed and capacity upgrades, rooms, materials and some player-listed items. It does not leave the game simply because your wallet disconnects. The separate Solana token is only spent when you explicitly approve a token purchase in your wallet.</p>
+      <details><summary>Does waiting ever help?</summary><p>Yes, once you have chosen and supplied work. A timer can finish while you walk elsewhere or close the page. Nothing in the new batch system automatically queues a second run. A player cannot create an endless factory by leaving one tab open.</p></details>
+      <details><summary>Can a player still automate clicks or use multiple wallets?</summary><p>Some server-side limits and action validation exist, but multiple wallets cannot be perfectly identified as one human. This remains an abuse and economy-design risk before any real-value launch. The game should be assessed by what actions cost, how often they can repeat and what value they create.</p></details>
+    </section>
+
+    <section id="levels">
+      <span class="eyebrow">04 / Progression and $NOOBIUS</span><h2>Five skills make one total level</h2>
+      <p>Work gives skill XP. Each skill has its own level. Your <strong>total player level is the average of the five skill levels, rounded down</strong>. Token ownership never grants XP or skips the work. Existing account XP migrates into a starting point for all five tracks, so old saves do not lose their earned level.</p>
+      <div class="callout"><strong>Level example:</strong><p>Salvaging 10, Engineering 10, Production 9, Operations 8 and Fieldwork 8 average to 9. Your total level is 9. Training one favorite skill alone is possible, but balanced work raises total level more reliably.</p></div>
+      <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Typical work that trains it</th><th>Why it exists</th></tr></thead><tbody><tr><td>Salvaging</td><td>Recovering usable parts</td><td>Turns exploration into materials.</td></tr><tr><td>Engineering</td><td>Building, crafting, repairing and collection</td><td>Makes a better center and reliable equipment.</td></tr><tr><td>Production</td><td>Collecting completed Compute work</td><td>Rewards supplied, finished production.</td></tr><tr><td>Operations</td><td>Running shifts and most center operations</td><td>Measures the day-to-day business.</td></tr><tr><td>Fieldwork</td><td>Realm activities and recoveries</td><td>Rewards work away from home.</td></tr></tbody></table></div>
+      <div class="flow" role="list" aria-label="Progression gates"><div role="listitem"><b>Free start</b><small>Earn skill XP through real tasks.</small></div><div role="listitem"><b>Level 10</b><small>Free skill progression pauses here.</small></div><div role="listitem"><b>Hold 1,000</b><small>Verified $NOOBIUS raises the cap and opens holder realms.</small></div><div role="listitem"><b>Wait 24 hours</b><small>The verified holding clock matures.</small></div><div role="listitem"><b>Sell or trade</b><small>Eligible sellers can list items and Compute.</small></div></div>
+      <div class="callout"><strong>What 1,000 means:</strong><p>The game checks whether the connected Solana account holds at least 1,000 whole $NOOBIUS tokens under the configured mint and network. The check does not move them. A holder can keep earning levels past 10 and enter GPU District and Archive Depths once the ordinary level requirement is met. A player may buy from other players without holding 1,000.</p></div>
+      <div class="callout warning"><strong>Hold-clock limit before mainnet:</strong><p>The current server records when it first verifies an eligible balance and resets the clock when it observes a lower balance. It does not yet prove every moment of an uninterrupted 24-hour hold. Continuous-history verification or a monitored balance history is still required before presenting that claim as a production-grade real-token guarantee.</p></div>
+    </section>
+
+    <section id="realms">
+      <span class="eyebrow">05 / The world map</span><h2>Four places with different jobs</h2>
+      <p>Your center is your base. Travel takes you into realm work areas and shared spaces. Level requirements are earned through skills; token holder requirements are additional access checks for the last two realms. You do not have to buy an Operator license to enter.</p>
+      <div class="realm-grid">
+        <article class="card"><img src="design/2026-09-25/realms/commons.png" alt="Industrial salvage realm with containers and gantries"><div class="card-content"><span class="num">LEVEL 1 · FREE</span><h3>Crew Commons</h3><p>Salvage working hardware, sort scrap and learn the basic repair loop. This is the social starting area and shared plaza.</p></div></article>
+        <article class="card"><img src="design/2026-09-25/realms/thermal.png" alt="Cooling realm with reservoir and pipe circuit"><div class="card-content"><span class="num">LEVEL 3 · FREE</span><h3>Cooling Works</h3><p>Route coolant and recover supplies from the pipe network. It introduces a new environmental diagnostic.</p></div></article>
+        <article class="card"><img src="design/2026-09-25/realms/gpu.png" alt="GPU campus with powered processing lanes"><div class="card-content"><span class="num">LEVEL 5 · HOLDER</span><h3>GPU District</h3><p>Qualify chips and schedule busy machines. Entry needs level 5 plus verified 1,000-token access.</p></div></article>
+        <article class="card"><img src="design/2026-09-25/realms/core.png" alt="Archive islands connected by walkways"><div class="card-content"><span class="num">LEVEL 8 · HOLDER</span><h3>Archive Depths</h3><p>Reconnect archive islands and recover boards and data cores. Entry needs level 8 plus verified 1,000-token access.</p></div></article>
+      </div>
+      <p class="caption">These 1600 × 1000 realm images are source-rendered design captures. The running game adds Noobius, other players and interaction markers.</p>
+      <details><summary>What if I lose holder access mid-job?</summary><p>Already paid or committed work stays attached to your save and can be completed or recovered. New entry to holder spaces and new selling are checked against current eligibility. The server keeps a brief read-only grace for a temporary verification outage, but a failed RPC does not authorize a fresh sale.</p></details>
+    </section>
+
+    <section id="friends">
+      <span class="eyebrow">06 / Multiplayer</span><h2>Own your place. Meet in the middle.</h2>
+      <p>Each wallet account has its own saved center. Neighborhoods currently hold up to <strong>five players</strong>. You can meet in a shared area, see other Noobius characters move, chat, visit their centers and work on a cluster project. A visitor can observe but cannot build, take items or spend the owner’s Compute.</p>
+      <div class="two"><article class="card"><div class="card-content"><span class="num">YOUR CENTER</span><h3>Private decisions</h3><p>Place and upgrade machines, schedule work, choose jobs and personalize your Noobius. Other players can visit without gaining these controls.</p></div></article><article class="card"><div class="card-content"><span class="num">SHARED SPACE</span><h3>Real neighbors</h3><p>Meet in the plaza, see movement and chat, compare progress, help with clusters, and trade through the marketplace.</p></div></article></div>
+      <img class="wide-art" src="marketing/05-four-realms-social.png" alt="Noobius marketing image showing the four realms and social play">
+      <p>Room presence is live over the room service; saved balances, purchases and progress live in the game database. If someone disconnects, their durable center remains. Five-player stability has been tested; thousands of simultaneous players have not been proven.</p>
+    </section>
+
+    <section id="exchange">
+      <span class="eyebrow">07 / Two kinds of player exchange</span><h2>What can players sell?</h2>
+      <div class="two"><article class="card"><div class="card-content"><span class="num">ITEM MARKET</span><h3>Parts for game Compute</h3><p>A seller lists a quantity of parts at a Compute price. The items are reserved until sold or cancelled. The buyer pays game Compute; there is no token wallet transaction for the item purchase.</p></div></article><article class="card"><div class="card-content"><span class="num">COMPUTE EXCHANGE</span><h3>Compute for tokens</h3><p>A seller lists earned Compute at their chosen $NOOBIUS price. A buyer reviews a wallet transaction, pays the token on Solana, and receives the reserved Compute after settlement. There is no fixed price or guaranteed buyer.</p></div></article></div>
+      <div class="callout"><strong>Who can do what?</strong><p>Buying only needs the appropriate connected wallet, balance and a valid offer. Creating a listing requires ordinary in-game trade qualification plus a verified 1,000-token holding whose 24-hour clock has matured. Losing eligibility stops new listing creation. Cancelling your own offer and checking an already-started purchase remain available.</p></div>
+      <p>Staging checkout uses a separate devnet game database and valueless devnet SOL/test tokens. A successful test trade there does not mean that the public game is paying real $NOOBIUS or that the launch mint has been configured. Wallet prompts must always be read carefully; the game cannot silently sign or spend from a user’s wallet.</p>
+    </section>
+
+    <section id="saving">
+      <span class="eyebrow">08 / Your identity and save</span><h2>Where does progress go?</h2>
+      <p>For a connected account, the wallet’s public Solana address identifies the saved player record. The Cloudflare D1 game database holds the name, center state, balances, five skill XP values, inventories, jobs and other durable game data. The wallet keeps tokens and transaction authority. The game does not store private keys or seed phrases.</p>
+      <div class="status-grid"><div><b>Supported wallet picker</b><span>Phantom, Solflare, Backpack and Jupiter. Sign-in asks for a message signature, not a payment.</span></div><div><b>Automatic save</b><span>Accepted actions update the server save. There is no manual save button. Reloading the same connected account restores the saved center.</span></div><div><b>Disconnect</b><span>Disconnecting ends the active session; it does not delete the server’s saved profile. Reconnect the same wallet to return.</span></div><div><b>Practice</b><span>Current browser-only practice uses local storage and is separate from wallet saves. The owner plans to remove that entry later.</span></div></div>
+      <details><summary>If I use a second wallet, does my level follow?</summary><p>No. Each public address is a distinct game identity and save unless a future account-linking feature is deliberately built. This also means multiple-wallet farming remains an abuse concern for any token economy.</p></details>
+    </section>
+
+    <section id="status">
+      <span class="eyebrow">09 / What is ready, and what is not</span><h2>The honest release picture</h2>
+      <div class="status-grid"><div><b>In source now</b><span>Five-skill progression, free level-10 cap, Solana holding policy at 1,000 by default, 24-hour observed seller clock, updated market gates and this owner guide.</span></div><div><b>Verified locally</b><span>Rule tests, TypeScript, a staging build and isolated HTTP/D1 checks pass. Wallet sign-in, saved progress, small live neighborhoods and a devnet trade were also tested on earlier builds.</span></div><div><b>Still to verify for this version</b><span>A current hosted staging rollout and real browser walkthroughs with wallets and five players.</span></div><div><b>Before real-token launch</b><span>Actual mint configuration, reliable continuous-hold evidence, economic balancing, anti-abuse review, capacity/cost testing, backup recovery and independent payment security review.</span></div></div>
+      <p>This page is a manual for understanding the game design and source implementation. It is not a promise of earnings, a live token release announcement, or proof that the game is ready for unlimited public traffic.</p>
+    </section>
+
+    <section id="reference">
+      <span class="eyebrow">10 / Keep this beside the game</span><h2>Quick reference</h2>
+      <div class="cheat"><span>Click/tap floor · move</span><span>WASD/arrows · move</span><span>E near object · interact</span><span>R · turn camera</span><span>M · rooms</span><span>Esc · menu</span><span>+ / − · zoom</span></div>
+      <div class="table-wrap"><table><thead><tr><th>If you want to…</th><th>Go to…</th><th>What happens</th></tr></thead><tbody><tr><td>Earn a first Compute payout</td><td>Center → starter rack</td><td>Recover inputs, start a batch and collect it once.</td></tr><tr><td>Find something active to do</td><td>Clients or realm worksite</td><td>Take a bounded client order or a hands-on diagnostic.</td></tr><tr><td>Grow your business</td><td>Center → build/upgrade/expand</td><td>Spend Compute for capacity, speed or room space.</td></tr><tr><td>Level up</td><td>Play across five work types</td><td>Skill levels average into total player level.</td></tr><tr><td>See a friend</td><td>Crew / Travel</td><td>Join a neighborhood, meet in a plaza or visit a center.</td></tr><tr><td>Trade parts</td><td>Shop → player offers</td><td>Buy with Compute; qualified holders can list.</td></tr><tr><td>Sell Compute</td><td>Exchange</td><td>Qualified 24-hour holders set a token price.</td></tr></tbody></table></div>
+      <div class="callout"><strong>One sentence version:</strong><p>Play the work to earn skills and Compute; use Compute to build, and hold the future $NOOBIUS token for higher levels, later realms and—after the verified hold period—selling access.</p></div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

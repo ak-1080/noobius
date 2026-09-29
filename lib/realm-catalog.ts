@@ -43,7 +43,7 @@ export const REALMS = [
     description: 'Qualify recovered chips and commission specialist clusters.',
     holderOnly: true,
     minimumLevel: 5,
-    license: true,
+    license: false,
     color: '#aebaff',
     specialist: 'Bit',
     activity: 'Chip qualification',
@@ -61,7 +61,7 @@ export const REALMS = [
       'Reconnect isolated archives and rescue boards and data cores.',
     holderOnly: true,
     minimumLevel: 8,
-    license: true,
+    license: false,
     color: '#efb075',
     specialist: 'Patch',
     activity: 'Archive recovery',
@@ -75,12 +75,10 @@ export type RealmId = (typeof REALMS)[number]['id'];
 export const realmExists = (value: unknown): value is RealmId =>
   REALMS.some((r) => r.id === value);
 export const realmFor = (id: RealmId) => REALMS.find((r) => r.id === id)!;
-export function realmRequirement(id: RealmId, xp: number, licensed: boolean) {
+export function realmRequirement(id: RealmId, xp: number, _licensed = false) {
   const realm = realmFor(id);
   if (playerLevel(xp) < realm.minimumLevel)
     return `Reach player level ${realm.minimumLevel}.`;
-  if (realm.license && !licensed)
-    return 'Earn your Operator license in Crew Commons first.';
   return null;
 }
 // Reuses an existing, authoritative collision footprint in the shared plaza.

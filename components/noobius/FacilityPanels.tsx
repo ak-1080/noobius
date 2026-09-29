@@ -1,7 +1,7 @@
 'use client';
 import ComputeMarketPanel from './ComputeMarketPanel';
 import type { ComputePaymentQuote } from '@/lib/solana-payment';
-import { canTrade, TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
+import { TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
 import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
@@ -195,6 +195,8 @@ export default function FacilityPanels({
     [marketScope, setMarketScope] = useState('all'),
     [nextCursor, setNextCursor] = useState<string | null>(null),
     [recipients, setRecipients] = useState<MarketPage['recipients']>([]),
+    [sellerEligible, setSellerEligible] = useState(false),
+    [tradeQualification, setTradeQualification] = useState(TRADE_QUALIFICATION),
     [recipient, setRecipient] = useState(''),
     [messages, setMessages] = useState<any[]>([]),
     [chat, setChat] = useState(''),
@@ -215,7 +217,7 @@ export default function FacilityPanels({
     return () => clearInterval(t);
   }, []);
   const remoteVersion = useRef(0);
-  const tradeReady = profile.wallet !== 'practice' && canTrade(f);
+  const tradeReady = profile.wallet !== 'practice' && sellerEligible;
   const load = async (append = false) => {
     const version = ++remoteVersion.current;
     try {
@@ -239,6 +241,8 @@ export default function FacilityPanels({
         );
         setNextCursor(d.nextCursor);
         setRecipients(d.recipients);
+        setSellerEligible(d.canTrade);
+        setTradeQualification(d.qualification);
       }
       if (panel === 'social' && profile.wallet !== 'practice') {
         const [d, p, settings] = await Promise.all([
@@ -817,7 +821,7 @@ export default function FacilityPanels({
             </p>
           )}
           {!tradeReady && profile.wallet !== 'practice' && (
-            <p className="token-note">{TRADE_QUALIFICATION}</p>
+            <p className="token-note">{tradeQualification}</p>
           )}
           <div className="market-filters">
             <label>
@@ -864,8 +868,7 @@ export default function FacilityPanels({
                   disabled={
                     busy ||
                     remoteBusy ||
-                    profile.wallet === 'practice' ||
-                    (!l.mine && !tradeReady)
+                    profile.wallet === 'practice'
                   }
                   onClick={() =>
                     market(!!l.mine ? 'listing-cancel' : 'listing-buy', {
@@ -911,7 +914,7 @@ export default function FacilityPanels({
             <p className="token-note">
               {profile.wallet === 'practice'
                 ? 'Connect to trade with players.'
-                : TRADE_QUALIFICATION}
+                : tradeQualification}
             </p>
           )}
           <div className="listing-form">

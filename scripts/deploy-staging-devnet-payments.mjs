@@ -101,6 +101,9 @@ const tokenVars = {
   NOOBIUS_PAYMENT_SIGNER: saved.authorization.address,
   NOOBIUS_PAYMENTS_ENABLED: 'true',
 };
+const stagingHoldThreshold = process.env.NOOBIUS_STAGING_HOLD_THRESHOLD ?? '1000';
+if (!/^[1-9]\d{0,17}$/.test(stagingHoldThreshold))
+  throw Error('Choose a positive whole-token staging hold threshold.');
 const rpcSecrets = {
   NOOBIUS_TOKEN_RPC_URL: rpcUrl,
   ...(fallbackRpcUrl ? { NOOBIUS_TOKEN_RPC_FALLBACK_URL: fallbackRpcUrl } : {}),
@@ -138,7 +141,7 @@ try {
   }), { mode: 0o600 });
   writeFileSync(gamePath, JSON.stringify({
     ...built,
-    vars: { ...built.vars, ...tokenVars, NOOBIUS_TOKEN_THRESHOLD: '1' },
+    vars: { ...built.vars, ...tokenVars, NOOBIUS_TOKEN_THRESHOLD: stagingHoldThreshold },
   }, null, 2));
   writeFileSync(recoveryPath, JSON.stringify({
     ...recovery,

@@ -3,6 +3,7 @@ import {
   SPL_TOKEN_PROGRAM,
   type SolanaHoldingPolicy,
 } from './solana-holdings.ts';
+import { holderTradeGuard, type RealmPermit } from './realm-authority.ts';
 import {
   createComputePaymentQuote,
   validateBuyerPayment,
@@ -58,7 +59,7 @@ export const getComputePayment = (db: D1Database, id: string) =>
     .first<ComputePayment>();
 export async function createComputeListing(
   db: D1Database,
-  input: { id: string; seller: string; compute: number; tokenAmount: string },
+  input: { id: string; seller: string; compute: number; tokenAmount: string; tradePermit?: RealmPermit },
   policy: SolanaHoldingPolicy,
   now = Date.now(),
 ) {
@@ -78,7 +79,8 @@ export async function createComputeListing(
   await db.batch([
     db
       .prepare(`INSERT OR IGNORE INTO compute_listings(id,seller,compute,token_amount,policy,status,created_at)
-      SELECT ?,?,?,?,?,'open',? WHERE EXISTS(SELECT 1 FROM players WHERE wallet=? AND credits>=?)
+      SELECT ?,?,?,?,?,'open',? WHERE EXISTS(SELECT 1 FROM players WHERE wallet=? AND credits>=?
+      AND ${input.tradePermit ? holderTradeGuard('wallet', input.tradePermit) : '1'})
       AND (SELECT COUNT(*) FROM compute_listings WHERE seller=? AND status IN ('open','reserved'))<10`)
       .bind(
         input.id,

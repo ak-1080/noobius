@@ -2,7 +2,6 @@
 import { ArrowRight, Lock, Check, Radio } from 'lucide-react';
 import { REALMS, realmRequirement, type RealmId } from '@/lib/realm-catalog';
 import { playerProgress } from '@/lib/progression';
-import { operatorLicense, careerFor } from '@/lib/contracts';
 import type { Facility } from '@/lib/facility';
 import type { RealmAccess } from '@/lib/realm-access';
 import { Button } from '@/components/ui/button';
@@ -31,8 +30,7 @@ export default function RealmDirectory({
   onWork: () => void;
   onJobs: () => void;
 }) {
-  const progress = playerProgress(xp),
-    licensed = operatorLicense(careerFor(facility));
+  const progress = playerProgress(xp);
   return (
     <div className="realm-directory">
       <div className="player-level-card">
@@ -40,7 +38,9 @@ export default function RealmDirectory({
         <div>
           <strong>Player level {progress.level}</strong>
           <p>
-            {progress.remaining} XP to level {progress.level + 1}
+            {progress.level >= 10 && !access?.allowed
+              ? 'Free progression pauses here. Hold 1,000 $NOOBIUS to keep leveling.'
+              : `${progress.remaining} XP to level ${progress.level + 1}`}
           </p>
           <progress
             max={100}
@@ -48,8 +48,8 @@ export default function RealmDirectory({
             aria-label="XP toward next player level"
           />
           <small>
-            Earn XP from jobs, crafting and field recoveries. Tokens do not add
-            XP.
+            Five earned skills set your total level. Tokens unlock the level cap;
+            they never add XP.
           </small>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function RealmDirectory({
       )}
       <div className="realm-cards">
         {REALMS.map((realm) => {
-          const gate = realmRequirement(realm.id, xp, practice || licensed);
+          const gate = realmRequirement(realm.id, xp);
           const blocked =
             !practice && realm.holderOnly && (loading || !access?.allowed);
           const here = current === realm.id && !atHome;
@@ -130,7 +130,7 @@ export default function RealmDirectory({
                   : gate
                     ? progress.level < realm.minimumLevel
                       ? `Unlock at level ${realm.minimumLevel}`
-                      : 'Operator license required'
+                      : 'Level required'
                     : blocked
                       ? 'Holder access required'
                       : practice

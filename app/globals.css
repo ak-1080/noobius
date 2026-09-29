@@ -650,6 +650,19 @@ a {
 .profile-panel [data-slot='progress-track'] {
   height: 6px;
 }
+.profile-skill-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+}
+.profile-skill-list span {
+  padding: 9px 11px;
+  border: 1px solid #35545b;
+  border-radius: 8px;
+  background: #142d35;
+  color: #d7e7d5;
+  font-size: 13px;
+}
 .guide-modal {
   max-width: 620px !important;
 }

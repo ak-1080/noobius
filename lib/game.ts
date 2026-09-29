@@ -10,6 +10,7 @@ export type Profile = {
   name: string;
   credits: number;
   xp: number;
+  skillXp?: import('./progression.ts').SkillXp;
   shifts: number;
   bestScore: number;
   equipment: Equipment;

@@ -42,6 +42,21 @@ export function realmWriteGuard(alias: string, permit?: RealmPermit) {
 export const walletHoldingGuard = (wallet: string, permit?: RealmPermit) =>
   holdingGuard(quote(wallet), permit);
 
+/** Selling requires a current verified balance and a completed 24-hour hold. */
+export function holderTradeGuard(walletSql: string, permit?: RealmPermit) {
+  if (permit?.localTest) return '1';
+  if (!permit?.policy) return '0';
+  const clock = "(CAST(strftime('%s','now') AS INTEGER)*1000)";
+  const accountGuard = permit.policy.startsWith('solana:')
+    ? "substr(trade.wallet,1,7)='solana:' AND length(trade.wallet) BETWEEN 39 AND 51 AND substr(trade.wallet,8) NOT GLOB '*[^1-9A-HJ-NP-Za-km-z]*'"
+    : "length(trade.wallet)=42 AND substr(trade.wallet,1,2)='0x' AND substr(trade.wallet,3) NOT GLOB '*[^0-9a-fA-F]*'";
+  return `EXISTS(SELECT 1 FROM realm_entitlements trade WHERE trade.wallet=${walletSql}
+    AND ${accountGuard}
+    AND trade.policy=${quote(permit.policy)} AND trade.status='eligible'
+    AND trade.next_check_at>${clock} AND trade.eligible_since>0
+    AND trade.eligible_since<=${clock}-86400000)`;
+}
+
 /** Player XP is immutable upward; still gate the actual admission write. */
 export const realmLevelGuard = (wallet: string, realm: RealmId) =>
   `EXISTS(SELECT 1 FROM players admission WHERE admission.wallet=${quote(wallet)} AND admission.xp>=${xpForLevel(realmFor(realm).minimumLevel)})`;

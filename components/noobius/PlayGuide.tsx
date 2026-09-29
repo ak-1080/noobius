@@ -82,7 +82,7 @@ export const GUIDE_TOPICS = [
     text: 'Collect materials, craft parts in Workshop or buy them from a player. Use them to supply jobs and shared projects.',
     image: '/assets/tutorial/tutorial-toolbox.png',
     alt: 'Parts and tools for your next job',
-    tip: 'A completed client job or equipment upgrade unlocks player trade. Missing-parts help marks where to find supplies. You still choose what to collect, craft or buy.',
+    tip: 'Buying from players needs a connected wallet. To list your own items, complete a job or upgrade and qualify as a holder for 24 hours. Missing-parts help marks where to find supplies.',
   },
   {
     id: 'realms',
@@ -90,7 +90,7 @@ export const GUIDE_TOPICS = [
     text: 'Tap your level beside Compute. Explore Cooling Works at level 3, GPU District at 5 and Archive Depths at 8.',
     image: '/assets/guide/realms.svg',
     alt: 'Illustration: salvage, cooling, GPU and archive destinations have different industrial shapes',
-    tip: 'Crew Commons starts at level 1. Each world has three workstations: sort salvage, route coolant, schedule GPUs or recover archives. Live holder realms also need verified holdings and an Operator license: two jobs of each kind, a built module and a completed cluster. Solo practice keeps level gates. Paid recoveries can be finished from anywhere.',
+    tip: 'Five earned skills set your total level. Free progression pauses at level 10. GPU District and Archive Depths also need a verified holding of 1,000 $NOOBIUS on the configured network. No Operator license is required for entry. Solo practice keeps level gates. Paid recoveries can be finished from anywhere.',
   },
   {
     id: 'controls',
@@ -352,10 +352,10 @@ function GuideDetails() {
       <section id="currencies">
         <h2>Compute & $NOOBIUS</h2>
         <p>
-          <strong>Compute</strong> is the game balance. Machines, optional jobs,
-          and daily rewards earn it. Spend it on buildings, upgrades, rooms,
-          cosmetics, and items in the player market. If you run out, your
-          machines still earn more.
+          <strong>Compute</strong> is the game balance. Supplied machine batches,
+          completed client jobs and hands-on work earn it. Spend it on buildings,
+          upgrades, rooms, cosmetics and items in the player market. Finished
+          batches stop until you choose and supply the next job.
         </p>
         <p>
           <strong>$NOOBIUS</strong> is the project’s token. When token trading
@@ -364,6 +364,13 @@ function GuideDetails() {
           guaranteed buyer. Compute and tokens are separate balances. Practice
           Compute cannot be sold. The exchange shows whether trading is
           available.
+        </p>
+        <p>
+          Your five earned skill levels determine your total player level. Free
+          progression pauses at level 10. A verified holding of 1,000 $NOOBIUS
+          unlocks further levels and holder realms. Listing Compute or items
+          requires the holding to have been verified for 24 hours. Buying does
+          not require that holding. Tokens never add XP by themselves.
         </p>
         <p>
           Other collected items are optional materials for workshop activities

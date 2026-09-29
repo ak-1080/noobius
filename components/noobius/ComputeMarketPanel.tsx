@@ -341,8 +341,12 @@ export default function ComputeMarketPanel({
           <>
             {!qualified && (
               <p className="compute-test-banner">
-                Complete your first repair or client job to unlock player
-                trading.
+                Complete your first repair or client job before selling Compute.
+              </p>
+            )}
+            {qualified && !snapshot.sellerEligible && (
+              <p className="compute-test-banner">
+                Hold {Number(snapshot.holdingThreshold ?? '1000').toLocaleString()} $NOOBIUS for 24 hours before selling Compute. You can still buy offers.
               </p>
             )}
             <div className="compute-offers">
@@ -394,7 +398,7 @@ export default function ComputeMarketPanel({
                       ) : (
                         <Button
                           disabled={
-                            busy || !qualified || snapshot.pending.length > 0
+                            busy || snapshot.pending.length > 0
                           }
                           onClick={() => buy(offer)}
                         >
@@ -463,7 +467,7 @@ export default function ComputeMarketPanel({
                     />
                   </label>
                 </div>
-                <Button type="submit" disabled={busy || !qualified || !price}>
+                <Button type="submit" disabled={busy || !qualified || !snapshot.sellerEligible || !price}>
                   Create offer <ArrowRight size={16} />
                 </Button>
                 <p className="muted-small">

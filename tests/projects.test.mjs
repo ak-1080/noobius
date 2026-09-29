@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { database } from './sqlite-d1.mjs';
 import { applyFacility, ITEMS, newFacility } from '../lib/facility.ts';
+import { seedSkillXp, xpForLevel } from '../lib/progression.ts';
 import {
   careerFor,
   contractTemplate,
@@ -216,6 +217,11 @@ void test('a solo cluster consumes earned work and parts; completed rewards surv
   await leaveNeighborhood(db, p.wallet, p.controller);
   const claimed = await claimProject(db, p.wallet, id, 4200);
   assert.deepEqual(claimed, { compute: 300, reputation: 60 });
+  const progression = db.sqlite
+    .prepare('SELECT xp,skill_xp FROM players WHERE wallet=?')
+    .get(p.wallet);
+  assert.equal(JSON.parse(progression.skill_xp).operations, 60);
+  assert.ok(progression.xp >= 0);
   await assert.rejects(
     claimProject(db, p.wallet, id, 4300),
     /already collected/,
@@ -244,8 +250,15 @@ void test('an exhausted earning allowance preserves a completed project reward u
   assert.equal(db.sqlite.prepare('SELECT COUNT(*) n FROM cluster_claims WHERE project_id=?').get(id).n, 0);
   assert.deepEqual(facility(db, p), before, 'No reputation, license or claim state changes when the entire D1 batch rolls back');
   assert.equal(db.sqlite.prepare('SELECT credits FROM players WHERE wallet=?').get(p.wallet).credits, 0);
+  const cappedXp = xpForLevel(10);
+  const cappedSkills = seedSkillXp(cappedXp);
+  db.sqlite.prepare('UPDATE players SET xp=?,skill_xp=? WHERE wallet=?')
+    .run(cappedXp, JSON.stringify(cappedSkills), p.wallet);
   const later = 4000 + 86400000;
   assert.deepEqual(await claimProject(db, p.wallet, id, later), { compute: 300, reputation: 60 });
+  const after = db.sqlite.prepare('SELECT xp,skill_xp FROM players WHERE wallet=?').get(p.wallet);
+  assert.equal(after.xp, cappedXp, 'free project reward does not pass level 10');
+  assert.deepEqual(JSON.parse(after.skill_xp), cappedSkills);
   await assert.rejects(claimProject(db, p.wallet, id, later + 1), /already collected/);
   assert.equal(db.sqlite.prepare("SELECT SUM(compute) n FROM earning_events WHERE source='project-claim'").get().n, 300);
 });

@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { RealmPermit } from './realm-authority.ts';
 import { createKeyPairFromBytes, getAddressFromPublicKey } from '@solana/kit';
 import {
   solanaHoldingPolicy,
@@ -226,6 +227,7 @@ export async function handleComputeMarketAction(
   body: Record<string, unknown>,
   values: Record<string, unknown>,
   qualified: boolean,
+  tradePermit?: RealmPermit,
 ) {
   if (!wallet.startsWith('solana:'))
     throw new ComputeMarketError(
@@ -295,7 +297,7 @@ export async function handleComputeMarketAction(
     };
   }
   enabled(values);
-  if (!qualified)
+  if (action === 'compute-listing-create' && !qualified)
     throw new ComputeMarketError(
       403,
       'Complete your first repair or client job before trading Compute.',
@@ -316,6 +318,7 @@ export async function handleComputeMarketAction(
           seller: wallet,
           compute: body.compute,
           tokenAmount: stringField(body, 'tokenAmount'),
+          tradePermit,
         },
         config.policy,
       ),

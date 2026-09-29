@@ -2,6 +2,7 @@
 import type { ComputePaymentQuote } from '@/lib/solana-payment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { actionWorksite } from '@/lib/action-authority';
+import { awardSkillXp, skillForFacilityAction } from '@/lib/progression';
 import type { PrepareRoomWork } from '@/lib/room-protocol';
 import {
   applyFacility,
@@ -773,12 +774,14 @@ export function useNoobius() {
           realm: a.realm ?? before.fieldWork?.active?.realm ?? 'commons',
           practice: true,
         });
+        const progression = awardSkillXp(p.skillXp ?? null, p.xp, skillForFacilityAction(a.type), next.xp, false);
         data = {
           profile: {
             ...p,
             facility: next.facility,
             credits: p.credits + next.credits,
-            xp: p.xp + next.xp,
+            xp: progression.xp,
+            skillXp: progression.skills,
           },
           shift: state.current.shift,
           receipt: facilityReceipt(before, a, next),

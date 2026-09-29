@@ -42,7 +42,7 @@ export function solanaHoldingPolicy(
   );
   const rawDecimals = tokenSetting(values.NOOBIUS_TOKEN_DECIMALS);
   const decimals = Number(rawDecimals);
-  const threshold = tokenSetting(values.NOOBIUS_TOKEN_THRESHOLD, '888');
+  const threshold = tokenSetting(values.NOOBIUS_TOKEN_THRESHOLD, '1000');
   const rpcUrl = tokenSetting(values.NOOBIUS_TOKEN_RPC_URL);
   if (
     !(network === 'mainnet-beta' || network === 'devnet') ||
