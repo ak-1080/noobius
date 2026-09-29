@@ -732,6 +732,10 @@ try {
     counters.accepted / counters.sent > 0.99,
     'At least 99% movement accepted',
   );
+  assert.ok(
+    counters.maxRecoveryMs <= 3000,
+    `Unexpected room interruption must recover within three seconds; slowest took ${counters.maxRecoveryMs} ms`,
+  );
   assert.equal(
     rtts.length + counters.unacknowledged,
     counters.sent,

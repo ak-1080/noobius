@@ -1,0 +1,15 @@
+{
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "beganAt": "2026-09-29T23:29:43.921Z",
+  "checks": [],
+  "actors": 3,
+  "repairRoundsPerActor": 5,
+  "clientDemandChecked": false,
+  "earningPolicyChecked": false,
+  "roomInterruption": "none",
+  "ok": false,
+  "failure": "{\"error\":\"Too many new centers have been opened on this network in the last 24 hours. Existing centers can still sign in.\"}\n\n429 !== 200\n",
+  "cleanupFailures": [],
+  "elapsedMs": 17038,
+  "completedAt": "2026-09-29T23:30:00.959Z"
+}
