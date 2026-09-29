@@ -6,11 +6,24 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { Client } from '../tests/api-client.mjs';
 import {
   createKeyPairSignerFromBytes,
+  createTransactionMessage,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  appendTransactionMessageInstructions,
+  compileTransaction,
   getTransactionDecoder,
   partiallySignTransaction,
 } from '@solana/kit';
-import { findAssociatedTokenPda as findLegacyAta } from '@solana-program/token';
-import { findAssociatedTokenPda as findToken2022Ata } from '@solana-program/token-2022';
+import {
+  findAssociatedTokenPda as findLegacyAta,
+  getCreateAssociatedTokenIdempotentInstruction as createLegacyAta,
+  getMintToInstruction as mintLegacyTokens,
+} from '@solana-program/token';
+import {
+  findAssociatedTokenPda as findToken2022Ata,
+  getCreateAssociatedTokenIdempotentInstruction as createToken2022Ata,
+  getMintToInstruction as mintToken2022Tokens,
+} from '@solana-program/token-2022';
 import {
   SOLANA_GENESIS,
   SPL_TOKEN_PROGRAM,
@@ -186,6 +199,128 @@ async function tokenBalance(owner) {
   ).value;
   return BigInt(account?.data?.parsed?.info?.tokenAmount?.amount ?? '0');
 }
+async function ensureGeneratedSellerHolding() {
+  const minimum = 1000n * 1000000n;
+  const current = await tokenBalance(buyers.seller.address);
+  if (current >= minimum) return;
+  assert.equal(
+    proof.mint,
+    saved[proof.tokenProgram === TOKEN_2022_PROGRAM ? 'mint2022' : 'mint']
+      ?.address,
+    'Only the generated QA mint can fund the generated seller.',
+  );
+  const payer = await createKeyPairSignerFromBytes(
+    Buffer.from(saved.payer.secret, 'base64'),
+  );
+  assert.equal(payer.address, saved.payer.address);
+  const onchainMint = (
+    await rpc('getAccountInfo', [
+      mint,
+      {
+        encoding: 'jsonParsed',
+        commitment: 'finalized',
+      },
+    ])
+  ).value;
+  assert.equal(onchainMint?.owner, proof.tokenProgram);
+  assert.equal(onchainMint?.data?.parsed?.info?.decimals, 6);
+  assert.equal(onchainMint?.data?.parsed?.info?.mintAuthority, payer.address);
+  assert.ok(
+    (
+      await rpc('getBalance', [
+        payer.address,
+        {
+          commitment: 'finalized',
+        },
+      ])
+    ).value >= 5000000,
+    'Generated devnet payer needs test SOL.',
+  );
+  const [ata] = await findAta({
+    mint,
+    owner: buyers.seller.address,
+    tokenProgram: proof.tokenProgram,
+  });
+  const token2022 = proof.tokenProgram === TOKEN_2022_PROGRAM;
+  const instructions = [
+    (token2022 ? createToken2022Ata : createLegacyAta)({
+      payer,
+      ata,
+      owner: buyers.seller.address,
+      mint,
+      ...(token2022 ? { tokenProgram: proof.tokenProgram } : {}),
+    }),
+    (token2022 ? mintToken2022Tokens : mintLegacyTokens)({
+      mint,
+      token: ata,
+      mintAuthority: payer,
+      amount: minimum - current,
+    }),
+  ];
+  const latest = await rpc('getLatestBlockhash', [{ commitment: 'finalized' }]);
+  const message = appendTransactionMessageInstructions(
+    instructions,
+    setTransactionMessageLifetimeUsingBlockhash(
+      {
+        ...latest.value,
+        lastValidBlockHeight: BigInt(latest.value.lastValidBlockHeight),
+      },
+      setTransactionMessageFeePayer(
+        payer.address,
+        createTransactionMessage({ version: 'legacy' }),
+      ),
+    ),
+  );
+  const wire = encodePaymentTransaction(
+    await partiallySignTransaction(
+      [payer.keyPair],
+      compileTransaction(message),
+    ),
+  );
+  // An ambiguous submission must be inspected on devnet before retrying: a
+  // second mint based on stale finalized balance would overfund the fixture.
+  let signature;
+  try {
+    signature = await rpc('sendTransaction', [
+      wire,
+      {
+        encoding: 'base64',
+        preflightCommitment: 'finalized',
+        skipPreflight: false,
+      },
+    ]);
+  } catch {
+    throw Error(
+      'Generated seller mint submission is uncertain. Inspect the devnet account before rerunning.',
+    );
+  }
+  for (let attempt = 0; attempt < 90; attempt++) {
+    const transaction = await rpc('getTransaction', [
+      signature,
+      {
+        encoding: 'base64',
+        commitment: 'finalized',
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+    if (transaction) {
+      assert.equal(
+        transaction.meta?.err,
+        null,
+        'Generated devnet mint failed.',
+      );
+      assert.ok((await tokenBalance(buyers.seller.address)) >= minimum);
+      console.log(
+        'Generated seller holds at least 1,000 valueless devnet test tokens.',
+      );
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw Error(
+    'Generated seller mint is unresolved. Inspect its devnet signature before rerunning.',
+  );
+}
 const identities = {
   mint,
   buyer: buyers.buyer.address,
@@ -314,6 +449,7 @@ async function runCheckout() {
   assert.equal(market.network, 'devnet');
   assert.equal(market.mint, mint);
   assert.equal(market.decimals, 6);
+  assert.equal(market.holdingThreshold, '1000');
   const roles = [buyers.buyer.address, buyers.seller.address].map(
     (address) => "'solana:" + address + "'",
   );
@@ -331,6 +467,7 @@ async function runCheckout() {
     [{ count: 0 }],
     'Test accounts must have no reserved hosted listing.',
   );
+  await ensureGeneratedSellerHolding();
 
   // Qualify two dedicated test identities for trading and give the seller an
   // isolated fixture balance. Ordinary gameplay/earning has separate acceptance.

@@ -1,0 +1,14 @@
+{
+  "testedAt": "2026-09-29T23:04:53.625Z",
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "network": "devnet",
+  "mint": "8uhnWPWTadPn8ZPbrwqVYirjyUEnFd39UCs4gVRwfPBn",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "signature": "4rLedS7Qj6UspJ6yJSCuQmRUJxAr71xYSXmud1JGbc1ETpxaCU4V9Axeej43B6F6kotBskHAqUXf7LJZhJvaeNSs",
+  "computeDelivered": 250,
+  "testTokensTransferred": "1",
+  "duplicateDeliveryPrevented": true,
+  "ledger": "isolated hosted Cloudflare staging D1",
+  "wallet": "generated test accounts, not browser extensions",
+  "sessionCleanup": "logged out"
+}
