@@ -8,6 +8,7 @@ import {
   realmAccess,
 } from '../lib/realm-access.ts';
 import { walletHoldingGuard, holderTradeGuard } from '../lib/realm-authority.ts';
+import { createComputeListing } from '../lib/compute-market.ts';
 import {
   SOLANA_GENESIS,
   SPL_TOKEN_PROGRAM,
@@ -236,5 +237,38 @@ void test('1,000-token policy allows current holders to sell without a waiting p
   assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 0);
   const resumed = await realmAccess(db, wallet, launchValues, false, now + 122_000, rpc({ amounts: ['1000000000'], slot: 103 }).fetcher);
   assert.equal(resumed.tradeAllowed, true);
+  db.sqlite.close();
+});
+
+void test('launch switch requires a verified 24-hour holder period for selling, not for access', async () => {
+  const db = database();
+  const launchValues = { ...values, NOOBIUS_TOKEN_THRESHOLD: undefined, NOOBIUS_TRADE_HOLD_24H: 'true' };
+  const launchPolicy = tokenPolicy(launchValues);
+  const permit = { policy: launchPolicy.key, localTest: false, tradeHold24h: true };
+  const sql = `SELECT ${holderTradeGuard('?', permit)} AS allowed`;
+  db.sqlite.prepare('INSERT INTO players(wallet,name,created_at,credits) VALUES (?,?,0,100)').run(wallet, 'Wait test');
+  const now = Date.now();
+  const first = await realmAccess(db, wallet, launchValues, false, now, rpc({ amounts: ['1000000000'] }).fetcher);
+  assert.equal(first.allowed, true);
+  assert.equal(first.tradeAllowed, false);
+  assert.equal(first.tradeReadyAt, now + 86400000);
+  assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 0);
+  const listingInput = { id: crypto.randomUUID(), seller: wallet, compute: 50, tokenAmount: '1000000', tradePermit: permit };
+  await assert.rejects(createComputeListing(db, listingInput, launchPolicy, now));
+  assert.equal(db.sqlite.prepare('SELECT credits FROM players WHERE wallet=?').get(wallet).credits, 100);
+
+  db.sqlite.prepare('UPDATE realm_entitlements SET eligible_since=? WHERE wallet=?').run(now - 86402000, wallet);
+  const matured = await realmAccess(db, wallet, launchValues, false, now + 1000, rpc({ amounts: ['1000000000'] }).fetcher);
+  assert.equal(matured.tradeAllowed, true);
+  assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 1);
+  assert.equal((await createComputeListing(db, listingInput, launchPolicy, now)).status, 'open');
+  assert.equal(db.sqlite.prepare('SELECT credits FROM players WHERE wallet=?').get(wallet).credits, 50);
+
+  const dropped = await realmAccess(db, wallet, launchValues, false, now + 61000, rpc({ amounts: ['0'], slot: 102 }).fetcher);
+  assert.equal(dropped.tradeAllowed, false);
+  assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 0);
+  const resumed = await realmAccess(db, wallet, launchValues, false, now + 122000, rpc({ amounts: ['1000000000'], slot: 103 }).fetcher);
+  assert.equal(resumed.tradeAllowed, false);
+  assert.equal(resumed.tradeReadyAt, now + 122000 + 86400000);
   db.sqlite.close();
 });

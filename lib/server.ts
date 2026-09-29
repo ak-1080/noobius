@@ -551,6 +551,7 @@ function permitFor(request: Request): RealmPermit {
   const policy = tokenPolicy(values)?.key ?? null;
   return {
     policy,
+    tradeHold24h: values.NOOBIUS_TRADE_HOLD_24H === 'true',
     localTest:
       !policy &&
       localRealmTest(values, request.url, import.meta.env.DEV === true),
@@ -624,7 +625,7 @@ export async function handleGame(request: Request, action: string) {
         );
       const snapshot = await computeMarketSnapshot(db(), viewer, realmValues());
       const access = viewer ? await accessFor(request, viewer) : null;
-      return result({ ...snapshot, sellerEligible: !!access?.tradeAllowed, holdingThreshold: access?.threshold ?? '1000' });
+      return result({ ...snapshot, sellerEligible: !!access?.tradeAllowed, sellerTradeReadyAt: access?.tradeReadyAt, holdingThreshold: access?.threshold ?? '1000' });
     }
     if (action === 'moderation-reports') {
       const wallet = await identity(request);
@@ -1051,9 +1052,12 @@ export async function handleGame(request: Request, action: string) {
   ) {
     await rate(request, 'compute-trading', 30, wallet);
     const p = await player(wallet);
-    const access = action === 'compute-listing-create' ? await accessFor(request, wallet) : null;
-    if (action === 'compute-listing-create' && !access?.tradeAllowed)
-      throw new ApiError(403, `Hold ${access?.threshold ?? '1,000'} $NOOBIUS to sell Compute.`);
+    const qualified = canTrade(p.facility!);
+    const access = action === 'compute-listing-create' && qualified ? await accessFor(request, wallet) : null;
+    if (action === 'compute-listing-create' && qualified && !access?.tradeAllowed)
+      throw new ApiError(403, access?.tradeReadyAt && access.tradeReadyAt > Date.now()
+        ? 'Your 24-hour holder period is still running. Try again after it completes.'
+        : `Hold ${access?.threshold ?? '1,000'} $NOOBIUS to sell Compute.`);
     return result(
       await handleComputeMarketAction(
         db(),
@@ -1061,7 +1065,7 @@ export async function handleGame(request: Request, action: string) {
         action,
         body,
         realmValues(),
-        canTrade(p.facility!),
+        qualified,
         permitFor(request),
       ),
     );

@@ -30,6 +30,7 @@ export type ComputeOffer = {
 export type ComputeMarketSnapshot = {
   available: boolean;
   sellerEligible?: boolean;
+  sellerTradeReadyAt?: number;
   holdingThreshold?: string;
   network: 'devnet' | 'mainnet-beta' | null;
   mint: string | null;

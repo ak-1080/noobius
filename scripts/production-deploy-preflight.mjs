@@ -25,7 +25,8 @@ function pausedMainnet(config) {
   return (
     config?.vars?.NOOBIUS_PAYMENTS_ENABLED === 'false' &&
     config.vars.NOOBIUS_TOKEN_ECOSYSTEM === 'solana' &&
-    config.vars.NOOBIUS_SOLANA_NETWORK === 'mainnet-beta'
+    config.vars.NOOBIUS_SOLANA_NETWORK === 'mainnet-beta' &&
+    config.vars.NOOBIUS_TRADE_HOLD_24H === 'true'
   );
 }
 

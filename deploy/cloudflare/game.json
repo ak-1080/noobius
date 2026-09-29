@@ -23,6 +23,7 @@
     "NOOBIUS_LOCAL_REALM_TEST": "false",
     "NOOBIUS_TOKEN_ECOSYSTEM": "solana",
     "NOOBIUS_SOLANA_NETWORK": "mainnet-beta",
+    "NOOBIUS_TRADE_HOLD_24H": "true",
     "NOOBIUS_SITE_ORIGIN": "https://play.noobius.io",
     "NOOBIUS_PAYMENTS_ENABLED": "false"
   }

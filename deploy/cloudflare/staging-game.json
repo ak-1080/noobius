@@ -23,6 +23,7 @@
     "NOOBIUS_LOCAL_REALM_TEST": "false",
     "NOOBIUS_TOKEN_ECOSYSTEM": "solana",
     "NOOBIUS_SOLANA_NETWORK": "devnet",
+    "NOOBIUS_TRADE_HOLD_24H": "false",
     "NOOBIUS_SITE_ORIGIN": "https://noobius-game-staging.rinkydooonso.workers.dev",
     "NOOBIUS_PAYMENTS_ENABLED": "false"
   }

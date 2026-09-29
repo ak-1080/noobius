@@ -26,6 +26,7 @@ if (
   source.d1_databases?.[0]?.database_id !== 'c996298e-b0ee-4edb-9684-33e44c22d5d8' ||
   recovery.d1_databases?.[0]?.database_id !== source.d1_databases[0].database_id ||
   source.vars?.NOOBIUS_SOLANA_NETWORK !== 'devnet' ||
+  source.vars?.NOOBIUS_TRADE_HOLD_24H !== 'false' ||
   recovery.vars?.NOOBIUS_SOLANA_NETWORK !== 'devnet' ||
   source.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false' ||
   recovery.vars?.NOOBIUS_PAYMENTS_ENABLED !== 'false'
@@ -95,6 +96,7 @@ function run(command, args, extraEnv = {}) {
 const tokenVars = {
   NOOBIUS_TOKEN_ECOSYSTEM: 'solana',
   NOOBIUS_SOLANA_NETWORK: 'devnet',
+  NOOBIUS_TRADE_HOLD_24H: 'false',
   NOOBIUS_TOKEN_MINT: proof.mint,
   NOOBIUS_TOKEN_PROGRAM: proof.tokenProgram,
   NOOBIUS_TOKEN_DECIMALS: '6',

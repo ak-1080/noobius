@@ -47,6 +47,7 @@ export type RealmAccess = {
   checkedAt?: number;
   graceUntil?: number;
   tradeAllowed: boolean;
+  tradeReadyAt?: number;
   message: string;
 };
 const supportsHoldingAccount = (wallet: string, solana = false) =>
@@ -266,6 +267,7 @@ export async function realmAccess(
     checked_at: number;
     next_check_at: number;
     grace_until: number;
+    eligible_since: number;
   };
   const started = Date.now();
   const recoveryId = crypto.randomUUID();
@@ -291,6 +293,7 @@ export async function realmAccess(
     allowed: boolean,
     checkedAt?: number,
     graceUntil?: number,
+    eligibleSince?: number,
   ): RealmAccess => ({
     status,
     allowed,
@@ -299,7 +302,13 @@ export async function realmAccess(
     graceUntil,
     // A failed RPC never authorizes a new sale, even during the brief realm
     // grace period. Buyers may still complete already reserved checkouts.
-    tradeAllowed: status === 'eligible' && allowed,
+    tradeAllowed:
+      status === 'eligible' && allowed &&
+      (values.NOOBIUS_TRADE_HOLD_24H !== 'true' ||
+        (!!eligibleSince && now >= eligibleSince + 86400000)),
+    ...(status === 'eligible' && allowed && values.NOOBIUS_TRADE_HOLD_24H === 'true' && eligibleSince
+      ? { tradeReadyAt: eligibleSince + 86400000 }
+      : {}),
     message:
       status === 'eligible'
         ? 'Holdings verified. No tokens are spent.'
@@ -324,6 +333,7 @@ export async function realmAccess(
         (latest.status === 'unavailable' && latest.grace_until > now),
       latest.checked_at,
       latest.grace_until,
+      latest.eligible_since,
     );
   };
   if (same && same.next_check_at > now)
@@ -333,6 +343,7 @@ export async function realmAccess(
         (same.status === 'unavailable' && same.grace_until > now),
       same.checked_at,
       same.grace_until,
+      same.eligible_since,
     );
   const report = (decision: RealmAccess, failure?: VerificationFailure) =>
     emitOperationalEvent({
@@ -358,7 +369,9 @@ export async function realmAccess(
       grace = result.eligible ? now + 300000 : 0;
     await db
       .prepare(
-        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET policy=excluded.policy,amount=excluded.amount,block=excluded.block,status=excluded.status,checked_at=MAX(realm_entitlements.checked_at,excluded.checked_at),next_check_at=excluded.next_check_at,grace_until=excluded.grace_until WHERE
+        `INSERT INTO realm_entitlements(wallet,policy,amount,block,status,checked_at,next_check_at,grace_until,eligible_since) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(wallet) DO UPDATE SET policy=excluded.policy,amount=excluded.amount,block=excluded.block,status=excluded.status,checked_at=MAX(realm_entitlements.checked_at,excluded.checked_at),next_check_at=excluded.next_check_at,grace_until=excluded.grace_until,eligible_since=CASE
+          WHEN excluded.status='eligible' AND realm_entitlements.policy=excluded.policy AND realm_entitlements.status='eligible' AND realm_entitlements.eligible_since>0 THEN realm_entitlements.eligible_since
+          ELSE excluded.eligible_since END WHERE
           (excluded.policy<>realm_entitlements.policy AND excluded.checked_at>realm_entitlements.checked_at) OR
           (excluded.policy=realm_entitlements.policy AND (
             length(excluded.block)>length(realm_entitlements.block) OR
@@ -375,6 +388,7 @@ export async function realmAccess(
         now,
         now + 60000,
         grace,
+        result.eligible ? now : 0,
       )
       .run();
     const decision = await winningDecision();

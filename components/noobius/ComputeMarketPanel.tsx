@@ -346,7 +346,9 @@ export default function ComputeMarketPanel({
             )}
             {qualified && !snapshot.sellerEligible && (
               <p className="compute-test-banner">
-                Hold {Number(snapshot.holdingThreshold ?? '1000').toLocaleString()} $NOOBIUS to sell Compute. You can still buy offers.
+                {snapshot.sellerTradeReadyAt && snapshot.sellerTradeReadyAt > clock
+                  ? `Your 24-hour holder period ends ${new Date(snapshot.sellerTradeReadyAt).toLocaleString()}. You can still buy offers.`
+                  : `Hold ${Number(snapshot.holdingThreshold ?? '1000').toLocaleString()} $NOOBIUS to sell Compute. You can still buy offers.`}
               </p>
             )}
             <div className="compute-offers">

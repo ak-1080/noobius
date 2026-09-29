@@ -2,7 +2,7 @@
 // runs at the write as well as before it, so a concurrent revocation wins.
 import { REALMS, realmFor, type RealmId } from './realm-catalog.ts';
 import { xpForLevel } from './progression.ts';
-export type RealmPermit = { policy: string | null; localTest: boolean };
+export type RealmPermit = { policy: string | null; localTest: boolean; tradeHold24h?: boolean };
 const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
 export function localRealmTest(
   values: Record<string, unknown>,
@@ -53,7 +53,8 @@ export function holderTradeGuard(walletSql: string, permit?: RealmPermit) {
   return `EXISTS(SELECT 1 FROM realm_entitlements trade WHERE trade.wallet=${walletSql}
     AND ${accountGuard}
     AND trade.policy=${quote(permit.policy)} AND trade.status='eligible'
-    AND trade.next_check_at>${clock})`;
+    AND trade.next_check_at>${clock}
+    ${permit.tradeHold24h ? `AND trade.eligible_since>0 AND trade.eligible_since<=${clock}-86400000` : ''})`;
 }
 
 /** Player XP is immutable upward; still gate the actual admission write. */
