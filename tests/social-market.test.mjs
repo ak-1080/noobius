@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { database } from './sqlite-d1.mjs';
 import { newFacility } from '../lib/facility.ts';
 import { careerFor } from '../lib/contracts.ts';
-import { canTrade } from '../lib/market.ts';
+import { canTrade, itemMarketEnabled } from '../lib/market.ts';
+
+void test('player parts market is closed by default and only private test config opts in', () => {
+  assert.equal(itemMarketEnabled({}), false);
+  assert.equal(itemMarketEnabled({ NOOBIUS_ENABLE_ITEM_MARKET: 'false' }), false);
+  assert.equal(itemMarketEnabled({ NOOBIUS_ENABLE_ITEM_MARKET: 'true' }), true);
+});
 import { listingsPage, escrowListing } from '../lib/market-server.ts';
 import { playerName } from '../lib/social.ts';
 import {

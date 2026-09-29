@@ -459,6 +459,7 @@ syncBuiltinESMExports();
     NOOBIUS_ROOM_AUTH_CONFIG: JSON.stringify(roomAuth),
     LOCAL_ROOM_DEVELOPMENT: 'true',
     NOOBIUS_LOCAL_REALM_TEST: 'true',
+    NOOBIUS_ENABLE_ITEM_MARKET: 'true',
   };
   const gameConfig = {
     name: 'noobius-release-qa',

@@ -1429,7 +1429,7 @@ export function applyFacility(
       }
       case 'compute-exchange': {
         throw new FacilityError(
-          'Token trading is not open. Compute buys equipment and player-listed items.',
+          'Token trading is not open. Compute buys equipment, upgrades and supplies.',
         );
       }
       case 'accessory': {

@@ -157,7 +157,7 @@ export async function listingsPage(
     canTrade: sellerEligible && !!facility && canTrade(facility),
     qualification: facility && !canTrade(facility)
       ? TRADE_QUALIFICATION
-      : `Hold ${Number(threshold).toLocaleString()} $NOOBIUS for 24 hours before selling or trading.`,
+      : `Hold ${Number(threshold).toLocaleString()} $NOOBIUS to create player offers.`,
     recipients: peers.results,
   };
 }

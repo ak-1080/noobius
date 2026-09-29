@@ -1,5 +1,9 @@
 import { careerFor, completedContracts } from './contracts.ts';
 import { type Facility } from './facility.ts';
+// Keep old offers cancellable while the first token release focuses on
+// Compute trading. A private test deployment can opt into the legacy market.
+export const itemMarketEnabled = (values: Record<string, unknown>) =>
+  values.NOOBIUS_ENABLE_ITEM_MARKET === 'true';
 export const TRADE_QUALIFICATION =
   'Finish a client job or make your first equipment upgrade to unlock player trading.';
 export function canTrade(f: Facility) {

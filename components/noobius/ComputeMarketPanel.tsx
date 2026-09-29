@@ -332,7 +332,7 @@ export default function ComputeMarketPanel({
         <div className="compute-market-empty">
           <h4>Token trading is coming soon</h4>
           <p>{snapshot.message}</p>
-          <p>You can still use Compute to build, upgrade and trade parts.</p>
+          <p>You can still use Compute to build, upgrade and buy supplies.</p>
         </div>
       )}
       {snapshot &&
@@ -346,7 +346,7 @@ export default function ComputeMarketPanel({
             )}
             {qualified && !snapshot.sellerEligible && (
               <p className="compute-test-banner">
-                Hold {Number(snapshot.holdingThreshold ?? '1000').toLocaleString()} $NOOBIUS for 24 hours before selling Compute. You can still buy offers.
+                Hold {Number(snapshot.holdingThreshold ?? '1000').toLocaleString()} $NOOBIUS to sell Compute. You can still buy offers.
               </p>
             )}
             <div className="compute-offers">

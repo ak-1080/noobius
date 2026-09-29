@@ -42,7 +42,7 @@ export function realmWriteGuard(alias: string, permit?: RealmPermit) {
 export const walletHoldingGuard = (wallet: string, permit?: RealmPermit) =>
   holdingGuard(quote(wallet), permit);
 
-/** Selling requires a current verified balance and a completed 24-hour hold. */
+/** Selling requires a current verified holding; an RPC outage cannot open sales. */
 export function holderTradeGuard(walletSql: string, permit?: RealmPermit) {
   if (permit?.localTest) return '1';
   if (!permit?.policy) return '0';
@@ -53,8 +53,7 @@ export function holderTradeGuard(walletSql: string, permit?: RealmPermit) {
   return `EXISTS(SELECT 1 FROM realm_entitlements trade WHERE trade.wallet=${walletSql}
     AND ${accountGuard}
     AND trade.policy=${quote(permit.policy)} AND trade.status='eligible'
-    AND trade.next_check_at>${clock} AND trade.eligible_since>0
-    AND trade.eligible_since<=${clock}-86400000)`;
+    AND trade.next_check_at>${clock})`;
 }
 
 /** Player XP is immutable upward; still gate the actual admission write. */

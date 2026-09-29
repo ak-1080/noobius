@@ -1,7 +1,7 @@
 'use client';
 import ComputeMarketPanel from './ComputeMarketPanel';
 import type { ComputePaymentQuote } from '@/lib/solana-payment';
-import { TRADE_QUALIFICATION, type MarketPage } from '@/lib/market';
+import type { MarketPage } from '@/lib/market';
 import { QUICK_PINGS, REPORT_REASONS, type SocialSnapshot } from '@/lib/social';
 import type { ContractFamily, ModuleStyle } from '@/lib/contracts';
 import type { JobDraft } from './JobsPanel';
@@ -16,7 +16,6 @@ import {
   ArrowRight,
   Check,
   Lock,
-  Package,
   Send,
   Wrench,
   Zap,
@@ -188,16 +187,7 @@ export default function FacilityPanels({
   const f = profile.facility!,
     [now, setNow] = useState(Date.now),
     [quantity, setQuantity] = useState(1),
-    [item, setItem] = useState<ItemId>('scrap'),
-    [price, setPrice] = useState(10),
     [listings, setListings] = useState<MarketPage['listings']>([]),
-    [marketSearch, setMarketSearch] = useState(''),
-    [marketScope, setMarketScope] = useState('all'),
-    [nextCursor, setNextCursor] = useState<string | null>(null),
-    [recipients, setRecipients] = useState<MarketPage['recipients']>([]),
-    [sellerEligible, setSellerEligible] = useState(false),
-    [tradeQualification, setTradeQualification] = useState(TRADE_QUALIFICATION),
-    [recipient, setRecipient] = useState(''),
     [messages, setMessages] = useState<any[]>([]),
     [chat, setChat] = useState(''),
     [online, setOnline] = useState(0),
@@ -217,32 +207,13 @@ export default function FacilityPanels({
     return () => clearInterval(t);
   }, []);
   const remoteVersion = useRef(0);
-  const tradeReady = profile.wallet !== 'practice' && sellerEligible;
-  const load = async (append = false) => {
+  const load = async () => {
     const version = ++remoteVersion.current;
     try {
       if (panel === 'market') {
-        const params = new URLSearchParams({
-          q: marketSearch,
-          scope: marketScope,
-        });
-        if (append && nextCursor) params.set('cursor', nextCursor);
-        const d = await api<MarketPage>('listings?' + params);
+        const d = await api<MarketPage>('listings?scope=mine');
         if (version !== remoteVersion.current) return;
-        setListings((previous) =>
-          append
-            ? [
-                ...previous,
-                ...d.listings.filter(
-                  (next) => !previous.some((old) => old.id === next.id),
-                ),
-              ]
-            : d.listings,
-        );
-        setNextCursor(d.nextCursor);
-        setRecipients(d.recipients);
-        setSellerEligible(d.canTrade);
-        setTradeQualification(d.qualification);
+        setListings(d.listings.filter((offer) => offer.mine));
       }
       if (panel === 'social' && profile.wallet !== 'practice') {
         const [d, p, settings] = await Promise.all([
@@ -275,7 +246,7 @@ export default function FacilityPanels({
       if (timer) clearInterval(timer);
       remoteVersion.current++;
     };
-  }, [panel, marketSearch, marketScope]);
+  }, [panel, profile.wallet]);
   const action = async (a: Omit<FacilityAction, 'requestId'>) => {
     await onAction(a);
   };
@@ -755,9 +726,7 @@ export default function FacilityPanels({
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="expansion-tabs">
           <TabsTrigger value="merchant">Buy parts</TabsTrigger>
-          <TabsTrigger value="players">Player market</TabsTrigger>
-          <TabsTrigger value="sell">Sell parts</TabsTrigger>
-          <TabsTrigger value="compute">Compute</TabsTrigger>
+          <TabsTrigger value="compute">Compute exchange</TabsTrigger>
         </TabsList>
         <TabsContent value="merchant">
           <label className="trade-quantity">
@@ -798,7 +767,7 @@ export default function FacilityPanels({
                 >
                   {SHOP_ITEMS.includes(id)
                     ? `Buy ${ITEMS[id].buy * quantity}`
-                    : 'Craft or trade'}
+                    : 'Craft'}
                 </button>
                 <button
                   disabled={busy || (f.inventory[id] ?? 0) < quantity}
@@ -809,197 +778,30 @@ export default function FacilityPanels({
               </div>
             ))}
           </div>
-        </TabsContent>
-        <TabsContent value="players">
-          <p className="muted-small">
-            Player-to-player trades use game Compute. Listings hold the seller’s
-            items until sold or cancelled. No tokens or money change hands.
-          </p>
-          {profile.wallet === 'practice' && (
-            <p className="token-note">
-              Connect a wallet to list or buy from another technician.
-            </p>
-          )}
-          {!tradeReady && profile.wallet !== 'practice' && (
-            <p className="token-note">{tradeQualification}</p>
-          )}
-          <div className="market-filters">
-            <label>
-              Search items or players
-              <input
-                value={marketSearch}
-                onChange={(e) => setMarketSearch(e.target.value)}
-                placeholder="Copper, boards, a neighbor…"
-              />
-            </label>
-            <label>
-              Show
-              <select
-                value={marketScope}
-                onChange={(e) => setMarketScope(e.target.value)}
-              >
-                <option value="all">All offers</option>
-                <option value="mine">My listings</option>
-                <option value="direct">Offers for me</option>
-              </select>
-            </label>
-            <Button
-              variant="outline"
-              disabled={remoteBusy}
-              onClick={() => void load()}
-            >
-              Refresh
-            </Button>
-          </div>
-          {listings.length ? (
-            listings.map((l) => (
-              <div className="player-listing" key={l.id}>
-                <div>
-                  <strong>
-                    {l.quantity} × {ITEMS[l.item as ItemId]?.name ?? l.item}
-                  </strong>
-                  <small>
-                    {l.direct ? 'Direct offer from' : 'Listed by'} {l.name} ·{' '}
-                    {l.price} Compute total
-                  </small>
+          {listings.some((offer) => offer.mine) && (
+            <div className="legacy-offers">
+              <h3>Older parts offers</h3>
+              <p className="muted-small">
+                The player parts market is closed. Cancel these offers to
+                return their reserved parts to storage.
+              </p>
+              {listings.filter((offer) => offer.mine).map((offer) => (
+                <div className="player-listing" key={offer.id}>
+                  <span>
+                    {offer.quantity} ×{' '}
+                    {ITEMS[offer.item as ItemId]?.name ?? offer.item}
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={remoteBusy || busy}
+                    onClick={() => void market('listing-cancel', { id: offer.id })}
+                  >
+                    Return parts
+                  </Button>
                 </div>
-                <Button
-                  className="outline-button"
-                  disabled={
-                    busy ||
-                    remoteBusy ||
-                    profile.wallet === 'practice'
-                  }
-                  onClick={() =>
-                    market(!!l.mine ? 'listing-cancel' : 'listing-buy', {
-                      id: l.id,
-                    })
-                  }
-                >
-                  {!!l.mine ? 'Cancel' : 'Buy'}
-                </Button>
-              </div>
-            ))
-          ) : (
-            <div className="empty-state">
-              <Package size={30} />
-              <p>No player listings yet. The parts merchant is always open.</p>
+              ))}
             </div>
           )}
-          {nextCursor && (
-            <Button
-              variant="outline"
-              disabled={remoteBusy}
-              onClick={async () => {
-                setRemoteBusy(true);
-                try {
-                  await load(true);
-                } finally {
-                  setRemoteBusy(false);
-                }
-              }}
-            >
-              Load more offers
-            </Button>
-          )}
-          <button
-            className="text-action"
-            onClick={() => onGuide(OBJECTS.find((o) => o.id === 'bank')!)}
-          >
-            Open parts storage <ArrowRight size={16} />
-          </button>
-        </TabsContent>
-        <TabsContent value="sell">
-          {!tradeReady && (
-            <p className="token-note">
-              {profile.wallet === 'practice'
-                ? 'Connect to trade with players.'
-                : tradeQualification}
-            </p>
-          )}
-          <div className="listing-form">
-            <label>
-              Offer to
-              <select
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-              >
-                <option value="">Everyone</option>
-                {recipients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} only
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Item
-              <select
-                value={item}
-                onChange={(e) => setItem(e.target.value as ItemId)}
-              >
-                {ids.map((id) => (
-                  <option key={id} value={id}>
-                    {ITEMS[id].name} ({f.inventory[id] ?? 0} owned)
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Quantity
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={quantity}
-                onChange={(e) =>
-                  setQuantity(
-                    Math.max(1, Math.min(50, Number(e.target.value) || 1)),
-                  )
-                }
-              />
-            </label>
-            <label>
-              Total asking price in Compute
-              <input
-                type="number"
-                min={1}
-                max={10000}
-                value={price}
-                onChange={(e) =>
-                  setPrice(
-                    Math.max(1, Math.min(10000, Number(e.target.value) || 1)),
-                  )
-                }
-              />
-            </label>
-            <Button
-              className="primary-action"
-              disabled={
-                busy ||
-                remoteBusy ||
-                !tradeReady ||
-                (f.inventory[item] ?? 0) < quantity
-              }
-              onClick={async () => {
-                if (
-                  await market('listing-create', {
-                    item,
-                    quantity,
-                    price,
-                    recipient,
-                  })
-                )
-                  setTab('players');
-              }}
-            >
-              List items <ArrowRight size={16} />
-            </Button>
-            <p className="muted-small">
-              Up to 10 open listings. Cancelled items return to your parts
-              storage. Sales transfer existing Compute between players.
-            </p>
-          </div>
         </TabsContent>
         <TabsContent value="compute">
           <ComputeMarketPanel

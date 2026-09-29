@@ -78,11 +78,11 @@ export const GUIDE_TOPICS = [
   },
   {
     id: 'parts-and-trade',
-    title: 'Make parts or trade for them',
-    text: 'Collect materials, craft parts in Workshop or buy them from a player. Use them to supply jobs and shared projects.',
+    title: 'Make or buy the parts you need',
+    text: 'Collect materials, craft parts in Workshop or buy supplies from the parts merchant. Use them for jobs and shared projects.',
     image: '/assets/tutorial/tutorial-toolbox.png',
     alt: 'Parts and tools for your next job',
-    tip: 'Buying from players needs a connected wallet. To list your own items, complete a job or upgrade and qualify as a holder for 24 hours. Missing-parts help marks where to find supplies.',
+    tip: 'The first release has one player exchange: earned Compute for $NOOBIUS. The parts merchant still helps with ordinary supplies. Missing-parts help marks where to find each item.',
   },
   {
     id: 'realms',
@@ -354,7 +354,7 @@ function GuideDetails() {
         <p>
           <strong>Compute</strong> is the game balance. Supplied machine batches,
           completed client jobs and hands-on work earn it. Spend it on buildings,
-          upgrades, rooms, cosmetics and items in the player market. Finished
+          upgrades, rooms, cosmetics and supplies from the parts merchant. Finished
           batches stop until you choose and supply the next job.
         </p>
         <p>
@@ -368,13 +368,13 @@ function GuideDetails() {
         <p>
           Your five earned skill levels determine your total player level. Free
           progression pauses at level 10. A verified holding of 1,000 $NOOBIUS
-          unlocks further levels and holder realms. Listing Compute or items
-          requires the holding to have been verified for 24 hours. Buying does
-          not require that holding. Tokens never add XP by themselves.
+          unlocks further levels and holder realms. Listing Compute requires
+          a current verified holding, with no waiting period. Buying does not
+          require that holding. Tokens never add XP by themselves.
         </p>
         <p>
-          Other collected items are optional materials for workshop activities
-          and player trading. You do not need a crafting recipe or a power
+          Other collected items are optional materials for workshop activities.
+          You do not need a crafting recipe or a power
           budget to build your data center.
         </p>
       </section>

@@ -217,29 +217,24 @@ void test('Solana eligibility reaches write-time guards; EVM cache cannot grant 
   db.sqlite.close();
 });
 
-void test('1,000-token policy and verified 24-hour selling clock reset after a balance drop', async () => {
+void test('1,000-token policy allows current holders to sell without a waiting period', async () => {
   const db = database();
   const launchValues = { ...values, NOOBIUS_TOKEN_THRESHOLD: undefined };
   const launchPolicy = tokenPolicy(launchValues);
   assert.equal(launchPolicy.threshold, '1000');
   db.sqlite.prepare('INSERT INTO players(wallet,name,created_at) VALUES (?,?,0)').run(wallet, 'Hold test');
-  const before = Date.now() - 86_400_000 - 120_000;
-  const first = await realmAccess(db, wallet, launchValues, false, before, rpc({ amounts: ['1000000000'] }).fetcher);
+  const now = Date.now();
+  const first = await realmAccess(db, wallet, launchValues, false, now, rpc({ amounts: ['1000000000'] }).fetcher);
   assert.equal(first.allowed, true);
-  assert.equal(first.tradeAllowed, false);
-  assert.equal(first.eligibleSince, before);
+  assert.equal(first.tradeAllowed, true);
   const permit = { policy: launchPolicy.key, localTest: false };
   const sql = `SELECT ${holderTradeGuard('?', permit)} AS allowed`;
-  const later = await realmAccess(db, wallet, launchValues, false, Date.now(), rpc({ amounts: ['1000000000'] }).fetcher);
-  assert.equal(later.tradeAllowed, true);
-  assert.equal(later.eligibleSince, before);
   assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 1);
-  const dropped = await realmAccess(db, wallet, launchValues, false, Date.now() + 61_000, rpc({ amounts: ['999999999'], slot: 102 }).fetcher);
+  const dropped = await realmAccess(db, wallet, launchValues, false, now + 61_000, rpc({ amounts: ['999999999'], slot: 102 }).fetcher);
   assert.equal(dropped.allowed, false);
   assert.equal(dropped.tradeAllowed, false);
   assert.equal(db.sqlite.prepare(sql).get(wallet).allowed, 0);
-  const resumed = await realmAccess(db, wallet, launchValues, false, Date.now() + 122_000, rpc({ amounts: ['1000000000'], slot: 103 }).fetcher);
-  assert.equal(resumed.tradeAllowed, false);
-  assert.ok(resumed.eligibleSince > before);
+  const resumed = await realmAccess(db, wallet, launchValues, false, now + 122_000, rpc({ amounts: ['1000000000'], slot: 103 }).fetcher);
+  assert.equal(resumed.tradeAllowed, true);
   db.sqlite.close();
 });

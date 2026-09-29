@@ -166,7 +166,7 @@ export default function CrewWidget({
               )}
               {newest?.ping === 'parts' && (
                 <Button className="crew-request-action" onClick={onTrade}>
-                  Open parts market
+                  Open parts shop
                 </Button>
               )}
             </>
