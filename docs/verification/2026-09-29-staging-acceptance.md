@@ -17,6 +17,7 @@ This is bounded acceptance evidence for source `320a9ed` on isolated Solana devn
 ## Still required before a technical beta release
 
 1. Complete and record a sustained near-50-player mixed workload on the current build, including room renewals, ordinary jobs/trades, peer visibility, final saves and actual Cloudflare usage. A five-player renewal run alone cannot certify the 50-player cap.
+   The [15-player capacity follow-up](2026-09-29-staging-capacity-followup.md) found an intermittent group-wide room outage with recovery as slow as 22.9 seconds. A controlled 15-player repeat passed, and the acceptance harness now rejects unexpected recovery over three seconds. The near-50 mixed workload and cost measurement remain open.
 2. Have humans use Phantom, Solflare, Backpack and Jupiter on desktop and mobile against staging. Verify the new progression, trade eligibility, error messages, and full gameplay loop without coaching.
 3. Run hosted RPC/Worker interruption and isolated restore/cutover/rollback drills with an unsettled test checkout; prove alerts reach an operator. A readable backup and local payment tests are narrower evidence.
 4. Review economy and multiple-wallet abuse at realistic volume, then review the final production gameplay candidate. Mainnet mint, real-fund checkout, key custody, independent security and legal review are separate launch gates. Do not promote the devnet fixture or its keys to production.
