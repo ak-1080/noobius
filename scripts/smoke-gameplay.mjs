@@ -66,7 +66,6 @@ const ok = (r) => {
   return r.data;
 };
 const actors = [],
-  listings = [],
   began = Date.now();
 let timedOut = false;
 const report = {
@@ -592,36 +591,27 @@ try {
     scrap: p.profile.facility.inventory.scrap ?? 0,
   }));
   const id = crypto.randomUUID();
-  listings.push({ seller, id });
-  ok(
-    await seller.command('listing-create', {
+  const closedMarket = await Promise.all([
+    seller.command('listing-create', {
       requestId: id,
       item: 'scrap',
       quantity: 1,
       price: 1,
     }),
-  );
-  const race = await Promise.all([
     buyer.command('listing-buy', { id }),
     rival.command('listing-buy', { id }),
   ]);
   assert.deepEqual(
-    race.map((r) => r.status).sort((a, b) => a - b),
-    [200, 409],
+    closedMarket.map((r) => r.status),
+    [403, 403, 403],
   );
   for (const p of actors) await p.refresh();
-  assert.equal(seller.profile.credits, before[0].credits + 1);
-  assert.equal(seller.profile.facility.inventory.scrap, before[0].scrap - 1);
-  for (const [i, p] of [buyer, rival].entries()) {
-    const won = race[i].status === 200;
-    assert.equal(p.profile.credits, before[i + 1].credits - (won ? 1 : 0));
-    assert.equal(
-      p.profile.facility.inventory.scrap,
-      before[i + 1].scrap + (won ? 1 : 0),
-    );
+  for (const [i, p] of actors.entries()) {
+    assert.equal(p.profile.credits, before[i].credits);
+    assert.equal(p.profile.facility.inventory.scrap ?? 0, before[i].scrap);
   }
   pass(
-    'Competing item buyers settle once; seller payment, buyer debit and inventories balance',
+    'Closed parts market rejects old listings and purchases without changing balances or inventory',
   );
   const expected = actors.map((p) => ({
     credits: p.profile.credits,
@@ -656,21 +646,21 @@ try {
       assert.equal(
         demand.usedBookings,
         rounds,
-        'Replay, trade and reconnect cannot multiply or reset demand',
+        'Replay and reconnect cannot multiply or reset demand',
       );
       assert.ok(demand.usedCompute <= CLIENT_DEMAND.compute);
     }
   }
   if (checkClientDemand)
     pass(
-      'Client bookings and payments survive claim retries, item trades and fresh logins within the shared cap',
+      'Client bookings and payments survive claim retries and fresh logins within the shared cap',
     );
   if (checkEarningPolicy)
     pass(
-      'Server earning reservations and recovery usage persist through claims, retries, trade and fresh login',
+      'Server earning reservations and recovery usage persist through claims, retries and fresh login',
     );
   pass(
-    'Dropped socket recovers and fresh signed logins retain earned balances and traded items',
+    'Dropped socket recovers and fresh signed logins retain earned balances and inventory',
   );
   assert.equal(timedOut, false, 'Acceptance must finish within ten minutes');
   report.ok = true;
@@ -683,16 +673,6 @@ try {
   clearTimeout(deadline);
   for (const p of actors) p.transport?.dispose();
   const cleanupFailures = [];
-  for (const { seller, id } of listings) {
-    try {
-      const response = await seller.command('listing-cancel', { id });
-      // A completed sale is already closed and returns conflict.
-      if (![200, 409].includes(response.status))
-        cleanupFailures.push('listing');
-    } catch {
-      cleanupFailures.push('listing');
-    }
-  }
   for (const p of actors) {
     // A timed-out challenge has no authenticated session to release.
     if (!p.authenticated) continue;
