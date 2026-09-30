@@ -116,10 +116,18 @@ test('five authenticated players keep private centers, share a neighborhood, and
   assert.equal((await a.sync({ x: -2, z: 17 })).corrected, false);
   assert.equal((await b.sync({ x: 2, z: 17 })).corrected, false);
   first = await a.sync({ x: -2, z: 17 });
+  // Events rotate on a real ten-minute clock. Start the multi-step work test
+  // with enough time to finish, even when CI happens to reach this line just
+  // before the boundary.
+  const remaining = first.world.endsAt - Date.now();
+  if (remaining <= 45000) {
+    await wait(Math.max(0, remaining) + 250);
+    first = await a.sync({ x: -2, z: 17 });
+  }
   const event = first.world.event;
   assert.ok(
-    first.world.endsAt - Date.now() > 18000,
-    'Rerun away from event boundary.',
+    first.world.endsAt - Date.now() > 40000,
+    'Crew work needs a full event window.',
   );
   const work = (p, station, finish = false) =>
     p.command('crew-work', { station, event, finish });
