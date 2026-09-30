@@ -347,6 +347,31 @@ function savedCheckpoint(body, initial, now) {
 const checkpointCount = (f) =>
   [...f.values.keys()].filter((key) => key.startsWith('checkpoint:')).length;
 
+test('room alarms distinguish late dispatch from slow storage scheduling', async () => {
+  const f = await fixture();
+  f.socket();
+  f.room.nextAlarmAt = f.clock.now - 2500;
+  f.ctx.storage.setAlarm = async (at) => {
+    f.clock.now += 2500;
+    f.alarms.push(at);
+  };
+  await f.room.alarm();
+  assert.ok(
+    f.events.some(
+      (event) => event.event === 'room-alarm-late' && event.durationMs === 2500,
+    ),
+  );
+  assert.ok(
+    f.events.some(
+      (event) =>
+        event.event === 'room-alarm-storage-slow' &&
+        event.phase === 'schedule' &&
+        event.durationMs === 2500,
+    ),
+  );
+  assert.equal(f.alarms.length, 1);
+});
+
 test(
   'an older delayed admission cannot evict the latest reconnect',
   { timeout: 3000 },
