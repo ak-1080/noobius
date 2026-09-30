@@ -157,6 +157,10 @@ test('slow alarm diagnostics expose only bounded timing and socket count', () =>
     operationalRecord({ event: 'room-recovery-slow', phase: 'scan', durationMs: 3000 }),
     { event: 'room-recovery-slow', phase: 'scan', durationMs: 3000 },
   );
+  assert.deepEqual(
+    operationalRecord({ event: 'room-maintenance-slow', durationMs: 2500 }),
+    { event: 'room-maintenance-slow', durationMs: 2500 },
+  );
 });
 test('operational labels allow only known events and enum values', () => {
   for (const value of ['', secret, '__proto__', undefined, null, 1, {}, []])

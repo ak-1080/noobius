@@ -757,6 +757,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       const a = this.actors.get(ws);
       if (!a || this.maintaining.has(ws)) continue;
       this.maintaining.add(ws);
+      const maintenanceStartedAt = Date.now();
       this.ctx.waitUntil(
         this.enqueue(ws, async () => {
           if (this.actors.get(ws) !== a || this.draining.has(ws)) return;
@@ -808,7 +809,15 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           if (a.motion.inputSequence === a.lastPersistedInputSequence) return;
           a.motion.captureCheckpoint(crypto.randomUUID());
           await this.flush(ws);
-        }).finally(() => this.maintaining.delete(ws)),
+        }).finally(() => {
+          const durationMs = Date.now() - maintenanceStartedAt;
+          if (durationMs >= 2000)
+            emitOperationalEvent({
+              event: 'room-maintenance-slow',
+              durationMs,
+            });
+          this.maintaining.delete(ws);
+        }),
       );
     }
     // Do not await network queues in the alarm handler: a slow orphan or one
