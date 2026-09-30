@@ -153,6 +153,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private recovery: Promise<void> | null = null;
   private rates = new Map<WebSocket, { at: number; count: number }>();
   private lastBroadcastAt = 0;
+  private nextAlarmAt: number | null = null;
   private admissionWaiting: Array<{
     ws: WebSocket;
     resolve: (turn: { current: () => boolean; finish: () => void }) => void;
@@ -414,7 +415,9 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       phase: 'joining',
       connectionId: crypto.randomUUID(),
     } satisfies Attachment);
-    await this.ctx.storage.setAlarm(Date.now() + 1000);
+    const nextAlarmAt = Date.now() + 1000;
+    await this.ctx.storage.setAlarm(nextAlarmAt);
+    this.nextAlarmAt = nextAlarmAt;
     return new Response(null, { status: 101, webSocket: client });
   }
   private enqueue(ws: WebSocket, job: () => Promise<void>) {
@@ -747,6 +750,13 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   }
   async alarm() {
     const alarmStartedAt = Date.now();
+    const expectedAt = this.nextAlarmAt;
+    this.nextAlarmAt = null;
+    if (expectedAt !== null && alarmStartedAt - expectedAt >= 2000)
+      emitOperationalEvent({
+        event: 'room-alarm-late',
+        durationMs: alarmStartedAt - expectedAt,
+      });
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment;
       if (attachment.phase !== 'ready') {
@@ -848,14 +858,46 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     }
     this.broadcast();
     const socketCount = this.ctx.getWebSockets().length;
-    if (
-      socketCount ||
-      (await this.ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })).size
-    )
-      await this.ctx.storage.setAlarm(Date.now() + 1000);
+    let hasPendingCheckpoint = false;
+    if (!socketCount) {
+      const scanStartedAt = Date.now();
+      try {
+        hasPendingCheckpoint = !!(
+          await this.ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })
+        ).size;
+      } finally {
+        const durationMs = Date.now() - scanStartedAt;
+        if (durationMs >= 2000)
+          emitOperationalEvent({
+            event: 'room-alarm-storage-slow',
+            phase: 'scan',
+            durationMs,
+          });
+      }
+    }
+    if (socketCount || hasPendingCheckpoint) {
+      const scheduleStartedAt = Date.now();
+      const nextAlarmAt = scheduleStartedAt + 1000;
+      try {
+        await this.ctx.storage.setAlarm(nextAlarmAt);
+        this.nextAlarmAt = nextAlarmAt;
+      } finally {
+        const durationMs = Date.now() - scheduleStartedAt;
+        if (durationMs >= 2000)
+          emitOperationalEvent({
+            event: 'room-alarm-storage-slow',
+            phase: 'schedule',
+            durationMs,
+          });
+      }
+    }
     const durationMs = Date.now() - alarmStartedAt;
     if (durationMs >= 2000)
-      emitOperationalEvent({ event: 'room-alarm-slow', durationMs, socketCount });
+      emitOperationalEvent({
+        event: 'room-alarm-slow',
+        durationMs,
+        socketCount,
+      });
   }
   private async recoverOrphans() {
     const cursor = await this.ctx.storage.get<string>('recovery-cursor');
