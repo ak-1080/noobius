@@ -746,6 +746,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     };
   }
   async alarm() {
+    const alarmStartedAt = Date.now();
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment;
       if (attachment.phase !== 'ready') {
@@ -815,6 +816,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     // I/O keeps the Durable Object active; each queue has at most one upkeep
     // job, and the recovery pass is bounded and never overlaps itself.
     if (!this.recovery) {
+      const recoveryStartedAt = Date.now();
       this.recovery = this.recoverOrphans()
         .catch(() =>
           emitOperationalEvent({
@@ -824,16 +826,27 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           }),
         )
         .finally(() => {
+          const durationMs = Date.now() - recoveryStartedAt;
+          if (durationMs >= 2000)
+            emitOperationalEvent({
+              event: 'room-recovery-slow',
+              phase: 'scan',
+              durationMs,
+            });
           this.recovery = null;
         });
       this.ctx.waitUntil(this.recovery);
     }
     this.broadcast();
+    const socketCount = this.ctx.getWebSockets().length;
     if (
-      this.ctx.getWebSockets().length ||
+      socketCount ||
       (await this.ctx.storage.list({ prefix: 'checkpoint:', limit: 1 })).size
     )
       await this.ctx.storage.setAlarm(Date.now() + 1000);
+    const durationMs = Date.now() - alarmStartedAt;
+    if (durationMs >= 2000)
+      emitOperationalEvent({ event: 'room-alarm-slow', durationMs, socketCount });
   }
   private async recoverOrphans() {
     const cursor = await this.ctx.storage.get<string>('recovery-cursor');

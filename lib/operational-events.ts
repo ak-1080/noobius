@@ -13,6 +13,8 @@ const names = [
   'room-socket-error',
   'room-service-failed',
   'room-service-slow',
+  'room-alarm-slow',
+  'room-recovery-slow',
   'room-release-deferred',
   'room-recovery-delayed',
   'room-connection-failed',
