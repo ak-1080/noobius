@@ -9,6 +9,7 @@ const names = [
   'room-restore-start',
   'room-restore-failed',
   'room-restore-complete',
+  'room-restore-storage-slow',
   'room-socket-closed',
   'room-socket-error',
   'room-service-failed',

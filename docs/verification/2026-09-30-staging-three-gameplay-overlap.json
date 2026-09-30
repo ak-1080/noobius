@@ -1,0 +1,20 @@
+{
+  "origin": "https://noobius-game-staging.rinkydooonso.workers.dev",
+  "beganAt": "2026-09-30T21:20:45.154Z",
+  "checks": [
+    "Three independent players completed 3 repair round(s) each; replayed claims paid once and new jobs appeared",
+    "A supplied machine batch pays once and unattended time starts no new batch",
+    "Visitor sees the center but cannot read private inventory or harvest its income",
+    "Closed parts market rejects old listings and purchases without changing balances or inventory",
+    "Dropped socket recovers and fresh signed logins retain earned balances and inventory"
+  ],
+  "actors": 3,
+  "repairRoundsPerActor": 3,
+  "clientDemandChecked": false,
+  "earningPolicyChecked": false,
+  "roomInterruption": "none",
+  "ok": true,
+  "cleanupFailures": [],
+  "elapsedMs": 173484,
+  "completedAt": "2026-09-30T21:23:38.638Z"
+}

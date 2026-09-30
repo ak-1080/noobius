@@ -1,0 +1,43 @@
+{
+  "runId": "77616ec1-d209-45c0-bebf-9e542fa25819",
+  "status": "failed",
+  "motionMode": "full-speed",
+  "identityMode": "create",
+  "cohortId": "987d36b5-79a5-4fb6-b82e-dc9ad539a4d9",
+  "at": "2026-09-30T21:27:10.802Z",
+  "error": "Capacity authentication stopped at verify (HTTP 429): Too many new centers have been opened on this network in the last 24 hours. Existing centers can still sign in.. Only the known minute throttle is retryable; signup limits require existing test accounts or an available rolling-day allowance.",
+  "unacknowledged": 0,
+  "sent": 0,
+  "accepted": 0,
+  "corrected": 0,
+  "peerFrames": 0,
+  "inboundBytes": 0,
+  "renewals": 0,
+  "interruptions": 0,
+  "admissionRetries": 0,
+  "admissionRecoveries": 0,
+  "expiredRejoins": 0,
+  "maxRecoveryMs": 0,
+  "maxRenewRecoveryMs": 0,
+  "releaseRetries": 0,
+  "cleanupRetries": 0,
+  "httpRequests": 2,
+  "correctionReasons": {},
+  "moveRtt": {
+    "p50": null,
+    "p95": null,
+    "p99": null
+  },
+  "perActorAccepted": [
+    0
+  ],
+  "issues": [],
+  "timeline": {
+    "events": [],
+    "droppedEvents": 0,
+    "maxPeerGapMs": 0,
+    "unresolvedPeerGaps": [],
+    "peerMetricsFrozenAtMs": 620
+  },
+  "cleanupErrors": []
+}
