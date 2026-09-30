@@ -261,7 +261,8 @@ async function fixture(options = {}) {
     await rawAlarm();
     await Promise.all(backgroundJobs.slice(start));
   };
-  const initialized = Promise.all(initialization);
+  const gateReady = Promise.all(initialization);
+  const initialized = gateReady.then(() => Promise.all(backgroundJobs));
   if (options.waitForInitialization !== false) await initialized;
   const socket = () => {
     const ws = new WebSocketMock();
@@ -284,6 +285,7 @@ async function fixture(options = {}) {
     alarms,
     clock,
     initialized,
+    gateReady,
     rawAlarm,
     backgroundJobs,
     events,
@@ -1261,6 +1263,12 @@ test(
       },
     });
     await nextTurn();
+    await f.gateReady;
+    assert.equal(
+      f.room.actors.size,
+      0,
+      'The startup gate opens while remote authority calls are pending',
+    );
     assert.deepEqual(
       calls.map((body) => body.grant).sort((a, b) => a.localeCompare(b)),
       [...responses.keys()],
@@ -1320,6 +1328,85 @@ test(
     assert.equal(checkpointCount(f), 0);
   },
 );
+
+test('slow socket restoration does not block alarms or close an old movement frame', async () => {
+  const now = Date.now();
+  const ws = new WebSocketMock();
+  const grant = 'restoring-player';
+  const oldConnectionId = ws.attachment.connectionId;
+  ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant });
+  const refresh = deferred();
+  const calls = [];
+  const orphan = outbox('unrelated-orphan', now);
+  const f = await fixture({
+    now,
+    sockets: [ws],
+    values: [['checkpoint:' + orphan.grant, orphan]],
+    waitForInitialization: false,
+    service: async (body) => {
+      calls.push(body.operation);
+      if (body.operation === 'authority-refresh') return refresh.promise;
+      throw new Error('Unrelated orphan work must wait for socket restoration');
+    },
+  });
+  await f.gateReady;
+  const staleMove = f.room.webSocketMessage(
+    ws,
+    JSON.stringify({
+      type: 'move',
+      connectionId: oldConnectionId,
+      inputSequence: 1,
+      x: 1,
+      z: 17,
+    }),
+  );
+  await f.room.alarm();
+  assert.deepEqual(calls, ['authority-refresh']);
+  assert.equal(ws.closes.length, 0);
+  const current = authority(1, now);
+  refresh.resolve(current);
+  await Promise.all([staleMove, f.initialized]);
+  assert.equal(ws.closes.length, 0);
+  const actor = f.room.actors.get(ws);
+  assert.ok(actor);
+  assert.notEqual(actor.connectionId, oldConnectionId);
+  assert.ok(ws.sent.some((frame) => frame.type === 'rebase'));
+  await f.room.webSocketMessage(
+    ws,
+    JSON.stringify({
+      type: 'move',
+      connectionId: actor.connectionId,
+      inputSequence: 1,
+      x: 1,
+      z: 17,
+    }),
+  );
+  assert.ok(ws.sent.some((frame) => frame.type === 'move-ack' && frame.accepted));
+});
+
+test('concurrent restoration keeps only one socket for the same player', async () => {
+  const now = Date.now();
+  const sockets = [new WebSocketMock(), new WebSocketMock()];
+  sockets.forEach((ws, i) =>
+    ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant: 'duplicate-' + i }),
+  );
+  const released = [];
+  const f = await fixture({
+    now,
+    sockets,
+    service: async (body) => {
+      if (body.operation === 'authority-refresh') return authority(1, now);
+      if (body.operation === 'authority-release') {
+        released.push(body.grant);
+        return {};
+      }
+      throw new Error('Unexpected restoration operation');
+    },
+  });
+  assert.equal(f.room.actors.size, 1);
+  assert.equal(released.length, 1);
+  assert.equal(sockets.filter((ws) => ws.closes.length).length, 1);
+});
 
 test(
   'restart resolves an attached checkpoint before restoring its socket',

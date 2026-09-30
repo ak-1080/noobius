@@ -151,6 +151,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private draining = new WeakSet<WebSocket>();
   private maintaining = new WeakSet<WebSocket>();
   private recovery: Promise<void> | null = null;
+  private restoring = new Map<WebSocket, Promise<void>>();
   private rates = new Map<WebSocket, { at: number; count: number }>();
   private lastBroadcastAt = 0;
   private nextAlarmAt: number | null = null;
@@ -173,18 +174,48 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         socketCount: attached.length,
       });
       let restored = 0;
-      // Live sockets get priority and recover concurrently. A long orphan
-      // backlog must not exhaust another player's ten-second writer lease.
-      await Promise.all(
+      // Only the storage snapshot belongs inside the startup gate. Waiting
+      // here for game-service I/O would also block new room connections.
+      const snapshotStartedAt = Date.now();
+      const snapshots = await Promise.all(
         attached.map(async (ws) => {
-          const a = ws.deserializeAttachment() as Attachment;
-          if (a.phase !== 'ready' || !a.grant) {
+          const attachment = ws.deserializeAttachment() as Attachment;
+          if (attachment.phase !== 'ready' || !attachment.grant) {
             ws.close(1012, 'Reconnect to recover your room.');
-            return;
+            return null;
           }
+          const key = 'checkpoint:' + attachment.grant;
           try {
-            const key = 'checkpoint:' + a.grant;
-            const pending = await ctx.storage.get<Outbox>(key);
+            return {
+              ws,
+              attachment,
+              key,
+              pending: await ctx.storage.get<Outbox>(key),
+            };
+          } catch {
+            emitOperationalEvent({
+              event: 'room-restore-failed',
+              reason: 'storage',
+            });
+            ws.close(1012, 'Reconnect to recover your room.');
+            return null;
+          }
+        }),
+      );
+      const snapshotDurationMs = Date.now() - snapshotStartedAt;
+      if (snapshotDurationMs >= 2000)
+        emitOperationalEvent({
+          event: 'room-restore-storage-slow',
+          durationMs: snapshotDurationMs,
+          socketCount: attached.length,
+        });
+      // Live sockets recover concurrently after the gate opens. An alarm
+      // defers orphan work until these restorations settle.
+      const jobs = snapshots.flatMap((snapshot) => {
+        if (!snapshot) return [];
+        const { ws, attachment: a, key, pending } = snapshot;
+        const job = (async () => {
+          try {
             // Replay the same immutable checkpoint before reading its position.
             // An orphan already in the release phase must not become a writer.
             if (pending?.reconciled) throw new ServiceFailure(409);
@@ -198,11 +229,19 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             }
             const authority = await this.service<RoomAuthority>({
               operation: 'authority-refresh',
-              grant: a.grant,
+              grant: a.grant!,
             });
+            if (this.closed.has(ws) || ws.readyState !== WebSocket.OPEN)
+              throw new ServiceFailure(409);
+            if (
+              [...this.actors.values()].some(
+                (other) => other.authority.player.id === authority.player.id,
+              )
+            )
+              throw new ServiceFailure(409);
             a.connectionId = crypto.randomUUID();
             ws.serializeAttachment(a);
-            this.actors.set(ws, this.actor(a.grant, a.connectionId, authority));
+            this.actors.set(ws, this.actor(a.grant!, a.connectionId, authority));
             this.joined(ws, 'rebase');
             restored++;
           } catch (error) {
@@ -227,12 +266,18 @@ export class NeighborhoodRoom extends DurableObject<Env> {
               }
             }
           }
-        }),
-      );
-      emitOperationalEvent({
-        event: 'room-restore-complete',
-        socketCount: restored,
+        })().finally(() => this.restoring.delete(ws));
+        this.restoring.set(ws, job);
+        return [job];
       });
+      ctx.waitUntil(
+        Promise.allSettled(jobs).then(() =>
+          emitOperationalEvent({
+            event: 'room-restore-complete',
+            socketCount: restored,
+          }),
+        ),
+      );
       // The alarm that woke a hibernated room is already due. Replacing it
       // here can cancel the upkeep that renews every player's short lease.
       // Initial admission and each alarm schedule the following upkeep.
@@ -455,6 +500,14 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     }
     if (typeof message !== 'string' || message.length > 2048) {
       ws.close(1008, 'Invalid room message.');
+      return;
+    }
+    // A frame delivered during restoration carries the old connection ID.
+    // The rebase frame prompts the client to send a fresh position; applying
+    // or rejecting the stale frame could close an otherwise healthy socket.
+    const restoration = this.restoring.get(ws);
+    if (restoration) {
+      await restoration;
       return;
     }
     let body: Record<string, unknown>;
@@ -834,7 +887,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     // busy socket must not delay the next tick for every other player. Pending
     // I/O keeps the Durable Object active; each queue has at most one upkeep
     // job, and the recovery pass is bounded and never overlaps itself.
-    if (!this.recovery) {
+    if (!this.recovery && !this.restoring.size) {
       const recoveryStartedAt = Date.now();
       this.recovery = this.recoverOrphans()
         .catch(() =>

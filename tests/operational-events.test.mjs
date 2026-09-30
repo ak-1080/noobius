@@ -167,6 +167,15 @@ test('slow alarm diagnostics expose only bounded timing and socket count', () =>
   );
   assert.deepEqual(
     operationalRecord({
+      event: 'room-restore-storage-slow',
+      durationMs: 2700,
+      socketCount: 5,
+      wallet: secret,
+    }),
+    { event: 'room-restore-storage-slow', durationMs: 2700, socketCount: 5 },
+  );
+  assert.deepEqual(
+    operationalRecord({
       event: 'room-alarm-late',
       durationMs: 2500,
       wallet: secret,
