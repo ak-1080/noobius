@@ -15,6 +15,7 @@ const names = [
   'room-service-slow',
   'room-alarm-slow',
   'room-recovery-slow',
+  'room-maintenance-slow',
   'room-release-deferred',
   'room-recovery-delayed',
   'room-connection-failed',
