@@ -143,6 +143,21 @@ test('room service diagnostics accept only known operations', () => {
     { event: 'room-service-failed' },
   );
 });
+test('slow alarm diagnostics expose only bounded timing and socket count', () => {
+  assert.deepEqual(
+    operationalRecord({
+      event: 'room-alarm-slow',
+      durationMs: 8607,
+      socketCount: 5,
+      wallet: secret,
+    }),
+    { event: 'room-alarm-slow', durationMs: 8607, socketCount: 5 },
+  );
+  assert.deepEqual(
+    operationalRecord({ event: 'room-recovery-slow', phase: 'scan', durationMs: 3000 }),
+    { event: 'room-recovery-slow', phase: 'scan', durationMs: 3000 },
+  );
+});
 test('operational labels allow only known events and enum values', () => {
   for (const value of ['', secret, '__proto__', undefined, null, 1, {}, []])
     assert.equal(operationalRecord({ event: value }), null);
