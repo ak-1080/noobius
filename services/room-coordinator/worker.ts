@@ -585,7 +585,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         // Ticket replacement and actor installation must share one room-wide
         // queue. Responses from different sockets may otherwise arrive out of
         // order and let an older admission evict its replacement.
+        const queuedAt = Date.now();
         const turn = await this.admit(ws);
+        const admittedAt = Date.now();
+        let storageMs: number | undefined;
+        let serviceMs: number | undefined;
+        let joined = false;
         try {
           if (
             !turn.current() ||
@@ -595,14 +600,13 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             return;
           // Backpressure reconnect churn without deleting uncertain writes.
           // The existing five actors can still finish their own checkpoints.
-          if (
-            (
-              await this.ctx.storage.list({
-                prefix: 'checkpoint:',
-                limit: OUTBOX_ADMISSION_LIMIT,
-              })
-            ).size >= OUTBOX_ADMISSION_LIMIT
-          ) {
+          const storageStartedAt = Date.now();
+          const pending = await this.ctx.storage.list({
+            prefix: 'checkpoint:',
+            limit: OUTBOX_ADMISSION_LIMIT,
+          });
+          storageMs = Date.now() - storageStartedAt;
+          if (pending.size >= OUTBOX_ADMISSION_LIMIT) {
             if (Date.now() - this.backlogWarningAt >= 30000) {
               this.backlogWarningAt = Date.now();
               emitOperationalEvent({
@@ -615,10 +619,16 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             throw new ServiceFailure(503);
           }
           if (!turn.current()) return;
-          const result = await this.service<RoomAuthority & { grant: string }>({
-            operation: 'ticket-consume',
-            ticket: body.ticket,
-          });
+          const serviceStartedAt = Date.now();
+          let result: RoomAuthority & { grant: string };
+          try {
+            result = await this.service<RoomAuthority & { grant: string }>({
+              operation: 'ticket-consume',
+              ticket: body.ticket,
+            });
+          } finally {
+            serviceMs = Date.now() - serviceStartedAt;
+          }
           if (
             !turn.current() ||
             this.closed.has(ws) ||
@@ -670,9 +680,18 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           );
           this.joined(ws);
           this.broadcast();
+          joined = true;
           return;
         } finally {
           turn.finish();
+          this.trace({
+            event: 'room-admission-trace',
+            durationMs: Date.now() - queuedAt,
+            queueMs: admittedAt - queuedAt,
+            storageMs,
+            serviceMs,
+            joined,
+          });
         }
       }
       const a = this.actors.get(ws);

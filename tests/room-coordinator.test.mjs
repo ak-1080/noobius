@@ -441,6 +441,44 @@ test(
   },
 );
 
+test('admission trace measures queue and service wait without identifiers', async () => {
+  const f = await fixture({
+    env: { NOOBIUS_ROOM_DIAGNOSTIC_TRACE: 'true' },
+  });
+  const first = f.socket();
+  const second = f.socket();
+  const held = deferred();
+  f.room.service = async (body) => {
+    if (body.operation !== 'ticket-consume') throw Error('Unexpected call');
+    return body.ticket === 'first'
+      ? held.promise
+      : { grant: 'second-grant', ...authority(2) };
+  };
+  const firstJob = f.room.webSocketMessage(
+    first,
+    JSON.stringify({ type: 'join', ticket: 'first' }),
+  );
+  await nextTurn();
+  const secondJob = f.room.webSocketMessage(
+    second,
+    JSON.stringify({ type: 'join', ticket: 'second' }),
+  );
+  await nextTurn();
+  await f.advance(1200);
+  held.resolve({ grant: 'first-grant', ...authority(1) });
+  await Promise.all([firstJob, secondJob]);
+  const traces = f.events.filter((e) => e.event === 'room-admission-trace');
+  assert.equal(traces.length, 2);
+  assert.equal(traces[0].serviceMs >= 1200, true);
+  assert.equal(traces[1].queueMs >= 1200, true);
+  assert.deepEqual(
+    traces.map((e) => e.joined),
+    ['true', 'true'],
+  );
+  assert.equal(JSON.stringify(traces).includes('first'), false);
+  assert.equal(JSON.stringify(traces).includes('second'), false);
+});
+
 test('an abandoned admission unblocks the room and cannot evict a later join', async () => {
   const f = await fixture();
   const abandoned = f.socket();
@@ -1245,8 +1283,7 @@ test('an uncertain checkpoint cannot keep an expired writer socket alive', async
   assert.equal(checkpointCount(f), 1);
   assert.ok(
     f.events.some(
-      (e) =>
-        e?.event === 'room-connection-failed' && e.reason === 'timeout',
+      (e) => e?.event === 'room-connection-failed' && e.reason === 'timeout',
     ),
   );
 });

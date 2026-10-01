@@ -6,6 +6,7 @@ const names = [
   'room-outbox-expired',
   'room-admission-blocked',
   'room-admission-timeout',
+  'room-admission-trace',
   'room-restore-start',
   'room-restore-failed',
   'room-restore-complete',
@@ -85,12 +86,16 @@ export type OperationalEvent = {
   attempt?: number;
   delayMs?: number;
   durationMs?: number;
+  queueMs?: number;
+  storageMs?: number;
+  serviceMs?: number;
   ageMs?: number;
   pendingAtLeast?: number;
   limit?: number;
   socketCount?: number;
   closeCode?: number;
   clean?: boolean;
+  joined?: boolean;
   operation?: (typeof operations)[number];
 };
 export function operationalRecord(event: OperationalEvent) {
@@ -120,6 +125,9 @@ export function operationalRecord(event: OperationalEvent) {
     ['attempt', 1000],
     ['delayMs', 30000],
     ['durationMs', 600000],
+    ['queueMs', 600000],
+    ['storageMs', 600000],
+    ['serviceMs', 600000],
     ['ageMs', 86400000],
     ['pendingAtLeast', 64],
     ['limit', 64],
@@ -136,6 +144,7 @@ export function operationalRecord(event: OperationalEvent) {
   if (Number.isInteger(closeCode) && closeCode! >= 1000 && closeCode! <= 4999)
     record.closeCode = closeCode!;
   if (typeof event.clean === 'boolean') record.clean = String(event.clean);
+  if (typeof event.joined === 'boolean') record.joined = String(event.joined);
   return record;
 }
 export function emitOperationalEvent(event: OperationalEvent) {

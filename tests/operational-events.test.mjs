@@ -20,14 +20,22 @@ test('operational fields are preserved without mutating the input', () => {
     attempt: 2,
     delayMs: 2000,
     durationMs: 7,
+    queueMs: 3,
+    storageMs: 2,
+    serviceMs: 1,
     ageMs: 8000,
     pendingAtLeast: 3,
     limit: 64,
     socketCount: 5,
     closeCode: 1006,
     clean: false,
+    joined: true,
   });
-  assert.deepEqual(operationalRecord(input), { ...input, clean: 'false' });
+  assert.deepEqual(operationalRecord(input), {
+    ...input,
+    clean: 'false',
+    joined: 'true',
+  });
 });
 test('operational records drop secrets without traversing unrelated values or serializers', () => {
   const input = {
@@ -61,6 +69,9 @@ test('operational measurements clamp finite values and omit invalid values', () 
     attempt: 1000,
     delayMs: 30000,
     durationMs: 600000,
+    queueMs: 600000,
+    storageMs: 600000,
+    serviceMs: 600000,
     ageMs: 86400000,
     pendingAtLeast: 64,
     limit: 64,
@@ -202,6 +213,7 @@ test('staging timing traces omit player and network identifiers', () => {
     'room-upgrade-trace',
     'room-service-trace',
     'room-recovery-trace',
+    'room-admission-trace',
   ]) {
     assert.deepEqual(
       operationalRecord({
@@ -224,6 +236,28 @@ test('staging timing traces omit player and network identifiers', () => {
       },
     );
   }
+});
+test('admission timings expose bounded stages without player identifiers', () => {
+  assert.deepEqual(
+    operationalRecord({
+      event: 'room-admission-trace',
+      durationMs: 3300,
+      queueMs: 2100,
+      storageMs: 45,
+      serviceMs: 880,
+      joined: true,
+      wallet: secret,
+      ticket: secret,
+    }),
+    {
+      event: 'room-admission-trace',
+      durationMs: 3300,
+      queueMs: 2100,
+      storageMs: 45,
+      serviceMs: 880,
+      joined: 'true',
+    },
+  );
 });
 test('operational labels allow only known events and enum values', () => {
   for (const value of ['', secret, '__proto__', undefined, null, 1, {}, []])

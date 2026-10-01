@@ -2,6 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CapacityTimeline } from '../scripts/capacity-timeline.mjs';
 
+void test('ticket request and completion expose delay without ticket data', () => {
+  let time = 1000;
+  const trace = new CapacityTimeline({ now: () => time });
+  trace.record(2, 'ticket-request', { ticket: 'secret' });
+  time = 1400;
+  trace.record(2, 'ticket');
+  assert.deepEqual(trace.snapshot().events, [
+    { atMs: 0, actor: 2, event: 'ticket-request' },
+    { atMs: 400, actor: 2, event: 'ticket' },
+  ]);
+});
+
 void test('observer gap and renewal share one clock and retain actual missing actors', () => {
   let time = 1000;
   const trace = new CapacityTimeline({ now: () => time });
