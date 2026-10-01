@@ -209,31 +209,26 @@ export function useNeighborhood(
           setCanMove(ready);
           setStatus(ready ? 'Connected' : 'Syncing…');
         },
-        onDisconnect: (reason) => {
+        onDisconnect: () => {
           if (version !== epoch.current || socket.current !== room) return;
           socket.current = null;
           peers.current = [];
           publish();
           setCanMove(false);
           setStatus('Reconnecting…');
-          if (reason === 'renew') {
-            // The coordinator saved and released this grant. Replace it while
-            // the membership is live, without an extra state request or
-            // ordinary failure backoff. The new joined frame rebases position.
-            // A stale membership is rejected by room-ticket and recovered by
-            // the regular join path on the next refresh.
-            retryAt.current = 0;
-            void enqueue(async () => {
-              if (!current.current || stopped.current) return false;
-              if (socket.current) return socket.current.ready;
-              if (version !== epoch.current) return false;
-              return connectRoom();
-            });
-          } else {
-            // Try the first reconnect on the next refresh tick. A failed
-            // attempt enters the ordinary bounded backoff in failure().
-            retryAt.current = Date.now();
-          }
+          // Both a planned renewal and an unexpected socket loss can use the
+          // saved membership immediately. Asking for neighborhood-state first
+          // adds a shared D1 read to every simultaneous room reconnection.
+          // The ticket and joined frame validate and rebase that membership;
+          // a stale one falls through to the regular rejoin path. Serialize
+          // against scene changes and work already in this hook's queue.
+          retryAt.current = 0;
+          void enqueue(async () => {
+            if (!current.current || stopped.current) return false;
+            if (socket.current) return socket.current.ready;
+            if (version !== epoch.current) return false;
+            return connectRoom();
+          });
         },
       });
       socket.current = room;

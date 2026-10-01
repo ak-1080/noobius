@@ -98,7 +98,7 @@ The harness uses five actors per neighborhood. Staging accepts a requested plan 
 
 ## Include real service jobs on staging
 
-`NOOBIUS_LOAD_JOBS=1` is available only with a returning staging cohort and a measurement of at least 180 seconds. The first home owner in each five-player neighborhood builds a starter machine if needed, gathers materials by walking to real work sites, completes one service job and replays its claim to verify payment occurs once. The other four players keep moving. Ordinary earning allowances and existing saves apply; a spent allowance or unavailable job fails the run. This mode makes no blockchain transfer and does not test the player exchange.
+`NOOBIUS_LOAD_JOBS=1` is available only with a returning staging cohort and a measurement of at least 180 seconds. The first home owner in each five-player neighborhood builds a starter machine if needed, gathers raw materials by walking to real work sites, crafts any required parts at the workbench, completes one service job and replays its claim to verify payment occurs once. The other four players keep moving. Ordinary earning allowances and existing saves apply; a spent allowance, locked crafting area or unavailable job fails the run. This mode makes no blockchain transfer and does not test the player exchange.
 
 ```sh
 NOOBIUS_TEST_ORIGIN=https://noobius-game-staging.rinkydooonso.workers.dev \

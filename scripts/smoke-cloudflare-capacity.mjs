@@ -8,7 +8,7 @@ import { base58 } from '@scure/base';
 import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
 import { actionWorksite } from '../lib/action-authority.ts';
-import { OBJECTS } from '../lib/facility.ts';
+import { OBJECTS, RECIPES } from '../lib/facility.ts';
 import { contractFor, serviceChallenge } from '../lib/contracts.ts';
 import { planPath } from '../lib/navigation.ts';
 import { floorClear } from '../lib/world-navigation.ts';
@@ -626,6 +626,58 @@ async function walkToWorksite(a, id, restarts = 0) {
     }
   }
 }
+async function collectFinishedCraft(a) {
+  const craft = a.profile.facility.craft;
+  if (!craft) return;
+  await walkToWorksite(a, 'workbench');
+  await sleep(Math.max(0, craft.readyAt - Date.now()) + 150);
+  await jobAction(a, 'collect', { id: craft.id });
+}
+async function ensureJobMaterial(a, item, needed) {
+  // Returning QA saves can rotate from salvage jobs to jobs that need crafted
+  // parts. Obtain those parts through ordinary gather/craft actions rather than
+  // assuming every service material has a salvage node.
+  if ((a.profile.facility.inventory[item] ?? 0) >= needed) return;
+  const recipe = RECIPES.find((candidate) => candidate.id === item);
+  if (recipe) {
+    assert.ok(
+      a.profile.facility.unlocked.includes(recipe.zone),
+      `QA account must unlock ${recipe.zone} to craft ${item}`,
+    );
+    while ((a.profile.facility.inventory[item] ?? 0) < needed) {
+      await collectFinishedCraft(a);
+      if ((a.profile.facility.inventory[item] ?? 0) >= needed) break;
+      for (const [ingredient, quantity] of Object.entries(recipe.cost))
+        await ensureJobMaterial(a, ingredient, quantity);
+      await walkToWorksite(a, 'workbench');
+      await jobAction(a, 'craft', { id: recipe.id });
+      await collectFinishedCraft(a);
+    }
+    return;
+  }
+  const nodes = OBJECTS.filter(
+    (object) =>
+      object.kind === 'node' &&
+      object.item === item &&
+      a.profile.facility.unlocked.includes(object.zone),
+  );
+  assert.ok(nodes.length, `QA account needs an accessible source for ${item}`);
+  for (let gathers = 0; (a.profile.facility.inventory[item] ?? 0) < needed; gathers++) {
+    assert.ok(gathers < 20, `QA material preparation bounded for ${item}`);
+    const node = nodes.reduce((best, candidate) =>
+      (a.profile.facility.cooldowns[candidate.id] ?? 0) <
+      (a.profile.facility.cooldowns[best.id] ?? 0)
+        ? candidate
+        : best,
+    );
+    await walkToWorksite(a, node.id);
+    await sleep(
+      Math.max(0, (a.profile.facility.cooldowns[node.id] ?? 0) - Date.now()) +
+        150,
+    );
+    await jobAction(a, 'gather', { id: node.id });
+  }
+}
 async function runJob(a) {
   // One home owner per neighborhood does a real service job while the other
   // players keep moving. Existing QA saves and normal earning caps apply.
@@ -647,17 +699,8 @@ async function runJob(a) {
   const terms = contractFor(offer);
   const before = a.profile.facility.career.completed.service;
   if (!active) await jobAction(a, 'contract-accept', { id: offer.id });
-  for (const item of new Set(['scrap', ...Object.keys(terms.cost)])) {
-    const node = OBJECTS.find(
-      (object) =>
-        object.kind === 'node' &&
-        object.item === item &&
-        a.profile.facility.unlocked.includes(object.zone),
-    );
-    assert.ok(node, 'Service material has an accessible node');
-    await walkToWorksite(a, node.id);
-    await jobAction(a, 'gather', { id: node.id });
-  }
+  for (const [item, quantity] of Object.entries(terms.cost))
+    await ensureJobMaterial(a, item, quantity);
   await walkToWorksite(a, terms.target);
   await jobAction(a, 'contract-start', { id: offer.id });
   for (let step = 0; step < 3; step++) {
