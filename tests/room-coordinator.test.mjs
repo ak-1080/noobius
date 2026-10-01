@@ -547,6 +547,55 @@ test('closing an in-flight admission immediately releases the next join', async 
   );
 });
 
+test('a slow close release does not hold room alarm dispatch', async () => {
+  const f = await fixture();
+  const { ws } = installActor(f, 'slow-close-grant');
+  const releaseStarted = deferred();
+  const releaseFinished = deferred();
+  f.room.service = async (body) => {
+    if (body.operation !== 'authority-release') throw Error('Unexpected call');
+    releaseStarted.resolve();
+    return releaseFinished.promise;
+  };
+  ws.readyState = WebSocketMock.CLOSED;
+  let closeReturned = false;
+  const closing = f.room.webSocketClose(ws).then(() => {
+    closeReturned = true;
+  });
+  await releaseStarted.promise;
+  await nextTurn();
+  assert.equal(closeReturned, true, 'the close handler must return before I/O');
+  await f.rawAlarm();
+  assert.equal(f.room.actors.size, 0, 'the alarm can run while release waits');
+  releaseFinished.resolve({ released: true });
+  await closing;
+  await Promise.all(f.backgroundJobs);
+});
+
+test('close cleanup defers release when its checkpoint lookup fails', async () => {
+  const f = await fixture();
+  const { ws } = installActor(f, 'storage-failure-grant');
+  f.ctx.storage.get = async () => {
+    throw Error('storage unavailable');
+  };
+  let released = false;
+  f.room.service = async () => {
+    released = true;
+  };
+  ws.readyState = WebSocketMock.CLOSED;
+  await f.room.webSocketClose(ws);
+  await Promise.all(f.backgroundJobs);
+  assert.equal(released, false, 'an uncertain checkpoint must keep its grant');
+  assert.ok(
+    f.events.some(
+      (event) =>
+        event.event === 'room-release-deferred' &&
+        event.phase === 'close' &&
+        event.reason === 'storage',
+    ),
+  );
+});
+
 test(
   'a checkpoint that succeeds after close releases the orphaned writer',
   { timeout: 3000 },
@@ -1381,14 +1430,20 @@ test('slow socket restoration does not block alarms or close an old movement fra
       z: 17,
     }),
   );
-  assert.ok(ws.sent.some((frame) => frame.type === 'move-ack' && frame.accepted));
+  assert.ok(
+    ws.sent.some((frame) => frame.type === 'move-ack' && frame.accepted),
+  );
 });
 
 test('concurrent restoration keeps only one socket for the same player', async () => {
   const now = Date.now();
   const sockets = [new WebSocketMock(), new WebSocketMock()];
   sockets.forEach((ws, i) =>
-    ws.serializeAttachment({ ...ws.attachment, phase: 'ready', grant: 'duplicate-' + i }),
+    ws.serializeAttachment({
+      ...ws.attachment,
+      phase: 'ready',
+      grant: 'duplicate-' + i,
+    }),
   );
   const released = [];
   const f = await fixture({

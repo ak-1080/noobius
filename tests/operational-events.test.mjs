@@ -196,6 +196,35 @@ test('slow alarm diagnostics expose only bounded timing and socket count', () =>
     },
   );
 });
+test('staging timing traces omit player and network identifiers', () => {
+  for (const name of [
+    'room-alarm-trace',
+    'room-upgrade-trace',
+    'room-service-trace',
+    'room-recovery-trace',
+  ]) {
+    assert.deepEqual(
+      operationalRecord({
+        event: name,
+        phase: 'complete',
+        operation: 'authority-refresh',
+        durationMs: 11000,
+        socketCount: 5,
+        wallet: secret,
+        clientIp: secret,
+        url: secret,
+        grant: secret,
+      }),
+      {
+        event: name,
+        phase: 'complete',
+        operation: 'authority-refresh',
+        durationMs: 11000,
+        socketCount: 5,
+      },
+    );
+  }
+});
 test('operational labels allow only known events and enum values', () => {
   for (const value of ['', secret, '__proto__', undefined, null, 1, {}, []])
     assert.equal(operationalRecord({ event: value }), null);

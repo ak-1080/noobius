@@ -29,6 +29,7 @@
     }
   ],
   "vars": {
-    "NOOBIUS_ROOM_AUTH_ENABLED": "true"
+    "NOOBIUS_ROOM_AUTH_ENABLED": "true",
+    "NOOBIUS_ROOM_DIAGNOSTIC_TRACE": "true"
   }
 }

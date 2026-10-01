@@ -17,6 +17,10 @@ const names = [
   'room-alarm-slow',
   'room-alarm-late',
   'room-alarm-storage-slow',
+  'room-alarm-trace',
+  'room-upgrade-trace',
+  'room-service-trace',
+  'room-recovery-trace',
   'room-recovery-slow',
   'room-maintenance-slow',
   'room-release-deferred',
@@ -35,6 +39,8 @@ const phases = [
   'verification',
   'restore',
   'close',
+  'begin',
+  'complete',
 ] as const;
 const outcomes = [
   'confirmed',
