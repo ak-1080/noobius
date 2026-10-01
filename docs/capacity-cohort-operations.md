@@ -137,6 +137,8 @@ The `timeline` is recorded whether or not `NOOBIUS_DIAGNOSE_SOCKET=1` is set. It
 
 Observer events record when an expected actor disappears, how the missing set changes, when it recovers, and any unresolved gap. This makes it possible to compare a scheduled renewal or code `1012` close with what other players actually saw, instead of assuming every close caused the same outage. A close event by itself is not a failure or proof of recovery.
 
+An expired membership may rejoin the shared plaza instead of its former private-center scene. The probe updates expected rosters from the authoritative membership and records a bounded, numeric-only `peerAnomalies` sample when it sees a genuinely unexpected or duplicate player. Do not treat a stale scene expectation as a privacy leak. The probe requests a fresh room ticket immediately after either planned or unexpected socket closure, matching the browser reconnect path.
+
 Peer metrics update only during the measured window and freeze at its end, or at the failure catch. `maxPeerGapMs`, `unresolvedPeerGaps` and `peerMetricsFrozenAtMs` preserve evidence at that instant. Intentional final scene release/logout must not inflate a gameplay gap; transport events outside the window remain separately visible. An unresolved gap stays at its measured duration instead of continuing to grow during teardown.
 
 ## Actual harness acceptance gates
@@ -153,7 +155,7 @@ The requested measurement is thirty to 360 seconds; the whole run is bounded at 
 | Unexpected interruption recovery | The longest unexpected room reconnection must be **at most 3,000 ms**. Planned lease renewals are reported separately. This gate was added after a 15-player run eventually recovered from a 22.9-second group-wide outage yet received the old `passed` label. |
 | Movement accounting | Every sent measured move must have an acknowledgement or be explicitly counted as unacknowledged during a disconnect. Zero unacknowledged moves is not a separate assertion; inspect that count and acceptance ratio. |
 | Movement latency | Measured send-to-ack p95 must be **below 1,200 ms** from this runner. HTTP latency is reported, with no separate HTTP-p95 threshold. |
-| Final recovery and save | All clients must recover before the final save check within its fifteen-second wait. Released writers must be inactive, and each durable position must exactly equal that actor's last accepted position. |
+| Final recovery and save | All clients must recover before the final save check within its fifteen-second wait. Released writers must be inactive, and each durable position must exactly equal that actor's last accepted position. The unexpected-recovery-duration assertion runs after these final checks when the measurement reaches this stage, preserving durability evidence even if latency then fails. |
 | Evidence completeness | No accumulated harness issues; **zero dropped timeline events**. The timeline retains up to twenty thousand events, then counts drops and fails evidence acceptance. |
 | Cleanup | All generated signed-in sessions must leave and log out. Idempotent cleanup can retry at most three times; any remaining cleanup error marks the report failed and makes the command fail. |
 

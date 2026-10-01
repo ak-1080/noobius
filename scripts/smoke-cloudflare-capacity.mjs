@@ -92,6 +92,7 @@ const { Client } = await import('../tests/api-client.mjs');
 const actors = [],
   tasks = new Set(),
   issues = [],
+  peerAnomalies = [],
   rtts = [],
   httpRtts = [];
 const runId = crypto.randomUUID(),
@@ -125,6 +126,22 @@ const ok = (r) => {
   return r.data;
 };
 const ids = (xs) => xs.map((x) => x.id).sort();
+const refreshExpectedScenes = () => {
+  for (const observer of actors) {
+    if (!observer.expected.length || !observer.membership) continue;
+    observer.expected = ids(
+      actors
+        .filter(
+          (other) =>
+            other.profile &&
+            other.membership?.neighborhoodId ===
+              observer.membership.neighborhoodId &&
+            other.membership.scene === observer.membership.scene,
+        )
+        .map((other) => other.profile),
+    );
+  }
+};
 const quantile = (xs, p) =>
   xs.length
     ? Number(
@@ -183,6 +200,7 @@ async function connect(a, fastRenew = false) {
   a.transport?.dispose();
   const previousRoom = a.membership?.neighborhoodId;
   const refreshMembership = async () => {
+    const previousScene = a.membership?.scene;
     let response = await request(
       a,
       'neighborhood-state',
@@ -208,6 +226,10 @@ async function connect(a, fastRenew = false) {
     }
     a.membership = ok(response).membership;
     a.point = { x: a.membership.x, z: a.membership.z };
+    if (measuring && a.membership.scene !== previousScene) {
+      a.sceneChangedAt = Date.now();
+      refreshExpectedScenes();
+    }
   };
   if (!fastRenew) await refreshMembership();
   let ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
@@ -250,8 +272,35 @@ async function connect(a, fastRenew = false) {
       if (
         a.peers.some((id) => !a.expected.includes(id)) ||
         new Set(a.peers).size !== a.peers.length
-      )
-        issues.push('Foreign or duplicate peer for ' + a.index);
+      ) {
+        if (peerAnomalies.length < 20) {
+          const known = (ids) =>
+            ids.flatMap((id) => {
+              const actor = actors.find(
+                (candidate) => candidate.profile?.id === id,
+              );
+              return actor ? [actor.index] : [];
+            });
+          peerAnomalies.push({
+            atMs: Date.now() - began,
+            observer: a.index,
+            expected: known(a.expected),
+            observed: known(a.peers),
+            unknownCount: a.peers.length - known(a.peers).length,
+            duplicateCount: a.peers.length - new Set(a.peers).size,
+          });
+        }
+        const recentSceneChange = a.peers.some((id) => {
+          const actor = actors.find(
+            (candidate) => candidate.profile?.id === id,
+          );
+          return (
+            actor?.sceneChangedAt && Date.now() - actor.sceneChangedAt < 5000
+          );
+        });
+        if (!recentSceneChange || new Set(a.peers).size !== a.peers.length)
+          issues.push('Foreign or duplicate peer for ' + a.index);
+      }
       if (JSON.stringify(a.peers) === JSON.stringify(a.expected))
         a.incompleteSince = 0;
       else a.incompleteSince ||= Date.now();
@@ -294,11 +343,12 @@ async function connect(a, fastRenew = false) {
       if (!a.initializing && !a.reconnecting)
         a.reconnecting = track(
           (async () => {
-            if (reason !== 'renew') await sleep(500);
             const until = Date.now() + 60000;
             for (let attempt = 0; Date.now() < until && !stopped; attempt++) {
               try {
-                await connect(a, reason === 'renew' && attempt === 0);
+                // The browser requests a fresh ticket immediately for both
+                // planned renewals and unexpected closes. Match that path.
+                await connect(a, attempt === 0);
                 return;
               } catch (e) {
                 if (!recoverableConnection(e)) {
@@ -500,6 +550,7 @@ async function release(a) {
       assert.ok(Date.now() < until && !stopped, 'Ready before final save');
       await sleep(100);
     }
+    const wasTransitioning = a.transitioning;
     a.transitioning = true;
     try {
       await a.transport.release();
@@ -511,7 +562,7 @@ async function release(a) {
       // inject a client-side position to manufacture a successful save check.
       await connectWithRetry(a);
     } finally {
-      a.transitioning = false;
+      a.transitioning = wasTransitioning;
     }
   }
 }
@@ -662,7 +713,11 @@ async function ensureJobMaterial(a, item, needed) {
       a.profile.facility.unlocked.includes(object.zone),
   );
   assert.ok(nodes.length, `QA account needs an accessible source for ${item}`);
-  for (let gathers = 0; (a.profile.facility.inventory[item] ?? 0) < needed; gathers++) {
+  for (
+    let gathers = 0;
+    (a.profile.facility.inventory[item] ?? 0) < needed;
+    gathers++
+  ) {
     assert.ok(gathers < 20, `QA material preparation bounded for ${item}`);
     const node = nodes.reduce((best, candidate) =>
       (a.profile.facility.cooldowns[candidate.id] ?? 0) <
@@ -784,6 +839,7 @@ const deadline = setTimeout(() => {
 }, 900000);
 let report;
 let measuredAt = null;
+let durablePositions = 0;
 try {
   const healthResponse = await fetch(origin + '/api/health', {
     signal: AbortSignal.timeout(20000),
@@ -869,18 +925,24 @@ try {
         await sleep(100);
       }
       a.transitioning = true;
-      await a.transport.release();
-      const changed = ok(
-        await request(
-          a,
-          'neighborhood-scene',
-          a.c.body({ ...a.controller, scene: 'home-' + members[0].profile.id }),
-        ),
-      );
-      a.membership = changed.membership;
-      a.controller.generation = a.membership.generation;
-      await connectWithRetry(a);
-      a.transitioning = false;
+      try {
+        await release(a);
+        const changed = ok(
+          await request(
+            a,
+            'neighborhood-scene',
+            a.c.body({
+              ...a.controller,
+              scene: 'home-' + members[0].profile.id,
+            }),
+          ),
+        );
+        a.membership = changed.membership;
+        a.controller.generation = a.membership.generation;
+        await connectWithRetry(a);
+      } finally {
+        a.transitioning = false;
+      }
     }
     for (const a of members)
       a.expected = ids(
@@ -979,10 +1041,6 @@ try {
     counters.accepted / counters.sent > 0.99,
     'At least 99% movement accepted',
   );
-  assert.ok(
-    counters.maxRecoveryMs <= 3000,
-    `Unexpected room interruption must recover within three seconds; slowest took ${counters.maxRecoveryMs} ms`,
-  );
   assert.equal(
     rtts.length + counters.unacknowledged,
     counters.sent,
@@ -1008,6 +1066,13 @@ try {
         positions.push(a.index);
       }),
     );
+  durablePositions = positions.length;
+  // Verify every saved position even if the measured reconnect exceeded its
+  // acceptance target. A failed reliability run still needs durability data.
+  assert.ok(
+    counters.maxRecoveryMs <= 3000,
+    `Unexpected room interruption must recover within three seconds; slowest took ${counters.maxRecoveryMs} ms`,
+  );
   report = {
     runId,
     status: 'passed',
@@ -1024,7 +1089,7 @@ try {
     measurementMs,
     ...counters,
     correctionReasons,
-    durablePositions: positions.length,
+    durablePositions,
     moveRtt: {
       p50: quantile(rtts, 0.5),
       p95: quantile(rtts, 0.95),
@@ -1035,6 +1100,7 @@ try {
       p95: quantile(httpRtts, 0.95),
     },
     issues,
+    peerAnomalies,
     timeline: timeline.snapshot(),
   };
   assert.equal(
@@ -1060,6 +1126,7 @@ try {
     at: new Date().toISOString(),
     error: e.message,
     ...counters,
+    durablePositions,
     correctionReasons,
     moveRtt: {
       p50: quantile(rtts, 0.5),
@@ -1068,6 +1135,7 @@ try {
     },
     perActorAccepted: actors.map((a) => a.accepted),
     issues,
+    peerAnomalies,
     timeline: timeline.snapshot(),
   };
   throw e;

@@ -1,0 +1,3107 @@
+{
+  "runId": "b078b464-fe3b-4819-862d-c423fcd11376",
+  "status": "failed",
+  "motionMode": "full-speed",
+  "jobsMode": true,
+  "jobsStartSecond": 0,
+  "identityMode": "returning",
+  "cohortId": "49bf9c68-7b9f-47c8-ad66-50dcb02b2cbf",
+  "beganAt": "2026-10-01T17:36:28.262Z",
+  "measuredAt": "2026-10-01T17:38:46.092Z",
+  "rampMs": 137830,
+  "measurementMs": 118406,
+  "at": "2026-10-01T17:40:44.498Z",
+  "error": "Scene peers must recover within five seconds: actor 28, missing for 5660 ms, expected [\"[redacted-profile-id]\",\"[redacted-profile-id]\",\"[redacted-profile-id]\"], received [\"[redacted-profile-id]\",\"[redacted-profile-id]\"]",
+  "unacknowledged": 13,
+  "sent": 16220,
+  "accepted": 16206,
+  "corrected": 1,
+  "peerFrames": 21151,
+  "inboundBytes": 12552233,
+  "renewals": 0,
+  "interruptions": 37,
+  "admissionRetries": 0,
+  "admissionRecoveries": 0,
+  "expiredRejoins": 0,
+  "maxRecoveryMs": 9955,
+  "maxRenewRecoveryMs": 0,
+  "releaseRetries": 0,
+  "cleanupRetries": 0,
+  "httpRequests": 418,
+  "jobCompletions": 6,
+  "correctionReasons": {
+    "rate-limited": 1
+  },
+  "moveRtt": {
+    "p50": 55.1,
+    "p95": 90.3,
+    "p99": 120.1
+  },
+  "perActorAccepted": [
+    113,
+    654,
+    651,
+    651,
+    653,
+    170,
+    655,
+    656,
+    654,
+    655,
+    170,
+    659,
+    658,
+    658,
+    659,
+    46,
+    650,
+    649,
+    650,
+    649,
+    90,
+    656,
+    655,
+    659,
+    656,
+    90,
+    616,
+    586,
+    618,
+    620
+  ],
+  "issues": [],
+  "timeline": {
+    "events": [
+      {
+        "atMs": 2642,
+        "actor": 0,
+        "event": "ticket"
+      },
+      {
+        "atMs": 2945,
+        "actor": 0,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 2945,
+        "actor": 0,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 3220,
+        "actor": 0,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 5096,
+        "actor": 1,
+        "event": "ticket"
+      },
+      {
+        "atMs": 5242,
+        "actor": 1,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 5242,
+        "actor": 1,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 5386,
+        "actor": 1,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 7127,
+        "actor": 2,
+        "event": "ticket"
+      },
+      {
+        "atMs": 7272,
+        "actor": 2,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 7272,
+        "actor": 2,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 7426,
+        "actor": 2,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 9294,
+        "actor": 3,
+        "event": "ticket"
+      },
+      {
+        "atMs": 9444,
+        "actor": 3,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 9444,
+        "actor": 3,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 9576,
+        "actor": 3,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 11213,
+        "actor": 4,
+        "event": "ticket"
+      },
+      {
+        "atMs": 11365,
+        "actor": 4,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 11365,
+        "actor": 4,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 11516,
+        "actor": 4,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 11824,
+        "actor": 0,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 12704,
+        "actor": 0,
+        "event": "ticket"
+      },
+      {
+        "atMs": 12849,
+        "actor": 0,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 12849,
+        "actor": 0,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 13016,
+        "actor": 0,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 13371,
+        "actor": 1,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 14194,
+        "actor": 1,
+        "event": "ticket"
+      },
+      {
+        "atMs": 14347,
+        "actor": 1,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 14347,
+        "actor": 1,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 14530,
+        "actor": 1,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 16070,
+        "actor": 5,
+        "event": "ticket"
+      },
+      {
+        "atMs": 16387,
+        "actor": 5,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 16387,
+        "actor": 5,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 16706,
+        "actor": 5,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 18511,
+        "actor": 6,
+        "event": "ticket"
+      },
+      {
+        "atMs": 18654,
+        "actor": 6,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 18655,
+        "actor": 6,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 18782,
+        "actor": 6,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 20446,
+        "actor": 7,
+        "event": "ticket"
+      },
+      {
+        "atMs": 20618,
+        "actor": 7,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 20618,
+        "actor": 7,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 20752,
+        "actor": 7,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 22545,
+        "actor": 8,
+        "event": "ticket"
+      },
+      {
+        "atMs": 22719,
+        "actor": 8,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 22719,
+        "actor": 8,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 22866,
+        "actor": 8,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 24959,
+        "actor": 9,
+        "event": "ticket"
+      },
+      {
+        "atMs": 25125,
+        "actor": 9,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 25125,
+        "actor": 9,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 25302,
+        "actor": 9,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 25620,
+        "actor": 5,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 27020,
+        "actor": 5,
+        "event": "ticket"
+      },
+      {
+        "atMs": 27181,
+        "actor": 5,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 27181,
+        "actor": 5,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 27304,
+        "actor": 5,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 27720,
+        "actor": 6,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 28575,
+        "actor": 6,
+        "event": "ticket"
+      },
+      {
+        "atMs": 28767,
+        "actor": 6,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 28767,
+        "actor": 6,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 28930,
+        "actor": 6,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 34210,
+        "actor": 10,
+        "event": "ticket"
+      },
+      {
+        "atMs": 34600,
+        "actor": 10,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 34600,
+        "actor": 10,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 34964,
+        "actor": 10,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 36603,
+        "actor": 11,
+        "event": "ticket"
+      },
+      {
+        "atMs": 36757,
+        "actor": 11,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 36757,
+        "actor": 11,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 36911,
+        "actor": 11,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 38529,
+        "actor": 12,
+        "event": "ticket"
+      },
+      {
+        "atMs": 38678,
+        "actor": 12,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 38678,
+        "actor": 12,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 38829,
+        "actor": 12,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 40542,
+        "actor": 13,
+        "event": "ticket"
+      },
+      {
+        "atMs": 40694,
+        "actor": 13,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 40694,
+        "actor": 13,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 40831,
+        "actor": 13,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 42660,
+        "actor": 14,
+        "event": "ticket"
+      },
+      {
+        "atMs": 42796,
+        "actor": 14,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 42796,
+        "actor": 14,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 43005,
+        "actor": 14,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 43306,
+        "actor": 10,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 44282,
+        "actor": 10,
+        "event": "ticket"
+      },
+      {
+        "atMs": 44440,
+        "actor": 10,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 44440,
+        "actor": 10,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 44580,
+        "actor": 10,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 44895,
+        "actor": 11,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 45910,
+        "actor": 11,
+        "event": "ticket"
+      },
+      {
+        "atMs": 46076,
+        "actor": 11,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 46076,
+        "actor": 11,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 46259,
+        "actor": 11,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 48471,
+        "actor": 15,
+        "event": "ticket"
+      },
+      {
+        "atMs": 48850,
+        "actor": 15,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 48850,
+        "actor": 15,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 49174,
+        "actor": 15,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 50906,
+        "actor": 16,
+        "event": "ticket"
+      },
+      {
+        "atMs": 51082,
+        "actor": 16,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 51082,
+        "actor": 16,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 51205,
+        "actor": 16,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 53320,
+        "actor": 17,
+        "event": "ticket"
+      },
+      {
+        "atMs": 53461,
+        "actor": 17,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 53461,
+        "actor": 17,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 53580,
+        "actor": 17,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 55586,
+        "actor": 18,
+        "event": "ticket"
+      },
+      {
+        "atMs": 55741,
+        "actor": 18,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 55741,
+        "actor": 18,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 55873,
+        "actor": 18,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 57981,
+        "actor": 19,
+        "event": "ticket"
+      },
+      {
+        "atMs": 58116,
+        "actor": 19,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 58116,
+        "actor": 19,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 58227,
+        "actor": 19,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 58502,
+        "actor": 15,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 59466,
+        "actor": 15,
+        "event": "ticket"
+      },
+      {
+        "atMs": 59920,
+        "actor": 15,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 59920,
+        "actor": 15,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 60065,
+        "actor": 15,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 60331,
+        "actor": 16,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 61388,
+        "actor": 16,
+        "event": "ticket"
+      },
+      {
+        "atMs": 61547,
+        "actor": 16,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 61547,
+        "actor": 16,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 61670,
+        "actor": 16,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 94852,
+        "actor": 20,
+        "event": "ticket"
+      },
+      {
+        "atMs": 95591,
+        "actor": 20,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 95591,
+        "actor": 20,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 96099,
+        "actor": 20,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 98245,
+        "actor": 21,
+        "event": "ticket"
+      },
+      {
+        "atMs": 98573,
+        "actor": 21,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 98573,
+        "actor": 21,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 98769,
+        "actor": 21,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 100649,
+        "actor": 22,
+        "event": "ticket"
+      },
+      {
+        "atMs": 101137,
+        "actor": 22,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 101137,
+        "actor": 22,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 101341,
+        "actor": 22,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 103545,
+        "actor": 23,
+        "event": "ticket"
+      },
+      {
+        "atMs": 103857,
+        "actor": 23,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 103857,
+        "actor": 23,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 104053,
+        "actor": 23,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 106213,
+        "actor": 24,
+        "event": "ticket"
+      },
+      {
+        "atMs": 106578,
+        "actor": 24,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 106578,
+        "actor": 24,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 106790,
+        "actor": 24,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 107227,
+        "actor": 20,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 108568,
+        "actor": 20,
+        "event": "ticket"
+      },
+      {
+        "atMs": 108822,
+        "actor": 20,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 108822,
+        "actor": 20,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 109004,
+        "actor": 20,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 109430,
+        "actor": 21,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 110769,
+        "actor": 21,
+        "event": "ticket"
+      },
+      {
+        "atMs": 110919,
+        "actor": 21,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 110919,
+        "actor": 21,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 111129,
+        "actor": 21,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 113915,
+        "actor": 25,
+        "event": "ticket"
+      },
+      {
+        "atMs": 114438,
+        "actor": 25,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 114438,
+        "actor": 25,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 118019,
+        "actor": 25,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 120208,
+        "actor": 26,
+        "event": "ticket"
+      },
+      {
+        "atMs": 120387,
+        "actor": 26,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 120387,
+        "actor": 26,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 120552,
+        "actor": 26,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 122355,
+        "actor": 27,
+        "event": "ticket"
+      },
+      {
+        "atMs": 122502,
+        "actor": 27,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 122502,
+        "actor": 27,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 123032,
+        "actor": 27,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 124783,
+        "actor": 28,
+        "event": "ticket"
+      },
+      {
+        "atMs": 125010,
+        "actor": 28,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 125010,
+        "actor": 28,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 128405,
+        "actor": 28,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 130229,
+        "actor": 29,
+        "event": "ticket"
+      },
+      {
+        "atMs": 130382,
+        "actor": 29,
+        "event": "open",
+        "socket": 1
+      },
+      {
+        "atMs": 130382,
+        "actor": 29,
+        "event": "join-sent",
+        "socket": 1
+      },
+      {
+        "atMs": 130545,
+        "actor": 29,
+        "event": "joined",
+        "socket": 1
+      },
+      {
+        "atMs": 134006,
+        "actor": 25,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 135221,
+        "actor": 25,
+        "event": "ticket"
+      },
+      {
+        "atMs": 135409,
+        "actor": 25,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 135409,
+        "actor": 25,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 135562,
+        "actor": 25,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 135968,
+        "actor": 26,
+        "event": "close",
+        "socket": 1,
+        "code": 1000,
+        "reason": "transition"
+      },
+      {
+        "atMs": 137090,
+        "actor": 26,
+        "event": "ticket"
+      },
+      {
+        "atMs": 137317,
+        "actor": 26,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 137317,
+        "actor": 26,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 137729,
+        "actor": 26,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 191519,
+        "observer": 26,
+        "event": "peer-gap-start",
+        "missing": [
+          25
+        ]
+      },
+      {
+        "atMs": 191553,
+        "actor": 25,
+        "event": "close",
+        "socket": 2,
+        "code": 1012,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 191554,
+        "actor": 25,
+        "event": "disconnect",
+        "authorityAgeMs": 8101,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 192928,
+        "actor": 25,
+        "event": "ticket"
+      },
+      {
+        "atMs": 193152,
+        "actor": 25,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 193152,
+        "actor": 25,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 196450,
+        "actor": 25,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 196450,
+        "actor": 25,
+        "event": "recovered",
+        "durationMs": 4896,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 196450,
+        "observer": 26,
+        "event": "peer-gap-end",
+        "missing": [
+          25
+        ],
+        "durationMs": 4931
+      },
+      {
+        "atMs": 240599,
+        "actor": 21,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240599,
+        "actor": 21,
+        "event": "disconnect",
+        "authorityAgeMs": 3475,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240599,
+        "actor": 23,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 23,
+        "event": "disconnect",
+        "authorityAgeMs": 1497,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 22,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 22,
+        "event": "disconnect",
+        "authorityAgeMs": 4492,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 24,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 24,
+        "event": "disconnect",
+        "authorityAgeMs": 8384,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 20,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 240600,
+        "actor": 20,
+        "event": "disconnect",
+        "authorityAgeMs": 3480,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241124,
+        "actor": 5,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241124,
+        "actor": 5,
+        "event": "disconnect",
+        "authorityAgeMs": 230,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241127,
+        "actor": 9,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241127,
+        "actor": 9,
+        "event": "disconnect",
+        "authorityAgeMs": 175,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241128,
+        "actor": 7,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241128,
+        "actor": 7,
+        "event": "disconnect",
+        "authorityAgeMs": 4179,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241128,
+        "actor": 8,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241128,
+        "actor": 8,
+        "event": "disconnect",
+        "authorityAgeMs": 2206,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241129,
+        "actor": 6,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241129,
+        "actor": 6,
+        "event": "disconnect",
+        "authorityAgeMs": 5198,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241138,
+        "actor": 4,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241138,
+        "actor": 4,
+        "event": "disconnect",
+        "authorityAgeMs": 4544,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241138,
+        "actor": 3,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241138,
+        "actor": 3,
+        "event": "disconnect",
+        "authorityAgeMs": 6599,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 0,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 0,
+        "event": "disconnect",
+        "authorityAgeMs": 5491,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 1,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 1,
+        "event": "disconnect",
+        "authorityAgeMs": 1593,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 2,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241142,
+        "actor": 2,
+        "event": "disconnect",
+        "authorityAgeMs": 8396,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241420,
+        "actor": 10,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241420,
+        "actor": 10,
+        "event": "disconnect",
+        "authorityAgeMs": 107,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241421,
+        "actor": 13,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241421,
+        "actor": 13,
+        "event": "disconnect",
+        "authorityAgeMs": 3183,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 11,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 11,
+        "event": "disconnect",
+        "authorityAgeMs": 6168,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 12,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 12,
+        "event": "disconnect",
+        "authorityAgeMs": 5163,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 14,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241422,
+        "actor": 14,
+        "event": "disconnect",
+        "authorityAgeMs": 1153,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241469,
+        "actor": 29,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241469,
+        "actor": 29,
+        "event": "disconnect",
+        "authorityAgeMs": 4136,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241470,
+        "actor": 26,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241470,
+        "actor": 26,
+        "event": "disconnect",
+        "authorityAgeMs": 7161,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241470,
+        "actor": 28,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241470,
+        "actor": 28,
+        "event": "disconnect",
+        "authorityAgeMs": 6114,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241471,
+        "actor": 27,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241471,
+        "actor": 27,
+        "event": "disconnect",
+        "authorityAgeMs": 113,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241471,
+        "actor": 25,
+        "event": "close",
+        "socket": 3,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241471,
+        "actor": 25,
+        "event": "disconnect",
+        "authorityAgeMs": 6117,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241518,
+        "actor": 19,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241518,
+        "actor": 19,
+        "event": "disconnect",
+        "authorityAgeMs": 3816,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 17,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 17,
+        "event": "disconnect",
+        "authorityAgeMs": 7737,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 18,
+        "event": "close",
+        "socket": 1,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 18,
+        "event": "disconnect",
+        "authorityAgeMs": 5745,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 16,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241519,
+        "actor": 16,
+        "event": "disconnect",
+        "authorityAgeMs": 8727,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241529,
+        "actor": 15,
+        "event": "close",
+        "socket": 2,
+        "code": 1006,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 241529,
+        "actor": 15,
+        "event": "disconnect",
+        "authorityAgeMs": 8783,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 242039,
+        "actor": 20,
+        "event": "ticket"
+      },
+      {
+        "atMs": 242071,
+        "actor": 23,
+        "event": "ticket"
+      },
+      {
+        "atMs": 242176,
+        "actor": 24,
+        "event": "ticket"
+      },
+      {
+        "atMs": 242374,
+        "actor": 21,
+        "event": "ticket"
+      },
+      {
+        "atMs": 242375,
+        "actor": 22,
+        "event": "ticket"
+      },
+      {
+        "atMs": 242406,
+        "actor": 20,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 242406,
+        "actor": 20,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 242407,
+        "actor": 23,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 242407,
+        "actor": 23,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 242464,
+        "actor": 24,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 242464,
+        "actor": 24,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 242552,
+        "actor": 21,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 242552,
+        "actor": 21,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 242566,
+        "actor": 22,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 242566,
+        "actor": 22,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 242945,
+        "actor": 20,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 242945,
+        "actor": 20,
+        "event": "recovered",
+        "durationMs": 2345,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 242945,
+        "observer": 20,
+        "event": "peer-gap-start",
+        "missing": [
+          21
+        ]
+      },
+      {
+        "atMs": 243219,
+        "actor": 9,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243220,
+        "actor": 0,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243221,
+        "actor": 1,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243226,
+        "actor": 4,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243227,
+        "actor": 23,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243227,
+        "actor": 23,
+        "event": "recovered",
+        "durationMs": 2627,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243228,
+        "observer": 23,
+        "event": "peer-gap-start",
+        "missing": [
+          22,
+          24
+        ]
+      },
+      {
+        "atMs": 243255,
+        "actor": 3,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243320,
+        "actor": 8,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243414,
+        "actor": 9,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243414,
+        "actor": 9,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243415,
+        "observer": 23,
+        "event": "peer-gap-change",
+        "missing": [
+          22
+        ],
+        "priorMissing": [
+          22,
+          24
+        ],
+        "durationMs": 187
+      },
+      {
+        "atMs": 243415,
+        "actor": 24,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243415,
+        "actor": 24,
+        "event": "recovered",
+        "durationMs": 2815,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243416,
+        "observer": 24,
+        "event": "peer-gap-start",
+        "missing": [
+          22
+        ]
+      },
+      {
+        "atMs": 243425,
+        "actor": 7,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243426,
+        "actor": 1,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243427,
+        "actor": 1,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243427,
+        "actor": 0,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243427,
+        "actor": 0,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243429,
+        "actor": 4,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243429,
+        "actor": 4,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243432,
+        "actor": 3,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243432,
+        "actor": 3,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243466,
+        "actor": 6,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243509,
+        "actor": 28,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243511,
+        "actor": 14,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243518,
+        "actor": 5,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243518,
+        "actor": 2,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243563,
+        "actor": 7,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243563,
+        "actor": 7,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243572,
+        "actor": 8,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243572,
+        "actor": 8,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243616,
+        "actor": 6,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243616,
+        "actor": 6,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243627,
+        "observer": 20,
+        "event": "peer-gap-end",
+        "missing": [
+          21
+        ],
+        "durationMs": 682
+      },
+      {
+        "atMs": 243629,
+        "actor": 21,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 243629,
+        "actor": 21,
+        "event": "recovered",
+        "durationMs": 3030,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243655,
+        "actor": 5,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243655,
+        "actor": 5,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243742,
+        "actor": 14,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243742,
+        "actor": 14,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243742,
+        "actor": 2,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243742,
+        "actor": 2,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243743,
+        "actor": 28,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243743,
+        "actor": 28,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243744,
+        "actor": 12,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243745,
+        "actor": 26,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243746,
+        "actor": 19,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243747,
+        "actor": 16,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243747,
+        "actor": 9,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243747,
+        "actor": 9,
+        "event": "recovered",
+        "durationMs": 2620,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243748,
+        "actor": 1,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 243748,
+        "actor": 1,
+        "event": "recovered",
+        "durationMs": 2606,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243749,
+        "observer": 9,
+        "event": "peer-gap-start",
+        "missing": [
+          7,
+          8
+        ]
+      },
+      {
+        "atMs": 243749,
+        "observer": 1,
+        "event": "peer-gap-start",
+        "missing": [
+          0
+        ]
+      },
+      {
+        "atMs": 243766,
+        "actor": 11,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243769,
+        "actor": 25,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243780,
+        "actor": 13,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243783,
+        "actor": 29,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243787,
+        "actor": 10,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243828,
+        "actor": 18,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243831,
+        "actor": 27,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243839,
+        "actor": 17,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243854,
+        "observer": 23,
+        "event": "peer-gap-end",
+        "missing": [
+          22
+        ],
+        "durationMs": 626
+      },
+      {
+        "atMs": 243854,
+        "actor": 22,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243854,
+        "actor": 22,
+        "event": "recovered",
+        "durationMs": 3254,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243854,
+        "observer": 24,
+        "event": "peer-gap-end",
+        "missing": [
+          22
+        ],
+        "durationMs": 438
+      },
+      {
+        "atMs": 243941,
+        "actor": 16,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243941,
+        "actor": 16,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243941,
+        "actor": 11,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243941,
+        "actor": 11,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243941,
+        "actor": 12,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243941,
+        "actor": 12,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243941,
+        "actor": 26,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 243941,
+        "actor": 26,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 243942,
+        "actor": 19,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 243942,
+        "actor": 19,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 243942,
+        "actor": 25,
+        "event": "open",
+        "socket": 4
+      },
+      {
+        "atMs": 243942,
+        "actor": 25,
+        "event": "join-sent",
+        "socket": 4
+      },
+      {
+        "atMs": 243943,
+        "actor": 15,
+        "event": "ticket"
+      },
+      {
+        "atMs": 243945,
+        "actor": 7,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243945,
+        "actor": 7,
+        "event": "recovered",
+        "durationMs": 2817,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243945,
+        "observer": 9,
+        "event": "peer-gap-change",
+        "missing": [
+          8
+        ],
+        "priorMissing": [
+          7,
+          8
+        ],
+        "durationMs": 196
+      },
+      {
+        "atMs": 243945,
+        "actor": 4,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243945,
+        "actor": 4,
+        "event": "recovered",
+        "durationMs": 2807,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243946,
+        "actor": 14,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243946,
+        "actor": 14,
+        "event": "recovered",
+        "durationMs": 2524,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243946,
+        "observer": 7,
+        "event": "peer-gap-start",
+        "missing": [
+          8
+        ]
+      },
+      {
+        "atMs": 243946,
+        "observer": 4,
+        "event": "peer-gap-start",
+        "missing": [
+          2,
+          3
+        ]
+      },
+      {
+        "atMs": 243947,
+        "observer": 14,
+        "event": "peer-gap-start",
+        "missing": [
+          12,
+          13
+        ]
+      },
+      {
+        "atMs": 243970,
+        "observer": 7,
+        "event": "peer-gap-end",
+        "missing": [
+          8
+        ],
+        "durationMs": 24
+      },
+      {
+        "atMs": 243970,
+        "observer": 9,
+        "event": "peer-gap-end",
+        "missing": [
+          8
+        ],
+        "durationMs": 221
+      },
+      {
+        "atMs": 243970,
+        "actor": 8,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 243970,
+        "actor": 8,
+        "event": "recovered",
+        "durationMs": 2842,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 243983,
+        "observer": 1,
+        "event": "peer-gap-end",
+        "missing": [
+          0
+        ],
+        "durationMs": 234
+      },
+      {
+        "atMs": 243983,
+        "actor": 0,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 243983,
+        "actor": 0,
+        "event": "recovered",
+        "durationMs": 2841,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244010,
+        "actor": 29,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 244010,
+        "actor": 29,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 244027,
+        "actor": 10,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 244027,
+        "actor": 10,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 244034,
+        "actor": 13,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 244034,
+        "actor": 13,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 244056,
+        "actor": 18,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 244056,
+        "actor": 18,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 244058,
+        "actor": 17,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 244058,
+        "actor": 17,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 244070,
+        "actor": 27,
+        "event": "open",
+        "socket": 2
+      },
+      {
+        "atMs": 244070,
+        "actor": 27,
+        "event": "join-sent",
+        "socket": 2
+      },
+      {
+        "atMs": 244103,
+        "actor": 6,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244103,
+        "actor": 6,
+        "event": "recovered",
+        "durationMs": 2974,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244104,
+        "observer": 6,
+        "event": "peer-gap-start",
+        "missing": [
+          5
+        ]
+      },
+      {
+        "atMs": 244108,
+        "actor": 16,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244109,
+        "actor": 16,
+        "event": "recovered",
+        "durationMs": 2590,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244110,
+        "actor": 15,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 244110,
+        "actor": 15,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 244111,
+        "observer": 16,
+        "event": "peer-gap-start",
+        "missing": [
+          15
+        ]
+      },
+      {
+        "atMs": 244113,
+        "actor": 11,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244113,
+        "actor": 11,
+        "event": "recovered",
+        "durationMs": 2691,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244117,
+        "observer": 11,
+        "event": "peer-gap-start",
+        "missing": [
+          10
+        ]
+      },
+      {
+        "atMs": 244140,
+        "actor": 3,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244140,
+        "actor": 3,
+        "event": "recovered",
+        "durationMs": 3002,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244141,
+        "observer": 3,
+        "event": "peer-gap-start",
+        "missing": [
+          2
+        ]
+      },
+      {
+        "atMs": 244147,
+        "observer": 4,
+        "event": "peer-gap-change",
+        "missing": [
+          2
+        ],
+        "priorMissing": [
+          2,
+          3
+        ],
+        "durationMs": 201
+      },
+      {
+        "atMs": 244267,
+        "actor": 19,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244267,
+        "actor": 19,
+        "event": "recovered",
+        "durationMs": 2749,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244267,
+        "observer": 6,
+        "event": "peer-gap-end",
+        "missing": [
+          5
+        ],
+        "durationMs": 163
+      },
+      {
+        "atMs": 244267,
+        "actor": 5,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244267,
+        "actor": 5,
+        "event": "recovered",
+        "durationMs": 3143,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244267,
+        "observer": 19,
+        "event": "peer-gap-start",
+        "missing": [
+          17,
+          18
+        ]
+      },
+      {
+        "atMs": 244269,
+        "observer": 14,
+        "event": "peer-gap-change",
+        "missing": [
+          13
+        ],
+        "priorMissing": [
+          12,
+          13
+        ],
+        "durationMs": 322
+      },
+      {
+        "atMs": 244269,
+        "actor": 12,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244269,
+        "actor": 12,
+        "event": "recovered",
+        "durationMs": 2847,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244269,
+        "observer": 4,
+        "event": "peer-gap-end",
+        "missing": [
+          2
+        ],
+        "durationMs": 323
+      },
+      {
+        "atMs": 244270,
+        "observer": 3,
+        "event": "peer-gap-end",
+        "missing": [
+          2
+        ],
+        "durationMs": 129
+      },
+      {
+        "atMs": 244270,
+        "actor": 2,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244270,
+        "actor": 2,
+        "event": "recovered",
+        "durationMs": 3128,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244270,
+        "observer": 12,
+        "event": "peer-gap-start",
+        "missing": [
+          13
+        ]
+      },
+      {
+        "atMs": 244328,
+        "actor": 18,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244328,
+        "actor": 18,
+        "event": "recovered",
+        "durationMs": 2809,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244328,
+        "observer": 19,
+        "event": "peer-gap-change",
+        "missing": [
+          17
+        ],
+        "priorMissing": [
+          17,
+          18
+        ],
+        "durationMs": 61
+      },
+      {
+        "atMs": 244328,
+        "observer": 18,
+        "event": "peer-gap-start",
+        "missing": [
+          17
+        ]
+      },
+      {
+        "atMs": 244365,
+        "actor": 10,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244365,
+        "actor": 10,
+        "event": "recovered",
+        "durationMs": 2945,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244367,
+        "observer": 11,
+        "event": "peer-gap-end",
+        "missing": [
+          10
+        ],
+        "durationMs": 250
+      },
+      {
+        "atMs": 244459,
+        "observer": 19,
+        "event": "peer-gap-end",
+        "missing": [
+          17
+        ],
+        "durationMs": 192
+      },
+      {
+        "atMs": 244459,
+        "observer": 18,
+        "event": "peer-gap-end",
+        "missing": [
+          17
+        ],
+        "durationMs": 131
+      },
+      {
+        "atMs": 244459,
+        "actor": 17,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244459,
+        "actor": 17,
+        "event": "recovered",
+        "durationMs": 2940,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244463,
+        "observer": 14,
+        "event": "peer-gap-end",
+        "missing": [
+          13
+        ],
+        "durationMs": 516
+      },
+      {
+        "atMs": 244464,
+        "observer": 12,
+        "event": "peer-gap-end",
+        "missing": [
+          13
+        ],
+        "durationMs": 194
+      },
+      {
+        "atMs": 244464,
+        "actor": 13,
+        "event": "joined",
+        "socket": 2
+      },
+      {
+        "atMs": 244464,
+        "actor": 13,
+        "event": "recovered",
+        "durationMs": 3043,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 244528,
+        "observer": 16,
+        "event": "peer-gap-end",
+        "missing": [
+          15
+        ],
+        "durationMs": 417
+      },
+      {
+        "atMs": 244528,
+        "actor": 15,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 244528,
+        "actor": 15,
+        "event": "recovered",
+        "durationMs": 2999,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 247809,
+        "actor": 28,
+        "event": "close",
+        "socket": 2,
+        "code": 1012,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 247810,
+        "actor": 28,
+        "event": "disconnect",
+        "authorityAgeMs": 12454,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249078,
+        "actor": 25,
+        "event": "close",
+        "socket": 4,
+        "code": 1008,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249078,
+        "actor": 25,
+        "event": "disconnect",
+        "authorityAgeMs": 13724,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249079,
+        "actor": 26,
+        "event": "close",
+        "socket": 3,
+        "code": 1008,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249079,
+        "actor": 26,
+        "event": "disconnect",
+        "authorityAgeMs": 14770,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249083,
+        "actor": 29,
+        "event": "close",
+        "socket": 2,
+        "code": 1008,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249084,
+        "actor": 29,
+        "event": "disconnect",
+        "authorityAgeMs": 11751,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 249248,
+        "actor": 28,
+        "event": "ticket"
+      },
+      {
+        "atMs": 249382,
+        "actor": 28,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 249382,
+        "actor": 28,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 250393,
+        "actor": 27,
+        "event": "close",
+        "socket": 2,
+        "code": 1008,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 250393,
+        "actor": 27,
+        "event": "disconnect",
+        "authorityAgeMs": 9035,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 250560,
+        "actor": 29,
+        "event": "ticket"
+      },
+      {
+        "atMs": 250571,
+        "actor": 28,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 250571,
+        "actor": 28,
+        "event": "recovered",
+        "durationMs": 9101,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 250571,
+        "observer": 28,
+        "event": "peer-gap-start",
+        "missing": [
+          27,
+          29
+        ]
+      },
+      {
+        "atMs": 250575,
+        "actor": 26,
+        "event": "ticket"
+      },
+      {
+        "atMs": 250750,
+        "actor": 29,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 250750,
+        "actor": 29,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 250751,
+        "actor": 26,
+        "event": "open",
+        "socket": 4
+      },
+      {
+        "atMs": 250751,
+        "actor": 26,
+        "event": "join-sent",
+        "socket": 4
+      },
+      {
+        "atMs": 250893,
+        "observer": 28,
+        "event": "peer-gap-change",
+        "missing": [
+          27
+        ],
+        "priorMissing": [
+          27,
+          29
+        ],
+        "durationMs": 322
+      },
+      {
+        "atMs": 250893,
+        "actor": 29,
+        "event": "joined",
+        "socket": 3
+      },
+      {
+        "atMs": 250893,
+        "actor": 29,
+        "event": "recovered",
+        "durationMs": 9424,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 250893,
+        "observer": 29,
+        "event": "peer-gap-start",
+        "missing": [
+          27
+        ]
+      },
+      {
+        "atMs": 251084,
+        "actor": 25,
+        "event": "ticket"
+      },
+      {
+        "atMs": 251086,
+        "actor": 26,
+        "event": "joined",
+        "socket": 4
+      },
+      {
+        "atMs": 251086,
+        "actor": 26,
+        "event": "recovered",
+        "durationMs": 9616,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 251086,
+        "observer": 26,
+        "event": "peer-gap-start",
+        "missing": [
+          25
+        ]
+      },
+      {
+        "atMs": 251274,
+        "actor": 25,
+        "event": "open",
+        "socket": 5
+      },
+      {
+        "atMs": 251275,
+        "actor": 25,
+        "event": "join-sent",
+        "socket": 5
+      },
+      {
+        "atMs": 251426,
+        "actor": 25,
+        "event": "joined",
+        "socket": 5
+      },
+      {
+        "atMs": 251426,
+        "actor": 25,
+        "event": "recovered",
+        "durationMs": 9955,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 251426,
+        "observer": 26,
+        "event": "peer-gap-end",
+        "missing": [
+          25
+        ],
+        "durationMs": 340
+      },
+      {
+        "atMs": 251801,
+        "actor": 27,
+        "event": "ticket"
+      },
+      {
+        "atMs": 251929,
+        "actor": 27,
+        "event": "open",
+        "socket": 3
+      },
+      {
+        "atMs": 251929,
+        "actor": 27,
+        "event": "join-sent",
+        "socket": 3
+      },
+      {
+        "atMs": 256025,
+        "actor": 27,
+        "event": "close",
+        "socket": 3,
+        "code": 1012,
+        "reason": "interrupted"
+      },
+      {
+        "atMs": 256026,
+        "actor": 27,
+        "event": "disconnect",
+        "authorityAgeMs": 14668,
+        "reason": "interrupted"
+      }
+    ],
+    "droppedEvents": 0,
+    "maxPeerGapMs": 5664,
+    "unresolvedPeerGaps": [
+      {
+        "observer": 28,
+        "missing": [
+          27
+        ],
+        "beganAtMs": 250571,
+        "durationMs": 5664
+      },
+      {
+        "observer": 29,
+        "missing": [
+          27
+        ],
+        "beganAtMs": 250893,
+        "durationMs": 5342
+      }
+    ],
+    "peerMetricsFrozenAtMs": 256235
+  },
+  "cleanupErrors": []
+}
