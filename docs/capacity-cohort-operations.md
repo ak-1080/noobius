@@ -96,11 +96,40 @@ node scripts/smoke-cloudflare-capacity.mjs
 
 The harness uses five actors per neighborhood. Staging accepts a requested plan of one to twenty neighborhoods, while the helper bounds a cohort at one hundred actors; actual hosted admission limits still apply. Returning mode uses the first requested number of actors from a complete file and rejects an insufficient file. These bounds are tooling safeguards, **not a statement that any of those concurrency levels works**. A five-player pass, a larger merged file, or a historical near-fifty-player report is not near-fifty capacity certification and cannot justify raising production's fifty-player ceiling.
 
+## Include real service jobs on staging
+
+`NOOBIUS_LOAD_JOBS=1` is available only with a returning staging cohort and a measurement of at least 180 seconds. The first home owner in each five-player neighborhood builds a starter machine if needed, gathers materials by walking to real work sites, completes one service job and replays its claim to verify payment occurs once. The other four players keep moving. Ordinary earning allowances and existing saves apply; a spent allowance or unavailable job fails the run. This mode makes no blockchain transfer and does not test the player exchange.
+
+```sh
+NOOBIUS_TEST_ORIGIN=https://noobius-game-staging.rinkydooonso.workers.dev \
+NOOBIUS_LOAD_ROOMS=3 \
+NOOBIUS_LOAD_SECONDS=360 \
+NOOBIUS_LOAD_WALK=full-speed \
+NOOBIUS_LOAD_JOBS=1 \
+NOOBIUS_CAPACITY_COHORT_MODE=returning \
+NOOBIUS_CAPACITY_COHORT_FILE=.wrangler/capacity-cohorts/readiness-fifteen.json \
+node scripts/smoke-cloudflare-capacity.mjs
+```
+
+The report includes `jobsMode`, `jobsStartSecond` and `jobCompletions`; acceptance requires one completed job per neighborhood. Job actors must have accepted worksite walking updates, while the other players retain the normal movement-rate gate. To overlap jobs with the five-minute room renewal, add `NOOBIUS_LOAD_JOBS_START_SECOND=270` to a six-minute run. The job actors move normally until that scheduled second, then walk to real work sites. The start must leave at least ninety measured seconds for completion. Repeat runs use the same saved accounts, so do not reinterpret a later earning-cap rejection as a capacity failure. Keep reports free of signing keys and keep the cohort files private.
+
+A failed run can leave a generated QA actor with an **accepted but unstarted** service job. The mixed runner resumes that exact saved job on the next run instead of accepting it twice. A started job is not silently canceled or replaced; the harness stops with an explicit error so the saved state can be inspected under ordinary game rules. This matters when reusing cohorts for reliability tests.
+
 ## Read the report and correlated timeline
+
+For room-wide stalls, the staging room Worker can temporarily set
+`NOOBIUS_ROOM_DIAGNOSTIC_TRACE=true`. This emits fixed-schema begin/complete
+events for alarm dispatch, orphan scans, room upgrades and service calls. The
+events include operation names, bounded durations and socket counts only;
+the raw Cloudflare tail still contains client network metadata and must remain
+private under `.wrangler/`. Compare begin/complete pairs by Durable Object
+and timestamp. A missing completion may mean an interrupted invocation; it is
+not by itself proof of a particular dependency failure. Turn the verbose
+setting off after the outage is classified.
 
 Staging writes `/tmp/noobius-hosted-capacity-staging-results.json` and prints the report. A subsequent run overwrites that path; preserve reviewed evidence under a distinct name when needed. Reports identify the mode, cohort ID, measured duration, accepted movement, latency, recovery, final positions and cleanup. Review/redact a full report before committing it; the private cohort file must never accompany it.
 
-Every neighborhood is split into **two home visitors and three plaza players**. The harness verifies scene-specific rosters, then moves actors while periodically reading saved profiles. It uses the real `RoomClient`, public sign-in/admission and hosted game/room endpoints. It does not render graphics, perform repair jobs, trade items or execute blockchain payments. Mixed gameplay/trading and real-device tests remain separate acceptance work in the readiness audit.
+Every neighborhood is split into **two home visitors and three plaza players**. The harness verifies scene-specific rosters, then moves actors while periodically reading saved profiles. It uses the real `RoomClient`, public sign-in/admission and hosted game/room endpoints. Optional jobs mode also completes one real service job per neighborhood. It does not render graphics, trade items or execute blockchain payments. Devnet trading and real-device tests remain separate acceptance work in the readiness audit.
 
 The `timeline` is recorded whether or not `NOOBIUS_DIAGNOSE_SOCKET=1` is set. It correlates elapsed offsets, numeric actor IDs and socket ordinals with ticket/open/join/renew/rebase/close/recovery events, handshake status, close codes and authority/recovery ages. Known profile IDs are converted to numeric actor indices before observer-gap events are recorded. The timeline excludes wallet addresses, keys, tickets, sessions, socket URLs and raw protocol frames.
 

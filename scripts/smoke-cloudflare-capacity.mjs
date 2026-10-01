@@ -7,6 +7,11 @@ import { writeFileSync } from 'node:fs';
 import { base58 } from '@scure/base';
 import WebSocket from 'ws';
 import { RoomClient } from '../lib/room-client.ts';
+import { actionWorksite } from '../lib/action-authority.ts';
+import { OBJECTS } from '../lib/facility.ts';
+import { contractFor, serviceChallenge } from '../lib/contracts.ts';
+import { planPath } from '../lib/navigation.ts';
+import { floorClear } from '../lib/world-navigation.ts';
 import {
   assertFreshCapacityAccounts,
   assertReturningCapacityServer,
@@ -34,6 +39,8 @@ const roomCount = Number(process.env.NOOBIUS_LOAD_ROOMS ?? 10);
 const durationSeconds = Number(process.env.NOOBIUS_LOAD_SECONDS ?? 90);
 const motionMode = process.env.NOOBIUS_LOAD_WALK ?? 'full-speed';
 const diagnoseSocket = process.env.NOOBIUS_DIAGNOSE_SOCKET === '1';
+const jobsMode = process.env.NOOBIUS_LOAD_JOBS === '1';
+const jobsStartSecond = Number(process.env.NOOBIUS_LOAD_JOBS_START_SECOND ?? 0);
 assert.ok(['small-steps', 'full-speed'].includes(motionMode));
 assert.ok(
   Number.isInteger(roomCount) &&
@@ -50,6 +57,24 @@ const cohortMode = process.env.NOOBIUS_CAPACITY_COHORT_MODE;
 if (Boolean(cohortPath) !== Boolean(cohortMode))
   throw Error(
     'An explicit cohort file and create/returning mode must be supplied together.',
+  );
+if (
+  jobsMode &&
+  (origin !== 'https://noobius-game-staging.rinkydooonso.workers.dev' ||
+    cohortMode !== 'returning' ||
+    durationSeconds < 180)
+)
+  throw Error(
+    'Mixed jobs require a returning staging cohort and at least 180 seconds.',
+  );
+if (
+  !Number.isInteger(jobsStartSecond) ||
+  jobsStartSecond < 0 ||
+  (jobsMode && jobsStartSecond > durationSeconds - 90) ||
+  (!jobsMode && jobsStartSecond !== 0)
+)
+  throw Error(
+    'Job start must leave at least 90 measured seconds for completion.',
   );
 // All cohort validation/key import finishes before requests or actor allocation.
 // Returning records require their exact existing save; they never create accounts.
@@ -92,6 +117,7 @@ const counters = {
   releaseRetries: 0,
   cleanupRetries: 0,
   httpRequests: 0,
+  jobCompletions: 0,
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const ok = (r) => {
@@ -509,6 +535,125 @@ async function cleanupAction(a, action, body) {
     await sleep(500 * (attempt + 1));
   }
 }
+async function jobAction(a, type, extra = {}, requestId = crypto.randomUUID()) {
+  assert.ok(a.transport?.ready, 'Job actor must have a live room');
+  const action = { type, requestId, ...extra };
+  const payload = a.c.body({ ...a.controller, action });
+  const lease = actionWorksite(a.profile.facility, action)
+    ? await a.transport.prepare('facility', payload)
+    : null;
+  try {
+    const response = ok(
+      await request(a, 'facility', {
+        ...payload,
+        ...(lease ? { roomCheckpoint: lease.checkpoint } : {}),
+      }),
+    );
+    a.profile = response.profile;
+    return response;
+  } finally {
+    await lease?.complete();
+  }
+}
+async function walkToWorksite(a, id) {
+  const object = OBJECTS.find((o) => o.id === id);
+  assert.ok(object, 'Known job worksite');
+  const clear = (x, z) => floorClear(a.profile.facility, false, x, z);
+  const paths = [
+    [0, 1.65],
+    [1.65, 0],
+    [-1.65, 0],
+    [0, -1.65],
+  ]
+    .map(([x, z]) => [object.x + x, object.z + z])
+    .filter(([x, z]) => clear(x, z))
+    .map((end) => planPath([a.point.x, a.point.z], end, clear, 0.5))
+    .filter((path) => path.length)
+    .sort((a, b) => a.length - b.length);
+  assert.ok(paths.length, 'Reachable job worksite');
+  for (const [x, z] of paths[0]) {
+    const start = { ...a.point };
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.hypot(x - start.x, z - start.z) / 0.5),
+    );
+    for (let step = 1; step <= steps; step++) {
+      assert.ok(!stopped && a.transport?.ready, 'Room stays ready during job');
+      await sleep(180);
+      a.point = {
+        x: start.x + ((x - start.x) * step) / steps,
+        z: start.z + ((z - start.z) * step) / steps,
+      };
+      assert.equal(await a.transport.syncPosition(), true, 'Job walk accepted');
+    }
+  }
+}
+async function runJob(a) {
+  // One home owner per neighborhood does a real service job while the other
+  // players keep moving. Existing QA saves and normal earning caps apply.
+  if (!(a.profile.facility.builds?.['rack-a'] > 0))
+    await jobAction(a, 'build', { id: 'rack-a' });
+  const active = a.profile.facility.career.active.find(
+    (candidate) => contractFor(candidate).family === 'service',
+  );
+  assert.ok(
+    !active || active.state === 'accepted',
+    'Existing QA service job must be unstarted to resume',
+  );
+  const offer =
+    active ??
+    a.profile.facility.career.offers.find(
+      (candidate) => contractFor(candidate).family === 'service',
+    );
+  assert.ok(offer, 'Service job available under ordinary earning rules');
+  const terms = contractFor(offer);
+  const before = a.profile.facility.career.completed.service;
+  if (!active) await jobAction(a, 'contract-accept', { id: offer.id });
+  for (const item of new Set(['scrap', ...Object.keys(terms.cost)])) {
+    const node = OBJECTS.find(
+      (object) =>
+        object.kind === 'node' &&
+        object.item === item &&
+        a.profile.facility.unlocked.includes(object.zone),
+    );
+    assert.ok(node, 'Service material has an accessible node');
+    await walkToWorksite(a, node.id);
+    await jobAction(a, 'gather', { id: node.id });
+  }
+  await walkToWorksite(a, terms.target);
+  await jobAction(a, 'contract-start', { id: offer.id });
+  for (let step = 0; step < 3; step++) {
+    const run = a.profile.facility.career.active.find(
+      (job) => job.id === offer.id,
+    );
+    assert.ok(run, 'Started job remains active');
+    await sleep(Math.max(0, run.nextStepAt - Date.now()) + 150);
+    await jobAction(a, 'contract-service', {
+      id: offer.id,
+      direction:
+        step === 0
+          ? 'Inspect'
+          : step === 1
+            ? serviceChallenge(run).answer
+            : 'Test',
+    });
+  }
+  const run = a.profile.facility.career.active.find(
+    (job) => job.id === offer.id,
+  );
+  assert.ok(run, 'Serviced job remains claimable');
+  const credits = a.profile.credits;
+  const requestId = crypto.randomUUID();
+  await jobAction(a, 'contract-claim', { id: offer.id }, requestId);
+  await jobAction(a, 'contract-claim', { id: offer.id }, requestId);
+  assert.equal(
+    a.profile.credits,
+    credits + run.reward,
+    'Replayed job claim pays once',
+  );
+  assert.equal(a.profile.facility.career.completed.service, before + 1);
+  counters.jobCompletions++;
+}
 let lastMotionAt = performance.now();
 const motion = setInterval(
   () => {
@@ -518,7 +663,7 @@ const motion = setInterval(
     if (stopped || !measuring) return;
     phase += 0.16;
     for (const a of actors) {
-      if (!a.transport?.ready) continue;
+      if (!a.transport?.ready || a.jobActive) continue;
       if (motionMode === 'full-speed') {
         a.direction ??= 1;
         const x = a.point.x + a.direction * 4.2 * seconds;
@@ -557,6 +702,7 @@ const deadline = setTimeout(() => {
   }
 }, 900000);
 let report;
+let measuredAt = null;
 try {
   const healthResponse = await fetch(origin + '/api/health', {
     signal: AbortSignal.timeout(20000),
@@ -661,6 +807,7 @@ try {
           .filter((b) => b.membership.scene === a.membership.scene)
           .map((b) => b.profile),
       );
+    if (jobsMode) members[0].jobActor = true;
     console.log(
       'Admitted neighborhood',
       group + 1,
@@ -681,10 +828,22 @@ try {
     );
     await sleep(100);
   }
-  const measuredAt = Date.now();
+  measuredAt = Date.now();
   measuring = true;
+  const jobTasks = [];
   // Moving clients plus ordinary saved-profile reads, distributed over 90 seconds.
   for (let second = 0; second < durationSeconds; second++) {
+    if (jobsMode && second === jobsStartSecond)
+      for (const a of actors.filter((actor) => actor.jobActor)) {
+        a.jobActive = true;
+        jobTasks.push(
+          track(
+            runJob(a).catch((error) => {
+              issues.push(`Job actor ${a.index}: ${error.message}`);
+            }),
+          ),
+        );
+      }
     assert.ok(!stopped);
     assert.equal(issues.length, 0, issues.slice(0, 5).join('; '));
     for (const a of actors)
@@ -705,6 +864,7 @@ try {
       );
     await sleep(1000);
   }
+  await Promise.all(jobTasks);
   const measurementMs = Date.now() - measuredAt;
   measuring = false;
   timeline.freezePeers();
@@ -725,9 +885,15 @@ try {
     await sleep(100);
   }
   assert.ok(
-    actors.every((a) => a.accepted >= durationSeconds * 2),
-    'Every client averages at least two accepted updates per scheduled second',
+    actors.every((a) => a.accepted >= (a.jobActor ? 10 : durationSeconds * 2)),
+    'Moving clients average two accepted updates per second and each worker walks to a job',
   );
+  if (jobsMode)
+    assert.equal(
+      counters.jobCompletions,
+      roomCount,
+      'One service job completed in each neighborhood',
+    );
   assert.ok(
     counters.accepted / counters.sent > 0.99,
     'At least 99% movement accepted',
@@ -765,12 +931,14 @@ try {
     runId,
     status: 'passed',
     motionMode,
+    jobsMode,
+    jobsStartSecond,
     identityMode: cohort?.mode ?? 'fresh-ephemeral',
     cohortId: cohort?.cohortId ?? null,
     beganAt: new Date(began).toISOString(),
     measuredAt: new Date(measuredAt).toISOString(),
     completedAt: new Date().toISOString(),
-    scope: `Hosted Cloudflare Workers and Durable Objects; ${actors.length} synthetic RoomClients, ${roomCount} neighborhoods; two home visitors and three plaza players per room; one network location, no rendered graphics or blockchain transfers`,
+    scope: `Hosted Cloudflare Workers and Durable Objects; ${actors.length} synthetic RoomClients, ${roomCount} neighborhoods; two home visitors and three plaza players per room; ${jobsMode ? 'one service job per room; ' : ''}one network location, no rendered graphics or blockchain transfers`,
     rampMs: measuredAt - began,
     measurementMs,
     ...counters,
@@ -800,8 +968,14 @@ try {
     runId,
     status: 'failed',
     motionMode,
+    jobsMode,
+    jobsStartSecond,
     identityMode: cohort?.mode ?? 'fresh-ephemeral',
     cohortId: cohort?.cohortId ?? null,
+    beganAt: new Date(began).toISOString(),
+    measuredAt: measuredAt ? new Date(measuredAt).toISOString() : null,
+    rampMs: measuredAt ? measuredAt - began : null,
+    measurementMs: measuredAt ? Date.now() - measuredAt : null,
     at: new Date().toISOString(),
     error: e.message,
     ...counters,

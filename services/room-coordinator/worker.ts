@@ -24,6 +24,7 @@ type Env = {
   NOOBIUS_ROOM_AUTH_ENABLED?: string;
   NOOBIUS_ROOM_AUTH_CONFIG?: string;
   LOCAL_ROOM_DEVELOPMENT?: string;
+  NOOBIUS_ROOM_DIAGNOSTIC_TRACE?: string;
 };
 type Attachment = {
   room: string;
@@ -163,6 +164,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   private admissionBusy = false;
   private admissionSequence = 0;
   private backlogWarningAt = -Infinity;
+  private trace(event: OperationalEvent) {
+    if (this.env.NOOBIUS_ROOM_DIAGNOSTIC_TRACE === 'true')
+      emitOperationalEvent(event);
+  }
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -241,7 +246,10 @@ export class NeighborhoodRoom extends DurableObject<Env> {
               throw new ServiceFailure(409);
             a.connectionId = crypto.randomUUID();
             ws.serializeAttachment(a);
-            this.actors.set(ws, this.actor(a.grant!, a.connectionId, authority));
+            this.actors.set(
+              ws,
+              this.actor(a.grant!, a.connectionId, authority),
+            );
             this.joined(ws, 'rebase');
             restored++;
           } catch (error) {
@@ -335,6 +343,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   ): Promise<T> {
     const started = Date.now();
     const operation = body.operation as OperationalEvent['operation'];
+    this.trace({ event: 'room-service-trace', phase: 'begin', operation });
     let succeeded = false;
     try {
       const raw = JSON.stringify(body);
@@ -377,6 +386,12 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       });
       throw error;
     } finally {
+      this.trace({
+        event: 'room-service-trace',
+        phase: 'complete',
+        operation,
+        durationMs: Date.now() - started,
+      });
       if (succeeded && Date.now() - started >= 1000)
         emitOperationalEvent({
           event: 'room-service-slow',
@@ -452,6 +467,8 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     // Bound unauthenticated sockets as well as the five D1-admitted occupants.
     if (this.ctx.getWebSockets().length >= 10)
       return json({ error: 'Room connections are busy. Retry shortly.' }, 429);
+    const started = Date.now();
+    this.trace({ event: 'room-upgrade-trace', phase: 'begin' });
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({
@@ -463,6 +480,11 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     const nextAlarmAt = Date.now() + 1000;
     await this.ctx.storage.setAlarm(nextAlarmAt);
     this.nextAlarmAt = nextAlarmAt;
+    this.trace({
+      event: 'room-upgrade-trace',
+      phase: 'complete',
+      durationMs: Date.now() - started,
+    });
     return new Response(null, { status: 101, webSocket: client });
   }
   private enqueue(ws: WebSocket, job: () => Promise<void>) {
@@ -803,6 +825,11 @@ export class NeighborhoodRoom extends DurableObject<Env> {
   }
   async alarm() {
     const alarmStartedAt = Date.now();
+    this.trace({
+      event: 'room-alarm-trace',
+      phase: 'begin',
+      socketCount: this.ctx.getWebSockets().length,
+    });
     const expectedAt = this.nextAlarmAt;
     this.nextAlarmAt = null;
     if (expectedAt !== null && alarmStartedAt - expectedAt >= 2000)
@@ -951,8 +978,27 @@ export class NeighborhoodRoom extends DurableObject<Env> {
         durationMs,
         socketCount,
       });
+    this.trace({
+      event: 'room-alarm-trace',
+      phase: 'complete',
+      durationMs,
+      socketCount,
+    });
   }
   private async recoverOrphans() {
+    const startedAt = Date.now();
+    this.trace({ event: 'room-recovery-trace', phase: 'begin' });
+    try {
+      await this.scanOrphans();
+    } finally {
+      this.trace({
+        event: 'room-recovery-trace',
+        phase: 'complete',
+        durationMs: Date.now() - startedAt,
+      });
+    }
+  }
+  private async scanOrphans() {
     const cursor = await this.ctx.storage.get<string>('recovery-cursor');
     let pending = await this.ctx.storage.list<Outbox>({
       prefix: 'checkpoint:',
@@ -1083,20 +1129,41 @@ export class NeighborhoodRoom extends DurableObject<Env> {
     this.actors.delete(ws);
     this.queues.delete(ws);
     this.broadcast();
-    // Drop uncommitted movement on a broken connection. An uncertain checkpoint
-    // stays in the outbox for reconciliation before its grant is released.
-    if (a && !(await this.ctx.storage.get('checkpoint:' + a.grant))) {
-      try {
-        await this.service({ operation: 'authority-release', grant: a.grant });
-      } catch (error) {
-        emitOperationalEvent({
-          event: 'room-release-deferred',
-          phase: 'close',
-          ...failureFields(error),
-        });
-        /* ten-second writer expiry permits recovery */
-      }
-    }
+    // A broken transport must leave the room event handler promptly. The
+    // durable outbox still protects an uncertain checkpoint, and waitUntil
+    // keeps this grant-specific release alive without holding socket dispatch.
+    if (a)
+      this.ctx.waitUntil(
+        (async () => {
+          let pending: Outbox | undefined;
+          try {
+            pending = await this.ctx.storage.get<Outbox>(
+              'checkpoint:' + a.grant,
+            );
+          } catch {
+            emitOperationalEvent({
+              event: 'room-release-deferred',
+              phase: 'close',
+              reason: 'storage',
+            });
+            return;
+          }
+          if (pending) return;
+          try {
+            await this.service({
+              operation: 'authority-release',
+              grant: a.grant,
+            });
+          } catch (error) {
+            emitOperationalEvent({
+              event: 'room-release-deferred',
+              phase: 'close',
+              ...failureFields(error),
+            });
+            /* ten-second writer expiry permits recovery */
+          }
+        })(),
+      );
   }
   async webSocketError(ws: WebSocket) {
     emitOperationalEvent({
