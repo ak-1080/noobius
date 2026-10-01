@@ -115,6 +115,8 @@ The report includes `jobsMode`, `jobsStartSecond` and `jobCompletions`; acceptan
 
 A failed run can leave a generated QA actor with an **accepted but unstarted** service job. The mixed runner resumes that exact saved job on the next run instead of accepting it twice. A started job is not silently canceled or replaced; the harness stops with an explicit error so the saved state can be inspected under ordinary game rules. This matters when reusing cohorts for reliability tests.
 
+If a room drops during a service job, the runner waits up to thirty seconds for the existing reconnect path, refreshes the saved profile, and retries the same action request ID. A worksite walk replans from the newly authoritative position. This is a measurement aid for a platform reset, not a waived acceptance gate: the run still records every interruption and fails if recovery takes over three seconds or if work, movement, or final saves are lost. Do not use a new request ID for an uncertain claim.
+
 ## Read the report and correlated timeline
 
 For room-wide stalls, the staging room Worker can temporarily set

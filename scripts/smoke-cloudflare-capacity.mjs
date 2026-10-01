@@ -535,27 +535,52 @@ async function cleanupAction(a, action, body) {
     await sleep(500 * (attempt + 1));
   }
 }
-async function jobAction(a, type, extra = {}, requestId = crypto.randomUUID()) {
-  assert.ok(a.transport?.ready, 'Job actor must have a live room');
-  const action = { type, requestId, ...extra };
-  const payload = a.c.body({ ...a.controller, action });
-  const lease = actionWorksite(a.profile.facility, action)
-    ? await a.transport.prepare('facility', payload)
-    : null;
-  try {
-    const response = ok(
-      await request(a, 'facility', {
-        ...payload,
-        ...(lease ? { roomCheckpoint: lease.checkpoint } : {}),
-      }),
-    );
-    a.profile = response.profile;
-    return response;
-  } finally {
-    await lease?.complete();
+const roomInterrupted = (error) =>
+  /room connection is recovering|room is reconnecting|connection changed|position is syncing/i.test(
+    error?.message ?? '',
+  );
+async function waitForJobRoom(a) {
+  const until = Date.now() + 30000;
+  while (!stopped && (!a.transport?.ready || a.reconnecting)) {
+    assert.ok(Date.now() < until, 'Job room must recover within 30 seconds');
+    await sleep(100);
   }
+  assert.ok(!stopped, 'Capacity run remains active during job recovery');
 }
-async function walkToWorksite(a, id) {
+async function jobAction(a, type, extra = {}, requestId = crypto.randomUUID()) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await waitForJobRoom(a);
+    const action = { type, requestId, ...extra };
+    const payload = a.c.body({ ...a.controller, action });
+    let lease = null;
+    let retry = false;
+    try {
+      lease = actionWorksite(a.profile.facility, action)
+        ? await a.transport.prepare('facility', payload)
+        : null;
+      const response = ok(
+        await request(a, 'facility', {
+          ...payload,
+          ...(lease ? { roomCheckpoint: lease.checkpoint } : {}),
+        }),
+      );
+      a.profile = response.profile;
+      return response;
+    } catch (error) {
+      if (attempt === 3 || !roomInterrupted(error)) throw error;
+      retry = true;
+    } finally {
+      await lease?.complete();
+    }
+    if (retry) {
+      await waitForJobRoom(a);
+      a.profile = ok(await request(a, 'profile')).profile;
+    }
+  }
+  throw Error('Job room recovery exhausted');
+}
+async function walkToWorksite(a, id, restarts = 0) {
+  await waitForJobRoom(a);
   const object = OBJECTS.find((o) => o.id === id);
   assert.ok(object, 'Known job worksite');
   const clear = (x, z) => floorClear(a.profile.facility, false, x, z);
@@ -578,13 +603,26 @@ async function walkToWorksite(a, id) {
       Math.ceil(Math.hypot(x - start.x, z - start.z) / 0.5),
     );
     for (let step = 1; step <= steps; step++) {
-      assert.ok(!stopped && a.transport?.ready, 'Room stays ready during job');
+      if (!a.transport?.ready || a.reconnecting) {
+        assert.ok(restarts < 3, 'Job walk recovery exhausted');
+        await waitForJobRoom(a);
+        return walkToWorksite(a, id, restarts + 1);
+      }
       await sleep(180);
       a.point = {
         x: start.x + ((x - start.x) * step) / steps,
         z: start.z + ((z - start.z) * step) / steps,
       };
-      assert.equal(await a.transport.syncPosition(), true, 'Job walk accepted');
+      try {
+        if (!(await a.transport.syncPosition())) {
+          assert.ok(restarts < 3, 'Job walk corrected repeatedly');
+          return walkToWorksite(a, id, restarts + 1);
+        }
+      } catch (error) {
+        if (!roomInterrupted(error) || restarts >= 3) throw error;
+        await waitForJobRoom(a);
+        return walkToWorksite(a, id, restarts + 1);
+      }
     }
   }
 }
