@@ -232,6 +232,7 @@ async function connect(a, fastRenew = false) {
     }
   };
   if (!fastRenew) await refreshMembership();
+  timeline.record(a.index, 'ticket-request');
   let ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
   if (
     fastRenew &&
@@ -239,6 +240,7 @@ async function connect(a, fastRenew = false) {
     /expired|changed|resync/i.test(ticketResponse.data?.error ?? '')
   ) {
     await refreshMembership();
+    timeline.record(a.index, 'ticket-request');
     ticketResponse = await request(a, 'room-ticket', a.c.body(a.controller));
   }
   const ticket = ok(ticketResponse);

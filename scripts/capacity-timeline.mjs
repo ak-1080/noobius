@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 
 const events = new Set([
+  'ticket-request',
   'ticket',
   'open',
   'join-sent',
