@@ -271,7 +271,7 @@ async function fixture(options = {}) {
   };
   const advance = async (ms) => {
     clock.now += ms;
-    for (const [id, timer] of [...timers]) {
+    for (const [id, timer] of timers) {
       if (timer.at <= clock.now && timers.delete(id)) timer.fn();
     }
     await nextTurn();
@@ -1149,6 +1149,106 @@ test('idle room upkeep renews authority without a position write, then saves mov
   await f.room.alarm();
   assert.equal(calls.at(-1), 'authority-refresh');
   assert.equal(calls.filter((v) => v === 'movement-checkpoint').length, 1);
+});
+
+test('moving upkeep saves and renews in one service call when lease headroom is ample', async () => {
+  const f = await fixture();
+  const initial = {
+    ...authority(1, f.clock.now),
+    authorizedUntil: f.clock.now + 20_000,
+    writerUntil: f.clock.now + 20_000,
+  };
+  const { ws, actor } = installActor(f, 'moving-one-call', initial);
+  const calls = [];
+  f.room.service = async (body) => {
+    calls.push(body.operation);
+    if (body.operation === 'movement-checkpoint')
+      return savedCheckpoint(body, actor.authority, f.clock.now);
+    throw new Error('Moving upkeep made an unnecessary service call');
+  };
+  actor.motion.move({ inputSequence: 1, x: 1, z: 17 });
+  f.clock.now += 8000;
+  await f.room.alarm();
+  assert.deepEqual(calls, ['movement-checkpoint']);
+  assert.equal(actor.lastPersistedInputSequence, 1);
+  assert.equal(actor.authority.membership.x, 1);
+  assert.ok(ws.sent.some((body) => body.type === 'authority'));
+});
+
+test('uncertain upkeep checkpoint replays its ID without closing a live socket', async () => {
+  const calls = [];
+  const f = await fixture({
+    fetch: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      calls.push(body);
+      if (body.operation !== 'movement-checkpoint')
+        throw new Error('Unexpected service operation');
+      if (calls.length === 1) {
+        const error = new Error('Private upstream detail');
+        error.name = 'TimeoutError';
+        throw error;
+      }
+      return Response.json(savedCheckpoint(body, initial, f.clock.now));
+    },
+  });
+  const initial = {
+    ...authority(1, f.clock.now),
+    authorizedUntil: f.clock.now + 20_000,
+    writerUntil: f.clock.now + 20_000,
+  };
+  const { ws, actor } = installActor(f, 'retry-checkpoint', initial);
+  actor.motion.move({ inputSequence: 1, x: 1, z: 17 });
+  f.clock.now += 8000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  assert.ok(actor.motion.pendingCheckpoint);
+  assert.equal(checkpointCount(f), 1);
+  assert.deepEqual(
+    f.events.filter((e) => e?.event === 'room-checkpoint-retry'),
+    [{ event: 'room-checkpoint-retry', reason: 'timeout' }],
+  );
+  f.clock.now += 1000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].id, calls[1].id);
+  assert.equal(checkpointCount(f), 0);
+  assert.equal(actor.lastPersistedInputSequence, 1);
+  assert.equal(actor.authority.membership.x, 1);
+  assert.equal(
+    f.events.some((e) => e?.event === 'room-connection-failed'),
+    false,
+  );
+});
+
+test('an uncertain checkpoint cannot keep an expired writer socket alive', async () => {
+  const f = await fixture({
+    fetch: async () => {
+      const error = new Error('Private upstream detail');
+      error.name = 'TimeoutError';
+      throw error;
+    },
+  });
+  const initial = {
+    ...authority(1, f.clock.now),
+    authorizedUntil: f.clock.now + 20_000,
+    writerUntil: f.clock.now + 20_000,
+  };
+  const { ws, actor } = installActor(f, 'expired-checkpoint', initial);
+  actor.motion.move({ inputSequence: 1, x: 1, z: 17 });
+  f.clock.now += 8000;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.OPEN);
+  f.clock.now += 11_600;
+  await f.room.alarm();
+  assert.equal(ws.readyState, WebSocketMock.CLOSING);
+  assert.equal(checkpointCount(f), 1);
+  assert.ok(
+    f.events.some(
+      (e) =>
+        e?.event === 'room-connection-failed' && e.reason === 'timeout',
+    ),
+  );
 });
 
 test('a transient authority timeout retries within the existing lease without closing the room', async () => {

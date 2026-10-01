@@ -823,6 +823,26 @@ export class NeighborhoodRoom extends DurableObject<Env> {
       serverNow: saved.authority.serverNow,
     };
   }
+  private async flushDuringUpkeep(ws: WebSocket, a: Actor) {
+    try {
+      await this.flush(ws);
+    } catch (error) {
+      // The outbox and checkpoint ID make an uncertain service response safe
+      // to replay. Keep the current socket while its existing writer lease is
+      // valid; a terminal failure or expired lease still closes it.
+      if (
+        retryableRoomServiceFailure(error) &&
+        nowFor(a) < a.authority.authorizedUntil - 500
+      ) {
+        emitOperationalEvent({
+          event: 'room-checkpoint-retry',
+          ...failureFields(error),
+        });
+        return;
+      }
+      throw error;
+    }
+  }
   async alarm() {
     const alarmStartedAt = Date.now();
     this.trace({
@@ -858,11 +878,24 @@ export class NeighborhoodRoom extends DurableObject<Env> {
             return;
           }
           if (a.motion.pendingCheckpoint) {
-            await this.flush(ws);
+            await this.flushDuringUpkeep(ws, a);
             return;
           }
           if (Date.now() - a.lastUpkeepAt < 8000) return;
           if (nowFor(a) < a.authority.frozenUntil) return;
+          if (
+            !a.authority.frozenCheckpoint &&
+            a.motion.inputSequence !== a.lastPersistedInputSequence &&
+            // Keep the early authority publish when the browser lease is
+            // close enough that a slow checkpoint could outlive it.
+            a.authority.authorizedUntil - nowFor(a) >= 6000
+          ) {
+            // A successful checkpoint renews the writer and browser leases.
+            // Avoid a separate authority refresh for every moving player.
+            a.motion.captureCheckpoint(crypto.randomUUID());
+            await this.flushDuringUpkeep(ws, a);
+            return;
+          }
           let authority: RoomAuthority;
           try {
             authority = await this.service<RoomAuthority>({
@@ -898,7 +931,7 @@ export class NeighborhoodRoom extends DurableObject<Env> {
           // position receipt. Work actions still capture their own checkpoint.
           if (a.motion.inputSequence === a.lastPersistedInputSequence) return;
           a.motion.captureCheckpoint(crypto.randomUUID());
-          await this.flush(ws);
+          await this.flushDuringUpkeep(ws, a);
         }).finally(() => {
           const durationMs = Date.now() - maintenanceStartedAt;
           if (durationMs >= 2000)

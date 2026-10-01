@@ -345,16 +345,16 @@ test('planned grant renewal reconnects immediately and preserves the saved scene
   assert.equal(state.status, 'Connected');
 });
 
-test('unexpected disconnect retries on the next tick without waiting for backoff', async (t) => {
+test('unexpected disconnect reconnects immediately without a shared state read', async (t) => {
   const f = fixture(t);
   f.render();
   await settle();
   f.rooms[0].disconnect('interrupted');
-  await f.advance(1500);
+  await settle();
   assert.deepEqual(f.backoffs, []);
   assert.deepEqual(
     f.calls.map((c) => c.action),
-    ['neighborhood-join', 'room-ticket', 'neighborhood-state', 'room-ticket'],
+    ['neighborhood-join', 'room-ticket', 'room-ticket'],
   );
   assert.equal(f.rooms.length, 2);
   assert.equal(f.render().canMove, true);
@@ -371,7 +371,7 @@ test('a failed fast reconnect backs off before another attempt', async (t) => {
   f.render();
   await settle();
   f.rooms[0].disconnect('interrupted');
-  await f.advance(1500);
+  await settle();
   assert.deepEqual(f.backoffs, [1]);
   assert.equal(tickets, 2);
   await f.advance(3000);
@@ -383,14 +383,14 @@ test('a failed fast reconnect backs off before another attempt', async (t) => {
 
 test('an expired room membership rejoins after a long coordinator outage', async (t) => {
   let joins = 0;
-  let states = 0;
+  let tickets = 0;
   const f = fixture(t, {
     request: (action) => {
       if (action === 'neighborhood-join')
         return snapshot(walletA, { generation: 42 + joins++ });
-      if (action === 'neighborhood-state' && states++ === 0)
+      if (action === 'room-ticket' && ++tickets === 2)
         throw new ClientError(
-          'Your neighborhood connection expired. Rejoin to continue.',
+          'Your room authority changed. Rejoin to continue.',
           409,
         );
     },
@@ -398,7 +398,7 @@ test('an expired room membership rejoins after a long coordinator outage', async
   f.render();
   await settle();
   f.rooms[0].disconnect('interrupted');
-  await f.advance(1500);
+  await settle();
   assert.equal(f.render().snapshot, null);
   await f.advance(1500);
   assert.equal(joins, 2);

@@ -27,6 +27,7 @@ const names = [
   'room-recovery-delayed',
   'room-connection-failed',
   'room-authority-retry',
+  'room-checkpoint-retry',
   'holder-verification',
   'holder-storage-failed',
 ] as const;
