@@ -1,6 +1,10 @@
 import { realmExists } from './realm-catalog.ts';
 import type { RoomAuthority } from './room-auth-server.ts';
-import { floorClear, movementDistance } from './world-navigation.ts';
+import {
+  closedGateExit,
+  floorClear,
+  movementDistance,
+} from './world-navigation.ts';
 
 export const ROOM_MOVE_INTERVAL_MS = 100;
 export const ROOM_MOVE_ELAPSED_CAP_MS = 1000;
@@ -39,6 +43,12 @@ export type RoomMotionResult = {
 };
 
 const point = (x: number, z: number): RoomPosition => Object.freeze({ x, z });
+const safePosition = (authority: Authority): RoomPosition => {
+  const { x, z, scene } = authority.membership;
+  const exit =
+    scene === 'commons' ? null : closedGateExit(authority.navigation, x, z);
+  return point(exit?.x ?? x, exit?.z ?? z);
+};
 const samePoint = (a: RoomPosition, b: RoomPosition) =>
   a.x === b.x && a.z === b.z;
 const sameIdentity = (a: Authority, b: Authority) =>
@@ -99,10 +109,7 @@ export class RoomMotion {
     if (!Number.isFinite(now) || now < 0)
       throw new Error('Invalid room motion clock.');
     this.authority = copyAuthority(authority);
-    this.currentPosition = point(
-      authority.membership.x,
-      authority.membership.z,
-    );
+    this.currentPosition = safePosition(this.authority);
     this.currentCheckpointSequence = authority.membership.sequence;
     this.observedAt = this.evaluatedAt = this.movedAt = now;
     this.actionCheckpoint = authority.frozenCheckpoint ?? null;
@@ -249,10 +256,7 @@ export class RoomMotion {
   private rebase(authority: Authority, now: number) {
     if (!sameIdentity(authority, this.authority)) this.currentInputSequence = 0;
     this.authority = authority;
-    this.currentPosition = point(
-      authority.membership.x,
-      authority.membership.z,
-    );
+    this.currentPosition = safePosition(authority);
     this.currentCheckpointSequence = authority.membership.sequence;
     this.pending = null;
     // A durable action barrier survives coordinator restart/rebase. Its

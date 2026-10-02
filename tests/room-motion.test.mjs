@@ -76,6 +76,56 @@ test('legal local hops can continue for more than ten seconds without a D1 write
   assert.equal(motion.captureCheckpoint('end').inputSequence, 200);
 });
 
+test('a legacy gate position is normalized on reconnect before movement', () => {
+  const motion = new RoomMotion(
+    authority({ membership: { scene: 'home-player', x: -22, z: -1.7 } }),
+    0,
+  );
+  assert.equal(motion.position.x, -22);
+  assert.ok(Math.abs(motion.position.z + 1.37) < 0.000001);
+  assert.equal(
+    motion.move({ inputSequence: 1, x: -22, z: -0.95 }, 100).accepted,
+    true,
+  );
+  assert.equal(
+    motion.move({ inputSequence: 2, x: -22, z: -2.1 }, 200).accepted,
+    false,
+  );
+});
+
+test('normal walking updates cross both doorway orientations without a correction', () => {
+  const routes = [
+    {
+      start: { x: -22, z: 1 },
+      direction: { x: 0, z: -1 },
+      unlocked: ['thermal'],
+    },
+    { start: { x: 10, z: 12 }, direction: { x: 1, z: 0 }, unlocked: [] },
+  ];
+  for (const route of routes) {
+    const motion = new RoomMotion(
+      authority({
+        membership: { scene: 'home-player', ...route.start },
+        navigation: {
+          unlocked: ['commons', 'salvage', 'workshop', ...route.unlocked],
+        },
+      }),
+      0,
+    );
+    for (let i = 1; i <= 10; i++) {
+      const result = motion.move(
+        {
+          inputSequence: i,
+          x: route.start.x + route.direction.x * 0.42 * i,
+          z: route.start.z + route.direction.z * 0.42 * i,
+        },
+        i * 100,
+      );
+      assert.equal(result.accepted, true, result.reason);
+    }
+  }
+});
+
 test('initial time is zero and idle time is capped at one second per hop', () => {
   const motion = new RoomMotion(authority(), 10_000);
   assert.equal(move(motion, 1, 0.1, 10_000).accepted, false);

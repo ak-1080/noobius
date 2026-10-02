@@ -27,7 +27,7 @@ import { buildRealmWorld } from './realmWorldBuilder';
 import { realmFor } from '@/lib/realm-catalog';
 import { EMERGENCY_STATIONS } from '@/lib/multiplayer';
 import { planPath } from '@/lib/navigation';
-import { floorClear } from '@/lib/world-navigation';
+import { closedGateExit, floorClear } from '@/lib/world-navigation';
 import {
   createPickupGate,
   worldMovement,
@@ -402,11 +402,13 @@ export default function Campus(props: Props) {
       box(0.12, 0.08, 16, accent, g, -8.7, 0.09, 0);
       if (!live.current.sharedCampus)
         for (const side of [-1, 1]) {
-          box(7.2, 1.5, 0.25, dark, g, side * 5.4, 0.62, -8);
-          box(0.2, 0.55, 6.2, dark, g, -9, 0.25, side * 4.9);
+          // The walking corridor is 3.6 units wide. Leave another avatar
+          // radius on each side so the body does not clip the door frame.
+          box(6.6, 1.5, 0.25, dark, g, side * 5.7, 0.62, -8);
+          box(0.2, 0.55, 5.6, dark, g, -9, 0.25, side * 5.2);
         }
       if (!live.current.sharedCampus)
-        for (let x = -8; x <= 8; x += 4) {
+        for (const x of [-8, -4, 4, 8]) {
           box(0.12, 2.2, 0.16, silver, g, x, 1, -7.7);
           box(2, 0.08, 0.08, accent, g, x, 2, -7.55);
         }
@@ -1097,6 +1099,10 @@ export default function Campus(props: Props) {
         live.current.onCancelGuide();
     };
     correct.current = (x, z) => {
+      const exit = !live.current.sharedCampus
+        ? closedGateExit(live.current.facility, x, z)
+        : null;
+      if (exit) ({ x, z } = exit);
       avatar.g.position.set(x, 0, z);
       target = null;
       waypoints = [];
