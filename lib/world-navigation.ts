@@ -20,6 +20,38 @@ const obstacles = [
     })),
   ),
 ];
+const gates = OBJECTS.filter((o) => o.kind === 'gate');
+const GATE_BODY_CLEARANCE = 0.62;
+
+// The closed gate has posts and a barrier at the room threshold. Keep the
+// avatar's body clear of that mesh, not only its center out of the locked room.
+const closedGateClear = (
+  facility: Pick<Facility, 'unlocked'>,
+  x: number,
+  z: number,
+) =>
+  !gates.some(
+    (gate) =>
+      !facility.unlocked.includes(gate.zone) &&
+      Math.abs(x - gate.x) < 2.1 &&
+      Math.abs(z - gate.z) < GATE_BODY_CLEARANCE,
+  );
+
+/** Move a legacy save made against the old point-only gate rule to its safe side. */
+export function closedGateExit(
+  facility: Pick<Facility, 'unlocked'>,
+  x: number,
+  z: number,
+) {
+  const gate = gates.find(
+    (gate) =>
+      !facility.unlocked.includes(gate.zone) &&
+      Math.abs(x - gate.x) < 2.1 &&
+      z >= gate.z &&
+      z < gate.z + GATE_BODY_CLEARANCE,
+  );
+  return gate ? { x, z: gate.z + GATE_BODY_CLEARANCE + 0.01 } : null;
+}
 
 /** The renderer and authority use the same floor, room gates and footprints. */
 export function floorClear(
@@ -41,6 +73,7 @@ export function floorClear(
         .some((o) => Math.abs(x - o.x) < o.w && Math.abs(z - o.z) < o.d)
     );
   if (Math.abs(x) > 32 || z > 21 || z < -40) return false;
+  if (!closedGateClear(facility, x, z)) return false;
   const zone = ZONES.find(
     (d) => Math.abs(x - d.x) < 9 && Math.abs(z - d.z) < 8,
   );
