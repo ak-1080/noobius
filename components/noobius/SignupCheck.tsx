@@ -73,7 +73,7 @@ export default function SignupCheck({ check }: { check: PendingCheck }) {
           action: SIGNUP_ACTION,
           cData: check.challenge,
           theme: 'dark',
-          size: 'flexible',
+          size: host.current.clientWidth < 300 ? 'compact' : 'flexible',
           'response-field': false,
           callback: (token: string) => {
             if (!disposed) check.complete(token);
