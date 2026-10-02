@@ -1,0 +1,20 @@
+{
+  "origin": "Cloudflare staging export",
+  "checkedAt": "2026-10-02T06:04:32.817Z",
+  "integrity": [
+    "ok"
+  ],
+  "foreignKeyViolations": 0,
+  "migrations": 15,
+  "profiles": 1545,
+  "payments": [
+    {
+      "status": "expired",
+      "n": 1
+    },
+    {
+      "status": "settled",
+      "n": 4
+    }
+  ]
+}

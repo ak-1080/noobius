@@ -1,6 +1,8 @@
 'use client';
 import type { ComputePaymentQuote } from '@/lib/solana-payment';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSignupCheck } from './SignupCheck';
+import type { SignupChallenge } from '@/lib/signup-protection';
 import { actionWorksite } from '@/lib/action-authority';
 import { awardSkillXp, skillForFacilityAction } from '@/lib/progression';
 import type { PrepareRoomWork } from '@/lib/room-protocol';
@@ -106,6 +108,7 @@ export async function api<T = GameData>(
   return data as T;
 }
 export function useNoobius() {
+  const signupCheck = useSignupCheck();
   const worldController = useRef<{
     clientId: string;
     generation: number;
@@ -445,8 +448,9 @@ export function useNoobius() {
       if (!supportedWalletOptions(wallets).includes(option))
         throw new Error(UNSUPPORTED_WALLET);
       let verified: GameData | undefined;
+      let signupToken: string | undefined;
       const verify = async (signature: string) => {
-        const data = await api<GameData>('verify', { signature });
+        const data = await api<GameData>('verify', { signature, signupToken });
         verified = data;
         return data;
       };
@@ -454,11 +458,18 @@ export function useNoobius() {
       try {
         result = await signInSolanaWallet(
           option.provider,
-          (address) =>
-            api<{ message: string }>('nonce', {
+          async (address) => {
+            const nonce = await api<{
+              message: string;
+              signupProtection?: SignupChallenge;
+            }>('nonce', {
               address,
               ecosystem: 'solana',
-            }),
+            });
+            if (nonce.signupProtection)
+              signupToken = await signupCheck.request(nonce.signupProtection);
+            return nonce;
+          },
           verify,
         );
       } catch (error) {
@@ -774,7 +785,13 @@ export function useNoobius() {
           realm: a.realm ?? before.fieldWork?.active?.realm ?? 'commons',
           practice: true,
         });
-        const progression = awardSkillXp(p.skillXp ?? null, p.xp, skillForFacilityAction(a.type), next.xp, false);
+        const progression = awardSkillXp(
+          p.skillXp ?? null,
+          p.xp,
+          skillForFacilityAction(a.type),
+          next.xp,
+          false,
+        );
         data = {
           profile: {
             ...p,
@@ -900,6 +917,7 @@ export function useNoobius() {
       return true;
     });
   return {
+    signupCheck: signupCheck.pending,
     setWorldController,
     setRoomWork,
     signComputePayment,

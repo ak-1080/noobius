@@ -3,7 +3,15 @@ import {
   handleComputeMarketAction,
 } from './compute-market-api';
 import { realmFor, realmRequirement } from './realm-catalog';
-import { playerBand, playerLevel, awardSkillXp, skillForFacilityAction, validSkillXp, type SkillXp, type LevelSkill } from './progression';
+import {
+  playerBand,
+  playerLevel,
+  awardSkillXp,
+  skillForFacilityAction,
+  validSkillXp,
+  type SkillXp,
+  type LevelSkill,
+} from './progression';
 import {
   httpMovementGuard,
   roomActionIntent,
@@ -15,7 +23,11 @@ import { roomAuthConfig, RoomAuthError } from './room-auth';
 import { issueRoomTicket, handleRoomService } from './room-auth-server';
 import { finalizeProjectWork } from './commissioning';
 import { reportQueue, reviewReport } from './moderation-server';
-import { runtimeControls, pausedAction } from './operations';
+import {
+  runtimeControls,
+  pausedAction,
+  maintenanceResponse,
+} from './operations';
 import { canTrade, itemMarketEnabled, TRADE_QUALIFICATION } from './market';
 import {
   rememberNeighbors,
@@ -76,6 +88,7 @@ import {
 } from './earning-server';
 import { solanaSignInMessage, verifySolanaMessage } from './solana-auth';
 import { issueReturningSession } from './returning-login';
+import { signupConfig, validateSignup } from './signup-protection';
 import {
   activateJob,
   answerJob,
@@ -541,6 +554,7 @@ function configuredRoomAuth(request: Request) {
   return config;
 }
 export async function handleRoomRequest(request: Request) {
+  if (runtimeControls(realmValues()).maintenance) return maintenanceResponse();
   const config = configuredRoomAuth(request);
   return result(
     await handleRoomService(db(), request, config, permitFor(request)),
@@ -606,6 +620,9 @@ async function recoverRealm(
   };
 }
 export async function handleGame(request: Request, action: string) {
+  // Even reads can normalize saves or housekeeping rows. A restore needs a
+  // complete API fence, not merely a ban on new admission/listings.
+  if (runtimeControls(realmValues()).maintenance) return maintenanceResponse();
   if (request.method === 'GET') {
     await rate(
       request,
@@ -625,7 +642,12 @@ export async function handleGame(request: Request, action: string) {
         );
       const snapshot = await computeMarketSnapshot(db(), viewer, realmValues());
       const access = viewer ? await accessFor(request, viewer) : null;
-      return result({ ...snapshot, sellerEligible: !!access?.tradeAllowed, sellerTradeReadyAt: access?.tradeReadyAt, holdingThreshold: access?.threshold ?? '1000' });
+      return result({
+        ...snapshot,
+        sellerEligible: !!access?.tradeAllowed,
+        sellerTradeReadyAt: access?.tradeReadyAt,
+        holdingThreshold: access?.threshold ?? '1000',
+      });
     }
     if (action === 'moderation-reports') {
       const wallet = await identity(request);
@@ -720,13 +742,16 @@ export async function handleGame(request: Request, action: string) {
         enabled && !!access?.tradeAllowed,
         access?.threshold ?? '1000',
       );
-      return result(enabled
-        ? page
-        : {
-            ...page,
-            canTrade: false,
-            qualification: 'The player parts market is closed. Cancel any older offers to return your parts.',
-          });
+      return result(
+        enabled
+          ? page
+          : {
+              ...page,
+              canTrade: false,
+              qualification:
+                'The player parts market is closed. Cancel any older offers to return your parts.',
+            },
+      );
     }
     if (action === 'profile') {
       const wallet = await identity(request);
@@ -770,6 +795,13 @@ export async function handleGame(request: Request, action: string) {
     const secret = token(),
       now = Date.now(),
       siteOrigin = origin(request);
+    const existingPlayer = await db()
+      .prepare('SELECT wallet FROM players WHERE wallet=?')
+      .bind(wallet)
+      .first();
+    const signup = existingPlayer
+      ? null
+      : signupConfig(realmValues(), new URL(siteOrigin).hostname);
     const browser = await earningBrowser(
       db(),
       cookieValue(request, EARNING_BROWSER_COOKIE),
@@ -819,7 +851,21 @@ export async function handleGame(request: Request, action: string) {
       'Set-Cookie',
       cookie(request, EARNING_BROWSER_COOKIE, browser.token, 30 * 86400),
     );
-    return result({ message }, 200, headers);
+    return result(
+      {
+        message,
+        ...(signup
+          ? {
+              signupProtection: {
+                siteKey: signup.siteKey,
+                challenge: await hash(secret),
+              },
+            }
+          : {}),
+      },
+      200,
+      headers,
+    );
   }
   if (action === 'verify') {
     // A generated returning QA cohort must never recreate a deleted save.
@@ -881,6 +927,18 @@ export async function handleGame(request: Request, action: string) {
         401,
         'The signature does not match this wallet. Please try again.',
       );
+    const existing = await db()
+      .prepare('SELECT wallet,public_id FROM players WHERE wallet=?')
+      .bind(challenge.wallet)
+      .first<{ wallet: string; public_id: string | null }>();
+    const signupValidated = existing
+      ? false
+      : await validateSignup(
+          realmValues(),
+          new URL(origin(request)).hostname,
+          tokenHash,
+          body.signupToken,
+        );
     const consumed = await db()
       .prepare(
         'DELETE FROM challenges WHERE token_hash=? AND expires_at>? RETURNING wallet',
@@ -894,10 +952,6 @@ export async function handleGame(request: Request, action: string) {
       );
     const session = token(),
       now = Date.now();
-    const existing = await db()
-      .prepare('SELECT wallet,public_id FROM players WHERE wallet=?')
-      .bind(challenge.wallet)
-      .first<{ wallet: string; public_id: string | null }>();
     if (
       returningProfileId !== undefined &&
       (!challenge.wallet.startsWith('solana:') ||
@@ -945,7 +999,7 @@ export async function handleGame(request: Request, action: string) {
           await db().batch([
             db()
               .prepare(
-                'INSERT INTO players (wallet,name,created_at,public_id) VALUES (?,?,?,?) ON CONFLICT(wallet) DO NOTHING',
+                'INSERT INTO players (wallet,name,created_at,public_id) SELECT ?,?,?,? WHERE ? OR EXISTS(SELECT 1 FROM players WHERE wallet=?) ON CONFLICT(wallet) DO NOTHING',
               )
               .bind(
                 challenge.wallet,
@@ -954,6 +1008,8 @@ export async function handleGame(request: Request, action: string) {
                 challenge.wallet.startsWith('solana:')
                   ? crypto.randomUUID().replaceAll('-', '')
                   : null,
+                !existing || signupValidated ? 1 : 0,
+                challenge.wallet,
               ),
             db()
               .prepare(
@@ -1053,11 +1109,21 @@ export async function handleGame(request: Request, action: string) {
     await rate(request, 'compute-trading', 30, wallet);
     const p = await player(wallet);
     const qualified = canTrade(p.facility!);
-    const access = action === 'compute-listing-create' && qualified ? await accessFor(request, wallet) : null;
-    if (action === 'compute-listing-create' && qualified && !access?.tradeAllowed)
-      throw new ApiError(403, access?.tradeReadyAt && access.tradeReadyAt > Date.now()
-        ? 'Your 24-hour holder period is still running. Try again after it completes.'
-        : `Hold ${access?.threshold ?? '1,000'} $NOOBIUS to sell Compute.`);
+    const access =
+      action === 'compute-listing-create' && qualified
+        ? await accessFor(request, wallet)
+        : null;
+    if (
+      action === 'compute-listing-create' &&
+      qualified &&
+      !access?.tradeAllowed
+    )
+      throw new ApiError(
+        403,
+        access?.tradeReadyAt && access.tradeReadyAt > Date.now()
+          ? 'Your 24-hour holder period is still running. Try again after it completes.'
+          : `Hold ${access?.threshold ?? '1,000'} $NOOBIUS to sell Compute.`,
+      );
     return result(
       await handleComputeMarketAction(
         db(),
@@ -1372,7 +1438,11 @@ export async function handleGame(request: Request, action: string) {
       presence?.realm ? { xp: p.xp, realm: presence.realm } : undefined,
     );
     if (updated.facility.version !== previous.version) {
-      const progression = await skillAwardFor(p, skillForFacilityAction(a.type), updated.xp);
+      const progression = await skillAwardFor(
+        p,
+        skillForFacilityAction(a.type),
+        updated.xp,
+      );
       const authority = controller
         ? ` AND EXISTS(SELECT 1 FROM crew_presence c WHERE c.wallet=players.wallet AND c.client_id=? AND c.generation=? AND c.lease_until>? AND ${realmWriteGuard('c', permit)} AND c.room=?
         AND (?=0 OR (c.updated_at>? AND (c.x-?)*(c.x-?)+(c.z-?)*(c.z-?)<=16 AND ${roomWorkGuard('c', now, roomProof)})))`
@@ -1596,7 +1666,10 @@ export async function handleGame(request: Request, action: string) {
   }
   if (action === 'listing-create') {
     if (!itemMarketEnabled(realmValues()))
-      throw new ApiError(403, 'The parts player market is closed. Use the Compute exchange.');
+      throw new ApiError(
+        403,
+        'The parts player market is closed. Use the Compute exchange.',
+      );
     const id = body.requestId,
       item = body.item as ItemId,
       n = Number(body.quantity),
@@ -1627,7 +1700,10 @@ export async function handleGame(request: Request, action: string) {
     if (!canTrade(f)) throw new ApiError(403, TRADE_QUALIFICATION);
     const access = await accessFor(request, wallet);
     if (!access.tradeAllowed)
-      throw new ApiError(403, `Hold ${access.threshold} $NOOBIUS to list items.`);
+      throw new ApiError(
+        403,
+        `Hold ${access.threshold} $NOOBIUS to list items.`,
+      );
     let recipient: string | null = null;
     if (body.recipient !== undefined && body.recipient !== '') {
       if (
@@ -1703,7 +1779,10 @@ export async function handleGame(request: Request, action: string) {
   }
   if (action === 'listing-buy') {
     if (!itemMarketEnabled(realmValues()))
-      throw new ApiError(403, 'The parts player market is closed. Use the Compute exchange.');
+      throw new ApiError(
+        403,
+        'The parts player market is closed. Use the Compute exchange.',
+      );
     const row = await db()
       .prepare("SELECT * FROM market_listings WHERE id=? AND status='open'")
       .bind(body.id)

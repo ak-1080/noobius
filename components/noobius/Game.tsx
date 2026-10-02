@@ -2124,6 +2124,7 @@ export default function NoobiusGame() {
                   busy={busy || game.initializing}
                   error={error}
                   isPractice={profile?.wallet === 'practice'}
+                  signupCheck={game.signupCheck}
                   onConnect={async (wallet) => {
                     if (await game.connect(wallet)) {
                       if (await game.start()) setPanel(null);

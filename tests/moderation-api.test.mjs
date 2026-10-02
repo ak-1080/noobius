@@ -7,9 +7,10 @@ import { Client } from './api-client.mjs';
 // This key is a public fixture, never a real moderator. Run only against the
 // isolated local preview with this fixture account explicitly allowlisted.
 const origin = process.env.NOOBIUS_TEST_ORIGIN;
-if (!origin || !/^http:\/\/(127\.0\.0\.1|localhost):3002$/.test(origin))
+if (!origin || !(/^http:\/\/(127\.0\.0\.1|localhost):3002$/.test(origin) ||
+    origin === 'http://127.0.0.1:3003' && process.env.NOOBIUS_RELEASE_QA_ROOT))
   throw new Error(
-    'Moderation fixtures require the isolated loopback preview on port 3002.',
+    'Moderation fixtures require isolated loopback port 3002 or the owned release runner.',
   );
 const sql = (command) =>
   execFileSync(

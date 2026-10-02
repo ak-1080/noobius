@@ -1,0 +1,208 @@
+[
+  {
+    "version": 1,
+    "startedAt": "2026-10-02T06:12:27.473Z",
+    "mode": "restore-drill",
+    "origin": "http://127.0.0.1:3003",
+    "coordinatorOrigin": "http://127.0.0.1:3004",
+    "suites": [],
+    "runtime": {
+      "node": "v24.14.0",
+      "vite": "8.0.16",
+      "vinext": "1.0.0-beta.5",
+      "wrangler": "4.92.0",
+      "miniflare": "4.20260515.0"
+    },
+    "isolation": {
+      "fixtureAdapter": "exact local Wrangler DB commands via native SQLite preload",
+      "database": "runner-owned scratch only",
+      "generatedCredentialsRemoved": true,
+      "ownedProcessGroupsRemaining": 0
+    },
+    "migrations": [
+      "0000_spicy_the_watchers",
+      "0001_calm_mister_fear",
+      "0002_fancy_master_mold",
+      "0003_confused_wolfsbane",
+      "0004_odd_blackheart",
+      "0005_tired_jocasta",
+      "0006_handy_polaris",
+      "0007_nappy_red_wolf",
+      "0008_foamy_sersi",
+      "0009_bouncy_lilith",
+      "0010_red_piledriver",
+      "0011_curly_chameleon",
+      "0012_military_invisible_woman",
+      "0013_amazing_ozymandias",
+      "0014_burly_firedrake"
+    ],
+    "recovery": {
+      "steps": [
+        "seed",
+        "restored",
+        "reconcile",
+        "settled"
+      ],
+      "rollbackRevision": "4e859916f03ca88a4bc8a3ab2d7244a8de1fe100",
+      "chainBoundary": "controlled finalized receipt; no broadcasting"
+    },
+    "status": "failed",
+    "error": "Earlier-source preview startup failed; no hosted target was restored.",
+    "finishedAt": "2026-10-02T06:12:42.407Z"
+  },
+  {
+    "version": 1,
+    "startedAt": "2026-10-02T06:13:07.857Z",
+    "mode": "restore-drill",
+    "origin": "http://127.0.0.1:3003",
+    "coordinatorOrigin": "http://127.0.0.1:3004",
+    "suites": [],
+    "runtime": {
+      "node": "v24.14.0",
+      "vite": "8.0.16",
+      "vinext": "1.0.0-beta.5",
+      "wrangler": "4.92.0",
+      "miniflare": "4.20260515.0"
+    },
+    "isolation": {
+      "fixtureAdapter": "exact local Wrangler DB commands via native SQLite preload",
+      "database": "runner-owned scratch only",
+      "generatedCredentialsRemoved": true,
+      "ownedProcessGroupsRemaining": 0
+    },
+    "migrations": [
+      "0000_spicy_the_watchers",
+      "0001_calm_mister_fear",
+      "0002_fancy_master_mold",
+      "0003_confused_wolfsbane",
+      "0004_odd_blackheart",
+      "0005_tired_jocasta",
+      "0006_handy_polaris",
+      "0007_nappy_red_wolf",
+      "0008_foamy_sersi",
+      "0009_bouncy_lilith",
+      "0010_red_piledriver",
+      "0011_curly_chameleon",
+      "0012_military_invisible_woman",
+      "0013_amazing_ozymandias",
+      "0014_burly_firedrake"
+    ],
+    "recovery": {
+      "steps": [
+        "seed",
+        "restored",
+        "reconcile",
+        "settled"
+      ],
+      "rollbackRevision": "4e859916f03ca88a4bc8a3ab2d7244a8de1fe100",
+      "chainBoundary": "controlled finalized receipt; no broadcasting"
+    },
+    "status": "failed",
+    "error": "Earlier-source preview startup failed; no hosted target was restored.",
+    "finishedAt": "2026-10-02T06:13:23.757Z"
+  },
+  {
+    "version": 1,
+    "startedAt": "2026-10-02T06:22:48.343Z",
+    "mode": "restore-drill",
+    "origin": "http://127.0.0.1:3003",
+    "coordinatorOrigin": "http://127.0.0.1:3004",
+    "suites": [],
+    "runtime": {
+      "node": "v24.14.0",
+      "vite": "8.0.16",
+      "vinext": "1.0.0-beta.5",
+      "wrangler": "4.92.0",
+      "miniflare": "4.20260515.0"
+    },
+    "isolation": {
+      "fixtureAdapter": "exact local Wrangler DB commands via native SQLite preload",
+      "database": "runner-owned scratch only",
+      "generatedCredentialsRemoved": true,
+      "ownedProcessGroupsRemaining": 0
+    },
+    "migrations": [
+      "0000_spicy_the_watchers",
+      "0001_calm_mister_fear",
+      "0002_fancy_master_mold",
+      "0003_confused_wolfsbane",
+      "0004_odd_blackheart",
+      "0005_tired_jocasta",
+      "0006_handy_polaris",
+      "0007_nappy_red_wolf",
+      "0008_foamy_sersi",
+      "0009_bouncy_lilith",
+      "0010_red_piledriver",
+      "0011_curly_chameleon",
+      "0012_military_invisible_woman",
+      "0013_amazing_ozymandias",
+      "0014_burly_firedrake"
+    ],
+    "recovery": {
+      "steps": [
+        "seed",
+        "restored",
+        "reconcile",
+        "settled"
+      ],
+      "rollbackRevision": "4e859916f03ca88a4bc8a3ab2d7244a8de1fe100",
+      "chainBoundary": "controlled finalized receipt; no broadcasting"
+    },
+    "status": "failed",
+    "error": "Earlier-source preview startup failed; no hosted target was restored.",
+    "finishedAt": "2026-10-02T06:23:01.885Z"
+  },
+  {
+    "version": 1,
+    "startedAt": "2026-10-02T06:23:32.295Z",
+    "mode": "restore-drill",
+    "origin": "http://127.0.0.1:3003",
+    "coordinatorOrigin": "http://127.0.0.1:3004",
+    "suites": [],
+    "runtime": {
+      "node": "v24.14.0",
+      "vite": "8.0.16",
+      "vinext": "1.0.0-beta.5",
+      "wrangler": "4.92.0",
+      "miniflare": "4.20260515.0"
+    },
+    "isolation": {
+      "fixtureAdapter": "exact local Wrangler DB commands via native SQLite preload",
+      "database": "runner-owned scratch only",
+      "generatedCredentialsRemoved": true,
+      "ownedProcessGroupsRemaining": 0
+    },
+    "migrations": [
+      "0000_spicy_the_watchers",
+      "0001_calm_mister_fear",
+      "0002_fancy_master_mold",
+      "0003_confused_wolfsbane",
+      "0004_odd_blackheart",
+      "0005_tired_jocasta",
+      "0006_handy_polaris",
+      "0007_nappy_red_wolf",
+      "0008_foamy_sersi",
+      "0009_bouncy_lilith",
+      "0010_red_piledriver",
+      "0011_curly_chameleon",
+      "0012_military_invisible_woman",
+      "0013_amazing_ozymandias",
+      "0014_burly_firedrake"
+    ],
+    "recovery": {
+      "steps": [
+        "seed",
+        "restored",
+        "reconcile",
+        "settled",
+        "settled",
+        "rollback-write",
+        "settled"
+      ],
+      "rollbackRevision": "4e859916f03ca88a4bc8a3ab2d7244a8de1fe100",
+      "chainBoundary": "controlled finalized receipt; no broadcasting"
+    },
+    "status": "passed",
+    "finishedAt": "2026-10-02T06:23:50.418Z"
+  }
+]

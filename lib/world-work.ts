@@ -145,8 +145,8 @@ export function worldWork(
       kind: 'bonus',
       phase: ready ? 'ready' : 'running',
       caption: ready
-        ? 'Bonus ready · open'
-        : `Bonus · ${remaining(run.readyAt, now)}`,
+        ? `${f.productionVersion === 3 ? 'Batch' : 'Bonus'} ready · open`
+        : `${f.productionVersion === 3 ? 'Batch' : 'Bonus'} · ${remaining(run.readyAt, now)}`,
       progress: ready ? 1 : null,
       panel: 'compute',
     });

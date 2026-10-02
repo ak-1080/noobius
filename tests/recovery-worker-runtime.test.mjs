@@ -81,7 +81,12 @@ after(() => {
 
 async function fixture(
   t,
-  { recorded = false, finalized = true, history = false } = {},
+  {
+    recorded = false,
+    finalized = true,
+    history = false,
+    maintenance = false,
+  } = {},
 ) {
   const [buyer, seller, signer, mint] = await Promise.all([
     generateKeyPairSigner(),
@@ -101,6 +106,7 @@ async function fixture(
     publicBytes,
   ]).toString('base64');
   const bindings = {
+    NOOBIUS_MAINTENANCE: maintenance ? 'true' : 'false',
     NOOBIUS_TOKEN_ECOSYSTEM: 'solana',
     NOOBIUS_SOLANA_NETWORK: 'devnet',
     NOOBIUS_TOKEN_MINT: mint.address,
@@ -342,6 +348,23 @@ async function fixture(
     ).credits;
   return { db, buyer, seller, quote, listingId, state, schedule, credits };
 }
+
+void test(
+  'maintenance pauses the deployed recovery runtime without touching payment state or RPC',
+  { timeout: 60000 },
+  async (t) => {
+    const f = await fixture(t, { maintenance: true });
+    const before = await getComputePayment(f.db, f.quote.quoteId);
+    const listing = await getComputeListing(f.db, f.listingId);
+    await f.schedule();
+    assert.deepEqual(await getComputePayment(f.db, f.quote.quoteId), before);
+    assert.deepEqual(await getComputeListing(f.db, f.listingId), listing);
+    assert.deepEqual(f.state.calls, []);
+    assert.deepEqual(f.state.sent, []);
+    assert.equal(await f.credits(f.buyer), 1000);
+    assert.equal(await f.credits(f.seller), 750);
+  },
+);
 
 void test(
   'standalone scheduled workerd settles a finalized durable payment exactly once without a signing key',

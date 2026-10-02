@@ -7508,6 +7508,25 @@ a {
   font-size: 13px;
   color: #d7eac2;
 }
+.signup-check {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.signup-check h3,
+.signup-check p { margin: 0; }
+.signup-check p { line-height: 1.5; color: var(--muted); }
+.signup-check [role='alert'] { color: #ffc4af; }
+.signup-check-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.signup-check-actions button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #46646a;
+  border-radius: 12px;
+  background: #183038;
+  color: #edf2e7;
+  cursor: pointer;
+}
 @media (max-width: 480px) {
   .noobius-modal.game-panel-shell.wallet-modal {
     padding: 22px 18px;
