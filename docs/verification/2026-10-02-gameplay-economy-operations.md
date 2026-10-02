@@ -36,6 +36,10 @@ Cloudflare notification-policy access returned HTTP 403/code 10000. Alert recipi
 
 ## Validation record
 
+[PR #21](https://github.com/ak-1080/noobius/pull/21) merged at `5742906412ca5ed2589d69eb0b2d721ce865af48`. [CI run 36973906447](https://github.com/ak-1080/noobius/actions/runs/36973906447) passed both Node 22/24 test/build jobs, ordinary isolated integration and the dedicated signup/maintenance/recovery job. The squash merge's source tree exactly matches tested head `3957a829dcdb28df6c313274300b639779c662a9`.
+
+[Standard staging deploy and hosted smoke](https://github.com/ak-1080/noobius/actions/runs/36974704980) passed. Staging game version `98582b95-361a-40cc-aece-49d8ae2f5e8e`, rooms `07da66ee-6f2c-4a45-8800-9aadd106818c`, recovery `c509de2e-e2fc-46a3-85fa-fadbc187dd1c`. Payments remain disabled, signup protection remains off pending real widget access, and maintenance is not enabled for normal play. Production and the public cap remain unchanged.
+
 Local game/rule tests: 597 passed. TypeScript, production build and all three tooling checks passed. [All thirteen ordinary isolated API suites plus enabled-signup and maintenance suites passed](2026-10-02-isolated-acceptance.json), including five-minute room renewal and moderation. The restored-save compatible rollback/forward drill passed. CI repeats new-wallet protection, maintenance and recovery against a previous source revision in a credential-free local job. The normal-gameplay repeat is recorded separately.
 
 The independently executable code, inspection and local drill work is covered here. Live Turnstile activation, alert delivery, staffed moderation, human/mobile acceptance, real-token launch and reliable higher capacity remain separate release gates.
