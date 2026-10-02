@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "environment": "isolated devnet staging",
+  "beganAt": "2026-10-02T05:55:37.644Z",
+  "finishedAt": "2026-10-02T05:55:41.359Z",
+  "balances": [
+    {
+      "saved_accounts": 1545,
+      "spendable_compute": 11117
+    }
+  ],
+  "escrow": [
+    {
+      "status": "cancelled",
+      "offers": 1,
+      "compute": 250
+    },
+    {
+      "status": "open",
+      "offers": 1,
+      "compute": 1
+    },
+    {
+      "status": "sold",
+      "offers": 4,
+      "compute": 1000
+    }
+  ],
+  "payments": [
+    {
+      "status": "expired",
+      "checkouts": 1
+    },
+    {
+      "status": "settled",
+      "checkouts": 4
+    }
+  ],
+  "allowanceCharges24h": [
+    {
+      "source": "contract-start",
+      "actions": 20,
+      "booked_compute_allowance": 1008,
+      "charged_material_points": 0
+    },
+    {
+      "source": "gather",
+      "actions": 26,
+      "booked_compute_allowance": 0,
+      "charged_material_points": 162
+    }
+  ],
+  "signup24h": [
+    {
+      "new_accounts": 13,
+      "enrolled_pools": 13
+    }
+  ],
+  "sharedPools": [
+    {
+      "pools_with_multiple_wallets": 2
+    }
+  ],
+  "limits": [
+    "Sequential snapshots are not one atomic observation.",
+    "Staging includes generated QA balances; this is not organic player activity.",
+    "Allowance charges include promised work, not only collected payouts.",
+    "No complete historical spend ledger exists; balance deltas are not gross issuance or spending.",
+    "Sold-offer Compute is transferred, not minted."
+  ]
+}

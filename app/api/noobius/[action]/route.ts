@@ -5,6 +5,7 @@ import { FacilityError } from '@/lib/facility';
 import { ApiError, handleGame } from '@/lib/server';
 import { EarningError } from '@/lib/earning-server';
 import { databaseQuotaResponse } from '@/lib/service-unavailable';
+import { SignupProtectionError } from '@/lib/signup-protection';
 export const dynamic = 'force-dynamic';
 async function respond(
   request: Request,
@@ -20,6 +21,7 @@ async function respond(
     }
     if (
       error instanceof ApiError ||
+      error instanceof SignupProtectionError ||
       error instanceof EarningError ||
       error instanceof ComputeMarketError ||
       error instanceof NeighborhoodError ||

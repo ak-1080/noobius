@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { ArrowLeft, ArrowUpRight, LoaderCircle } from 'lucide-react';
+import SignupCheck from './SignupCheck';
+import type { ComponentProps } from 'react';
 import {
   WALLET_CATALOG,
   supportedWalletOptions,
@@ -28,6 +30,7 @@ export default function WalletPicker({
   busy,
   error,
   isPractice,
+  signupCheck,
   onConnect,
   onBackToGame,
 }: {
@@ -35,6 +38,7 @@ export default function WalletPicker({
   busy: boolean;
   error: string;
   isPractice: boolean;
+  signupCheck?: ComponentProps<typeof SignupCheck>['check'] | null;
   onConnect: (option: WalletOption) => Promise<unknown>;
   onBackToGame: () => void;
 }) {
@@ -56,6 +60,7 @@ export default function WalletPicker({
       (option) => walletBrand(option.name) === wallet.id,
     ),
   }));
+  if (signupCheck) return <SignupCheck check={signupCheck} />;
   return (
     <div className="wallet-picker">
       {selected ? (

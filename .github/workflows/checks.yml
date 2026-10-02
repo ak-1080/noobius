@@ -75,3 +75,32 @@ jobs:
         run: npm run test:release-api
       - name: Check tracked source stayed unchanged
         run: git diff --exit-code
+
+  recovery:
+    name: Signup, maintenance and compatible recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Check out source and previous revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install the locked dependency tree
+        run: npm ci --no-audit --no-fund
+      - name: Reject invalid new-wallet proofs and preserve returning saves
+        run: npm run test:signup-api
+      - name: Fence writes during maintenance
+        run: npm run test:maintenance-api
+      - name: Restore saves and reconcile once across compatible rollback
+        run: npm run test:recovery-drill -- --rollback-ref HEAD^
+      - name: Check tracked source stayed unchanged
+        run: git diff --exit-code

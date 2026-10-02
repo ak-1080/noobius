@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Owns every writable path and process it creates. Never uses ordinary saves,
 // deployed bindings, existing credentials, or a caller-provided test origin.
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
   appendFileSync,
@@ -9,6 +9,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -18,8 +19,10 @@ import {
 } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { tmpdir } from 'node:os';
+import { DatabaseSync, backup } from 'node:sqlite';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { privateKeyToAccount } from 'viem/accounts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const suites = [
@@ -29,29 +32,46 @@ const suites = [
   'batch-api',
   'client-demand-api',
   'earning-policy-api',
+  'signup-protection-api',
+  'maintenance-api',
   'facility-api',
   'multiplayer-api',
   'realm-progression-api',
   'commissions-api',
   'room-auth-api',
   'room-coordinator-api',
+  'moderation-api',
 ];
 const args = process.argv.slice(2);
 let serve = false;
+let restoreDrill = false;
+let rollbackRef = 'HEAD';
 const selected = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--serve') serve = true;
+  else if (args[i] === '--restore-drill') restoreDrill = true;
+  else if (args[i] === '--rollback-ref' && args[i + 1]) rollbackRef = args[++i];
   else if (args[i] === '--suite' && suites.includes(args[i + 1]))
     selected.push(args[++i]);
   else if (args[i] === '--help') {
     console.log(
-      'Usage: node scripts/release-api-tests.mjs [--serve | --suite NAME ...]\nSuites: ' +
+      'Usage: node scripts/release-api-tests.mjs [--serve | --restore-drill | --suite NAME ...]\nSuites: ' +
         suites.join(', '),
     );
     process.exit(0);
   } else throw new Error('Unknown release-test argument: ' + args[i]);
 }
 if (serve && selected.length) throw new Error('--serve does not run suites.');
+if (restoreDrill && (serve || selected.length))
+  throw new Error('Run restore drill alone.');
+if (!restoreDrill && rollbackRef !== 'HEAD')
+  throw new Error('--rollback-ref requires --restore-drill.');
+// This suite requires enabled protection; ordinary login suites deliberately
+// use an unconfigured local app. Run it separately rather than weaken checks.
+if (selected.includes('signup-protection-api') && selected.length !== 1)
+  throw new Error('Run signup-protection-api as a separate isolated suite.');
+if (selected.includes('maintenance-api') && selected.length !== 1)
+  throw new Error('Run maintenance-api as a separate isolated suite.');
 if (!existsSync(path.join(repo, 'node_modules/.bin/vite')))
   throw new Error('Install the checked-in dependencies with npm ci first.');
 if (typeof DatabaseSync.prototype.setAuthorizer !== 'function')
@@ -64,11 +84,12 @@ const roomOrigin = 'http://127.0.0.1:3004';
 const scratch = path.join(repo, '.wrangler/release-qa', randomUUID());
 const processes = new Set();
 const processGroups = new Map();
+let rollbackSource;
 const secret = randomBytes(32).toString('hex');
 const report = {
   version: 1,
   startedAt: new Date().toISOString(),
-  mode: serve ? 'serve' : 'tests',
+  mode: serve ? 'serve' : restoreDrill ? 'restore-drill' : 'tests',
   origin,
   coordinatorOrigin: roomOrigin,
   scratch,
@@ -278,6 +299,7 @@ function stop() {
         '.wrangler/room-auth-qa.json',
         'browser-fixture.json',
         'browser-fixture.json.tmp',
+        'restore-fixture.json',
       ];
       for (const file of files) {
         try {
@@ -360,11 +382,11 @@ childProcess.execFileSync=function(file,args=[],options={}) {
     if(flag==='--local') local=true;
     else if(flag==='--json') {}
     else if(flag==='--config') {config=command[++i]; if(config!=='.openai/wrangler.local.json') throw Error('Fixture bridge refuses unknown config.');}
-    else if(flag==='--persist-to') {persist=command[++i]; if(!['.wrangler/qa-dispatch','.wrangler/state'].includes(persist)) throw Error('Fixture bridge refuses unknown persist path.');}
+    else if(flag==='--persist-to') {persist=command[++i]; if(!['.wrangler/qa-dispatch','.wrangler/qa-moderation','.wrangler/state'].includes(persist)) throw Error('Fixture bridge refuses unknown persist path.');}
     else if(flag==='--command') sql=command[++i];
     else throw Error('Fixture bridge refuses unknown Wrangler option: '+flag);
   }
-  if(!local||config!=='.openai/wrangler.local.json'||!['.wrangler/qa-dispatch','.wrangler/state'].includes(persist)||typeof sql!=='string'||options.cwd&&realpathSync(options.cwd)!==realpathSync(root)) throw Error('Fixture bridge refuses non-isolated D1 invocation.');
+  if(!local||config!=='.openai/wrangler.local.json'||!['.wrangler/qa-dispatch','.wrangler/qa-moderation','.wrangler/state'].includes(persist)||typeof sql!=='string'||options.cwd&&realpathSync(options.cwd)!==realpathSync(root)) throw Error('Fixture bridge refuses non-isolated D1 invocation.');
   const directory=path.join(root,persist,'v3/d1/miniflare-D1DatabaseObject');
   const files=readdirSync(directory).filter(name=>/^[a-f0-9]{64}\\.sqlite$/.test(name));
   if(files.length!==1) throw Error('Fixture bridge needs one isolated D1 file.');
@@ -398,6 +420,13 @@ async function waitReady(url, worker) {
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
       if (response.status < 500) return;
+      if (
+        selected.includes('maintenance-api') &&
+        url === origin + '/api/noobius/profile' &&
+        response.status === 503 &&
+        (await response.json()).code === 'MAINTENANCE'
+      )
+        return;
     } catch {}
     await delay(250);
   }
@@ -447,6 +476,7 @@ syncBuiltinESMExports();
     JSON.stringify({ private: true, type: 'module' }),
   );
   symlinkSync('state', path.join(scratch, '.wrangler/qa-dispatch'));
+  symlinkSync('state', path.join(scratch, '.wrangler/qa-moderation'));
   const roomAuth = {
     audience: origin,
     coordinatorOrigin: roomOrigin,
@@ -459,7 +489,20 @@ syncBuiltinESMExports();
     NOOBIUS_ROOM_AUTH_CONFIG: JSON.stringify(roomAuth),
     LOCAL_ROOM_DEVELOPMENT: 'true',
     NOOBIUS_LOCAL_REALM_TEST: 'true',
-    NOOBIUS_ENABLE_ITEM_MARKET: 'true',
+    NOOBIUS_ENABLE_ITEM_MARKET: serve ? 'false' : 'true',
+    NOOBIUS_MODERATOR_WALLETS: privateKeyToAccount(
+      '0x' + '11'.repeat(32),
+    ).address.toLowerCase(),
+    ...(selected.includes('maintenance-api')
+      ? { NOOBIUS_MAINTENANCE: 'true' }
+      : {}),
+    ...(selected.includes('signup-protection-api')
+      ? {
+          NOOBIUS_SIGNUP_PROTECTION: 'turnstile',
+          NOOBIUS_TURNSTILE_SITE_KEY: '0xQaPublicKey123456',
+          NOOBIUS_TURNSTILE_SECRET_KEY: '0xQaPrivateKey123456',
+        }
+      : {}),
   };
   const gameConfig = {
     name: 'noobius-release-qa',
@@ -552,12 +595,12 @@ syncBuiltinESMExports();
     throw new Error('Canonical migrations failed; inspect ' + migration.log);
   const fixture = path.join(scratch, 'fixture-preload.mjs');
   writeFileSync(fixture, fixturePreload());
-  const game = launch('game', path.join(repo, 'node_modules/.bin/vite'), [
+  let game = launch('game', path.join(repo, 'node_modules/.bin/vite'), [
     '--config',
     path.join(repo, 'scripts/release-vite.config.mjs'),
   ]);
   await waitReady(origin + '/api/noobius/profile', game);
-  const room = launch('room', path.join(repo, 'node_modules/.bin/wrangler'), [
+  let room = launch('room', path.join(repo, 'node_modules/.bin/wrangler'), [
     'dev',
     '--local',
     '--config',
@@ -573,7 +616,125 @@ syncBuiltinESMExports();
   ]);
   await waitReady(roomOrigin + '/', room);
   resetFixtures(tables);
-  if (serve) {
+  if (restoreDrill) {
+    const file = databasePath(),
+      snapshot = path.join(scratch, 'recovery-snapshot.sqlite');
+    report.recovery = {
+      steps: [],
+      rollbackRevision: execFileSync(
+        'git',
+        ['rev-parse', '--verify', rollbackRef + '^{commit}'],
+        {
+          cwd: repo,
+          encoding: 'utf8',
+        },
+      ).trim(),
+      chainBoundary: 'controlled finalized receipt; no broadcasting',
+    };
+    const phase = async (name) => {
+      const worker = launch(
+        'restore-' + name,
+        process.execPath,
+        [path.join(repo, 'tests/recovery-cutover.mjs'), name],
+        60000,
+        { NOOBIUS_RESTORE_DATABASE_PATH: file },
+      );
+      if ((await worker.done).code !== 0)
+        throw Error(
+          'Restore drill failed at ' + name + '; inspect ' + worker.log,
+        );
+      report.recovery.steps.push(name);
+      writeReport();
+    };
+    const halt = async (worker) => {
+      killGroup(worker.child, 'SIGTERM');
+      const until = Date.now() + 5000;
+      while (processGroups.has(worker.child.pid) && Date.now() < until) {
+        aliveGroups();
+        await delay(50);
+      }
+      if (processGroups.has(worker.child.pid)) {
+        killGroup(worker.child, 'SIGKILL');
+        await delay(100);
+        aliveGroups();
+      }
+      if (processGroups.has(worker.child.pid))
+        throw Error('Owned worker did not stop; restore refused.');
+    };
+    const startGame = async (name) => {
+      game = launch(name, path.join(repo, 'node_modules/.bin/vite'), [
+        '--config',
+        path.join(repo, 'scripts/release-vite.config.mjs'),
+      ]);
+      await waitReady(origin + '/api/noobius/profile', game);
+    };
+    await phase('seed');
+    const db = new DatabaseSync(file);
+    try {
+      await backup(db, snapshot);
+    } finally {
+      db.close();
+    }
+    chmodSync(snapshot, 0o600);
+    await halt(room);
+    await halt(game);
+    // Damage and replace only this runner's disposable stopped database. The
+    // real restore procedure must first pause/drain writes and reconcile chain
+    // receipts newer than the snapshot; a database rollback is not a refund.
+    const damaged = new DatabaseSync(file);
+    damaged.exec('UPDATE players SET credits=0,facility_state=NULL;');
+    damaged.close();
+    for (const suffix of ['-wal', '-shm'])
+      rmSync(file + suffix, { force: true });
+    copyFileSync(snapshot, file);
+    await startGame('game-restored');
+    await phase('restored');
+    await phase('reconcile');
+    await phase('settled');
+    await halt(game);
+    // Cloudflare correctly denies serving .wrangler contents. Keep source-only
+    // archive outside that private directory; never weaken its deny rules.
+    const previous = mkdtempSync(path.join(tmpdir(), 'noobius-rollback-'));
+    rollbackSource = previous;
+    chmodSync(previous, 0o700);
+    symlinkSync(
+      path.join(repo, 'node_modules'),
+      path.join(previous, 'node_modules'),
+    );
+    const sourceEntries = [
+      'app',
+      'components',
+      'lib',
+      'db',
+      'hooks',
+      'tsconfig.json',
+      'next.config.ts',
+      'vite-env.d.ts',
+    ];
+    const archive = execFileSync(
+      'git',
+      ['archive', report.recovery.rollbackRevision, ...sourceEntries],
+      { cwd: repo, maxBuffer: 32 * 1024 * 1024 },
+    );
+    execFileSync('tar', ['-x', '-C', previous], { input: archive });
+    for (const entry of sourceEntries) {
+      rmSync(path.join(scratch, entry));
+      symlinkSync(path.join(previous, entry), path.join(scratch, entry));
+    }
+    await startGame('game-compatible-rollback');
+    await phase('settled');
+    await phase('rollback-write');
+    await halt(game);
+    for (const entry of sourceEntries) {
+      rmSync(path.join(scratch, entry), { recursive: true });
+      symlinkSync(path.join(repo, entry), path.join(scratch, entry));
+    }
+    await startGame('game-forward-recovery');
+    await phase('settled');
+    report.status = 'passed';
+    writeReport();
+    console.log('Restore/cutover/compatible rollback/forward recovery: passed');
+  } else if (serve) {
     console.log('Game: ' + origin + '\nScratch: ' + scratch);
     while (!interrupted) {
       if (game.child.exitCode !== null || room.child.exitCode !== null)
@@ -583,7 +744,12 @@ syncBuiltinESMExports();
     report.status = 'stopped';
   } else {
     console.log('Isolated release API QA: ' + scratch);
-    for (const suite of selected.length ? selected : suites) {
+    for (const suite of selected.length
+      ? selected
+      : suites.filter(
+          (name) =>
+            !['signup-protection-api', 'maintenance-api'].includes(name),
+        )) {
       if (interrupted) break;
       resetFixtures(tables);
       const started = Date.now();
@@ -643,4 +809,5 @@ syncBuiltinESMExports();
     }
     console.log('Release QA report: ' + reportFile);
   }
+  if (rollbackSource) rmSync(rollbackSource, { recursive: true, force: true });
 }

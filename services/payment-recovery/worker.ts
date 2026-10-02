@@ -1,8 +1,18 @@
 import { recoverComputePayments } from '../../lib/compute-payment-recovery.ts';
 import { paymentRecoveryConfiguration } from '../../lib/compute-market-api.ts';
+import { runtimeControls } from '../../lib/operations.ts';
 type Env = Record<string, unknown> & { DB: D1Database };
 const worker = {
   async scheduled(_controller: ScheduledController, env: Env) {
+    if (runtimeControls(env).maintenance) {
+      console.log(
+        JSON.stringify({
+          event: 'compute-payment-recovery-paused',
+          reason: 'maintenance',
+        }),
+      );
+      return;
+    }
     const errorStages: Record<string, number> = {};
     const errorCategories: Record<string, number> = {};
     const counts = await recoverComputePayments(

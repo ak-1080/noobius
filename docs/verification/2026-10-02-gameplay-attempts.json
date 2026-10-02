@@ -1,0 +1,36 @@
+[
+  {
+    "origin": "http://127.0.0.1:3003",
+    "beganAt": "2026-10-02T05:50:03.771Z",
+    "checks": [
+      "Three independent players completed 2 repair round(s) each; replayed claims paid once and new jobs appeared",
+      "A supplied machine batch pays once and unattended time starts no new batch",
+      "Visitor sees the center but cannot read private inventory or harvest its income"
+    ],
+    "actors": 3,
+    "repairRoundsPerActor": 2,
+    "clientDemandChecked": true,
+    "earningPolicyChecked": false,
+    "roomInterruption": "none",
+    "ok": false,
+    "failure": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   200,\n+   409,\n+   409\n-   403,\n-   403,\n-   403\n  ]\n",
+    "cleanupFailures": [],
+    "elapsedMs": 104050,
+    "completedAt": "2026-10-02T05:51:47.821Z"
+  },
+  {
+    "origin": "http://127.0.0.1:3003",
+    "beganAt": "2026-10-02T06:24:27.380Z",
+    "checks": [],
+    "actors": 3,
+    "repairRoundsPerActor": 2,
+    "clientDemandChecked": true,
+    "earningPolicyChecked": false,
+    "roomInterruption": "none",
+    "ok": false,
+    "failure": "fetch failed",
+    "cleanupFailures": [],
+    "elapsedMs": 10,
+    "completedAt": "2026-10-02T06:24:27.390Z"
+  }
+]

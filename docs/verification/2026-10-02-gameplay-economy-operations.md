@@ -1,0 +1,41 @@
+# October 2 independent gameplay, economy and operations verification
+
+Scope: handle the owner's items 1, 4 and 5 without recruiting testers: inspect fresh gameplay, audit earning abuse, and exercise recovery/operations. Capacity/load qualification and real-token release are excluded. Both scheduled checks remain paused. No production deployment, billing change, owner-wallet use, real money or message to another person occurred. Unrelated duplicate “ 2” files were preserved.
+
+## Gameplay inspection
+
+An isolated local guest named QA October completed name/appearance setup and the picture guide. Margo led to the machine station, but building still required the actual build action. The free starter created no idle balance. Walking through the door reached salvage; E collected five scrap, and an immediate repeated E did not pay again. A machine batch used two scrap, waited twenty seconds and paid eight Compute only on explicit collection. It did not automatically start another batch.
+
+The repair “Dust is not a cooling strategy” used three scrap once, required inspection, the correct cooling diagnosis, settling and a final test. A source reload interrupted the repair; continuing the local save restored its unfinished step without another material charge. Collecting showed +38 Compute, +15 reputation and one job report. The rotated offer was visible after completion. [Screenshot](images/2026-10-02-repair-complete.jpg).
+
+The inspection found a residual “Bonus” caption on active batches, changed to “Batch” in the current production-version-3 presentation. Legacy-save labels retain their legacy wording. This walkthrough proves the inspected agent path, not enjoyment, unguided human comprehension, physical-phone performance or a new extension-wallet checkout.
+
+## Economy and signup
+
+[Full route simulation](2026-10-02-economy-audit.json): seven idle days create zero Compute; buying NPC inputs for simple batches loses two/four/six Compute rather than creating a profitable buy-loop. Repeat client strategies stop at the shared twelve-booking/4,000-quoted-Compute rolling allowance. Starter and advanced strategies use different supply/time choices; profitable advanced work remains intentional and bounded. The broader audit covers gathering, diagnostics, story/daily rewards, recovery, crew/project rewards, supply/service jobs and legacy routes. Existing transaction guards and shared 6,000-Compute/600-material earning limits remain intact.
+
+Fresh browsers and networks still evade simple cookie linkage. Added optional Turnstile validation for new wallet enrollment: exact hostname, action and signed-login challenge; bounded token input; sanitized provider failure; existing-save reconnect exemption; single-use wallet challenge; no client flag override. Configuration and rejection/provider-response tests cover replay, mismatches, invalid input and outage. Hosted always-pass dummy keys are refused. This raises automated-signup cost when configured; it is not unique-human identity and cannot eliminate manual multi-wallet behavior or scripts inside allowances.
+
+The current Cloudflare OAuth login cannot manage a real widget: the documented account widget endpoint returned HTTP 403/code 10000. The guard is **not activated**. See [configuration and acceptance steps](../signup-protection.md).
+
+[Read-only staging snapshot](2026-10-02-staging-economy-snapshot.json) contains only aggregate counts: 1,545 saved profiles, 11,117 spendable Compute, one open offer, four sold offers and four settled/one expired checkout at observation time. This is generated-QA staging activity, not an organic economy. Allowance charges include booked work; sold Compute is a transfer, not minting. Sequential queries are not atomic, and no complete historical spend ledger exists. No reward tuning was inferred from these artificial balances.
+
+## Operations and evidence boundaries
+
+Admission pause did not freeze existing save/checkpoint writes. Added strict maintenance control before all game API side effects and room checkpoint ingress, uncached 503 health and a separately configured payment-recovery pause. API and actual scheduled-workerd tests verify the freeze. Existing in-flight invocations must still drain; neither control claims instant distributed quiescence.
+
+The private staging export was imported into isolated in-memory SQLite with [integrity and foreign-key checks](2026-10-02-backup-verification.json). All fifteen migrations were present. Table-order import initially needed foreign keys disabled while loading, then enabled and checked afterward; zero violations remained. Time Travel bookmark access succeeded. Export/download URLs, bookmarks and raw profile/receipt rows remain private under ignored `.wrangler/`; no hosted restore was performed.
+
+The [disposable recovery drill](2026-10-02-recovery-drill.json) passed after snapshotting generated profiles with inventory, skills, allowances, unfinished work and a recorded pending checkout. After damaging only its stopped local database, it restored the snapshot, checked profiles through HTTP and reconciled concurrent/repeated recovery against one controlled finalized receipt. It then ran compatible old source `4e859916f03ca88a4bc8a3ab2d7244a8de1fe100`, saved a new name, and verified forward recovery retained that change and the settled trade. The chain receipt is controlled; no transaction was broadcast. Initial rollback attempts were blocked by the dev tool's deliberate `.wrangler` file-serving denial; a later attempt needed the existing dependency tree linked into the source archive. The runner now archives source only into an owned temporary directory without weakening the private-directory deny rule. Failed and final reports are retained. This tests old source with the current compatible dependency tree, not arbitrary dependency downgrades.
+
+The maintenance suite initially timed out because its readiness probe assumed HTTP 503 meant not ready; it now explicitly recognizes the expected maintenance response. The [first normal-gameplay API attempt](2026-10-02-gameplay-attempts.json) found a test-fixture mismatch: the local runner had enabled the intentionally closed parts market. Interactive preview now uses the default closed market while parts-market unit fixtures remain explicit. A too-early launch before preview readiness was retried after the server became ready. The [final three-player repeat passed](2026-10-02-gameplay-acceptance.json) in 102 seconds: six repairs, explicit batch/replay checks, closed-market denial, visitor privacy, interrupted-socket recovery, durable relogin and client-demand persistence. All cleanup passed. These are generated local players; no blockchain transfer occurred. Failed attempts are harness findings, not evidence that production was restored or that payment failed.
+
+The actual moderation HTTP suite is included in normal isolated acceptance. It checks ordinary-player denial, configured reviewer access, concurrent decisions and replay rejection. No moderator was added to the hosted account. The [operating runbook](../operations/recovery-and-support.md) documents support triage, exact-receipt reconciliation, restore/rollback boundaries and remaining staffing/appeal gaps.
+
+Cloudflare notification-policy access returned HTTP 403/code 10000. Alert recipient configuration and actual delivery cannot be verified with this credential. Existing policies or a passing health probe are not delivery proof. No test message was sent.
+
+## Validation record
+
+Local game/rule tests: 597 passed. TypeScript, production build and all three tooling checks passed. [All thirteen ordinary isolated API suites plus enabled-signup and maintenance suites passed](2026-10-02-isolated-acceptance.json), including five-minute room renewal and moderation. The restored-save compatible rollback/forward drill passed. CI repeats new-wallet protection, maintenance and recovery against a previous source revision in a credential-free local job. The normal-gameplay repeat is recorded separately.
+
+The independently executable code, inspection and local drill work is covered here. Live Turnstile activation, alert delivery, staffed moderation, human/mobile acceptance, real-token launch and reliable higher capacity remain separate release gates.

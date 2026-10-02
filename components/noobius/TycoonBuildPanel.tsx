@@ -75,10 +75,16 @@ export default function TycoonBuildPanel({
           : client
             ? 'Processing a job'
             : bonusRunning
-              ? 'Running a bonus job'
+              ? f.productionVersion === 3
+                ? 'Running a machine batch'
+                : 'Running a bonus job'
               : bonus
-                ? 'Bonus results ready'
-                : f.productionVersion === 3 ? 'Ready for work' : 'Producing Compute';
+                ? f.productionVersion === 3
+                  ? 'Batch results ready'
+                  : 'Bonus results ready'
+                : f.productionVersion === 3
+                  ? 'Ready for work'
+                  : 'Producing Compute';
     return (
       <section
         className={`tycoon-machine ${selected === o.id ? 'is-selected' : ''}`}
@@ -108,7 +114,10 @@ export default function TycoonBuildPanel({
               </>
             ) : (
               <>
-                <Sparkles size={16} /> {f.productionVersion === 3 ? 'More client capacity' : `Adds ${gain} Compute / min`}
+                <Sparkles size={16} />{' '}
+                {f.productionVersion === 3
+                  ? 'More client capacity'
+                  : `Adds ${gain} Compute / min`}
               </>
             )}
           </p>
@@ -194,7 +203,10 @@ export default function TycoonBuildPanel({
           )}
           {level < 3 && balance < cost && (
             <small className="tycoon-short">
-              Need {cost - balance} more. {f.productionVersion === 3 ? 'Run batches or finish client work.' : 'Collect above.'}
+              Need {cost - balance} more.{' '}
+              {f.productionVersion === 3
+                ? 'Run batches or finish client work.'
+                : 'Collect above.'}
             </small>
           )}
         </div>
@@ -225,7 +237,11 @@ export default function TycoonBuildPanel({
             <h3>{f.productionVersion === 3 ? 'Faster machine batches' : 'More passive Compute'}</h3>
             <p>
               {f.productionVersion === 3 ? (
-                f.computeBoost >= 5 ? 'Your machine batches are at top speed.' : `New batches finish ${6 * (f.computeBoost + 1)}% faster after this upgrade.`
+                f.computeBoost >= 5 ? (
+                  'Your machine batches are at top speed.'
+                ) : (
+                  `New batches finish ${6 * (f.computeBoost + 1)}% faster after this upgrade.`
+                )
               ) : f.computeBoost >= 5 ? (
                 'Your whole data center is at top speed.'
               ) : (
@@ -281,7 +297,13 @@ export default function TycoonBuildPanel({
       </button>
       {modules(f) > 0 && (
         <button className="tycoon-extra-link" onClick={onExtra}>
-          <Sparkles size={20} /> {f.productionVersion === 3 ? 'Run a batch' : 'A little extra'} <span>{f.productionVersion === 3 ? 'Load recovered parts' : 'Try a bonus boost'}</span>
+          <Sparkles size={20} />{' '}
+          {f.productionVersion === 3 ? 'Run a batch' : 'A little extra'}{' '}
+          <span>
+            {f.productionVersion === 3
+              ? 'Load recovered parts'
+              : 'Try a bonus boost'}
+          </span>
           <ArrowRight size={18} />
         </button>
       )}
